@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v0.46", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v0.50", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -287,6 +287,9 @@ var array<label> mcLbl = array.new<label>()
 // كائنات عرض الدرجة الكبيرة (تُمسح وتُعاد كل تحديث في نهاية الشارت)
 var array<label> bigLbls  = array.new<label>()
 var array<line>  bigLines = array.new<line>()
+var line  bigLiqLine = na
+var line  bigLvlLine = na
+var int   largeDir   = 0    // اتجاه الدرجة الكبيرة من النقاط الزرقاء المنظّفة
 
 
 atrv = ta.atr(14)   // لقياس طول السهم بمعزل عن سعر الأداة
@@ -663,8 +666,8 @@ if showHoh and barstate.islast and hohLeft < histLeft
 
 // ============== فعالية الدرجة المتوسطة (تُحسب نهايةً حسب الفاصل) ==============
 // • داخل الموجة التاريخية (bar >= histLeft): كل النقاط فعّالة (برتقالية).
-// • في تاريخ التاريخ (bar < histLeft): النقطة المُغطّاة بنقطة لاحقة تتجاوزها (قمة أعلى/قاع أدنى) ⇒ حمراء.
-//   نطاق تاريخ التاريخ = موجة بطول مساوٍ للموجة التاريخية قبلها مباشرةً: [histLeft - wlen , histLeft - 1].
+// • قبلها: النقطة تصير حمراء فقط إذا غُطّيت بنقطة لاحقة تتجاوزها (قمة أعلى/قاع أدنى).
+//   القِدَم وحده لا يجعلها حمراء — أعلى قمة/أدنى قاع لم يُغطَّ يبقى برتقالياً (مرجع).
 if barstate.islast
     int mm = array.size(mcP)
     if mm > 0
@@ -672,7 +675,6 @@ if barstate.islast
             int   bi = array.get(mcBar, i)
             bool  effI = true
             if bi < histLeft
-                // نقطة تاريخ التاريخ: مُغطّاة؟ (نقطة لاحقة من نفس النوع تتجاوزها)
                 bool tp = array.get(mcTop, i)
                 float pv = array.get(mcP, i)
                 bool covered = false
@@ -681,7 +683,7 @@ if barstate.islast
                         if tp ? (array.get(mcP, j) > pv) : (array.get(mcP, j) < pv)
                             covered := true
                             break
-                effI := bi >= hohLeft and not covered
+                effI := not covered
             array.set(mcEff, i, effI)
             label li = array.get(mcLbl, i)
             if not na(li)
@@ -703,12 +705,14 @@ if showBig and barstate.islast
         array.clear(bigLines)
     // اجمع نقاط الكبيرة المرشّحة
     array<float> bcP   = array.new<float>()
+    array<float> bcLvl = array.new<float>()
     array<int>   bcBar = array.new<int>()
     array<bool>  bcTop = array.new<bool>()
     float minAmp = bigMinATR * atrv
     int   mcn    = array.size(mcP)
     int   bdir   = 0
     float extP   = na
+    float extLvl = na
     int   extB   = na
     int   legSw  = 0
     // Layer 3 يستعمل كل النقاط المتوسطة المؤكّدة بنيوياً (مستخرجة بالكسر) حيث bar <= histLeft،
@@ -716,22 +720,26 @@ if showBig and barstate.islast
     for i = 0 to mcn - 1
         if array.get(mcBar, i) <= histLeft
             float p = array.get(mcP, i)
+            float lv = array.get(mcLvl, i)
             int   b = array.get(mcBar, i)
             if bdir == 0
                 if na(extP)
                     extP := p
+                    extLvl := lv
                     extB := b
                 else
                     bdir := p > extP ? 1 : -1
                     legSw := 1
                     if (bdir == 1 and p > extP) or (bdir == -1 and p < extP)
                         extP := p
+                        extLvl := lv
                         extB := b
             else
                 legSw := legSw + 1
                 if bdir == 1
                     if p > extP
                         extP := p
+                        extLvl := lv
                         extB := b
                     else
                         bool okAmp  = bigMinATR <= 0 or (extP - p) >= minAmp
@@ -739,15 +747,18 @@ if showBig and barstate.islast
                         bool okSw   = legSw >= bigMinSwings
                         if okAmp and okBars and okSw
                             array.push(bcP, extP)
+                            array.push(bcLvl, extLvl)
                             array.push(bcBar, extB)
                             array.push(bcTop, true)
                             bdir := -1
                             extP := p
+                            extLvl := lv
                             extB := b
                             legSw := 1
                 else
                     if p < extP
                         extP := p
+                        extLvl := lv
                         extB := b
                     else
                         bool okAmp  = bigMinATR <= 0 or (p - extP) >= minAmp
@@ -755,32 +766,104 @@ if showBig and barstate.islast
                         bool okSw   = legSw >= bigMinSwings
                         if okAmp and okBars and okSw
                             array.push(bcP, extP)
+                            array.push(bcLvl, extLvl)
                             array.push(bcBar, extB)
                             array.push(bcTop, false)
                             bdir := 1
                             extP := p
+                            extLvl := lv
                             extB := b
                             legSw := 1
     // الامتداد الأخير المعلّق = نقطة زرقاء candidate أخيرة
     if not na(extP) and bdir != 0
         array.push(bcP, extP)
+        array.push(bcLvl, extLvl)
         array.push(bcBar, extB)
         array.push(bcTop, bdir == 1)
     // أبقِ آخر (bigLegs + 1) نقطة فقط
     int keep = bigLegs + 1
     while array.size(bcP) > keep
         array.shift(bcP)
+        array.shift(bcLvl)
         array.shift(bcBar)
         array.shift(bcTop)
-    // ارسم النقاط الزرقاء candidate + روابطها
-    int nb = array.size(bcP)
+    // اتجاه الكبيرة (bootstrap من ميل المرشّحات): آخر نقطة مقابل أولاها
+    int nb0 = array.size(bcP)
+    // اتجاه الموجة التاريخية = نوع نقطة الحدود المتوسطة عند/قبل histLeft:
+    //   قاع ⇒ صاعدة (1)، قمة ⇒ هابطة (-1). (لا من ميل المرشّحات ولا حركة السعر اللحظية)
+    int histDir = 0
+    int bbar = -1
+    float pinBP = na
+    float pinBL = na
+    int   pinBB = na
+    if mcn > 0
+        for i = 0 to mcn - 1
+            if array.get(mcBar, i) <= histLeft and array.get(mcBar, i) > bbar
+                bbar := array.get(mcBar, i)
+                histDir := array.get(mcTop, i) ? -1 : 1
+                pinBP := array.get(mcP, i)
+                pinBL := array.get(mcLvl, i)
+                pinBB := array.get(mcBar, i)
+    if histDir == 0
+        histDir := bigDir
+    largeDir := histDir
+    // تنظيف الزرقاء حسب اتجاه الموجة التاريخية (لا اتجاه كل leg):
+    //   صاعدة: التتابُع على القمم فقط (كل قمة أعلى)؛ القيعان بالفعالية (تُعتمد إذا صنع بعدها قمة أعلى).
+    //   هابطة: التتابُع على القيعان فقط؛ القمم بالفعالية (إذا صنع بعدها قاع أدنى).
+    array<float> kP   = array.new<float>()
+    array<float> kLvl = array.new<float>()
+    array<int>   kB   = array.new<int>()
+    array<bool>  kT   = array.new<bool>()
+    float lastSeq  = na   // آخر امتداد متتالٍ مُبقى (قمة صعوداً / قاع هبوطاً)
+    float pendEffP = na   // نقطة الفعالية المعلّقة (قاع صعوداً / قمة هبوطاً)
+    float pendEffL = na
+    int   pendEffB = na
+    if nb0 > 0
+        for i = 0 to nb0 - 1
+            float p  = array.get(bcP, i)
+            float lv = array.get(bcLvl, i)
+            int   b  = array.get(bcBar, i)
+            bool  tp = array.get(bcTop, i)
+            bool isSeq = (histDir == 1 and tp) or (histDir == -1 and not tp)
+            if isSeq
+                bool better = na(lastSeq) or (histDir == 1 ? p > lastSeq : p < lastSeq)
+                if better
+                    // امتداد متتالٍ صحيح ⇒ يُفعّل نقطة الفعالية المعلّقة قبله
+                    if not na(pendEffP)
+                        array.push(kP, pendEffP)
+                        array.push(kLvl, pendEffL)
+                        array.push(kB, pendEffB)
+                        array.push(kT, histDir != 1)   // عكس نوع التتابُع
+                        pendEffP := na
+                    array.push(kP, p)
+                    array.push(kLvl, lv)
+                    array.push(kB, b)
+                    array.push(kT, tp)
+                    lastSeq := p
+            else
+                // مرشّح فعالية: أبقِ الأكثر تطرّفاً (أدنى قاع صعوداً / أعلى قمة هبوطاً)
+                bool moreExt = na(pendEffP) or (histDir == 1 ? p < pendEffP : p > pendEffP)
+                if moreExt
+                    pendEffP := p
+                    pendEffL := lv
+                    pendEffB := b
+    // النقطة الزرقاء الحدودية المثبّتة عند histLeft (بداية الـleg الكبير النشط) — تُرسم دائماً.
+    //   صاعدة ⇒ قاع أزرق حدودي؛ هابطة ⇒ قمة زرقاء حدودية. لا تخضع لحذف الفعالية.
+    if not na(pinBP)
+        bool dup = array.size(kB) > 0 and array.get(kB, array.size(kB) - 1) == pinBB
+        if not dup
+            array.push(kP, pinBP)
+            array.push(kLvl, pinBL)
+            array.push(kB, pinBB)
+            array.push(kT, histDir == -1)
+    // ارسم النقاط الزرقاء الفعّالة (بعد التنظيف) + روابطها
+    int nb = array.size(kP)
     int prevBar = na
     float prevP = na
     if nb > 0
         for i = 0 to nb - 1
-            float p = array.get(bcP, i)
-            int   b = array.get(bcBar, i)
-            bool  tp = array.get(bcTop, i)
+            float p = array.get(kP, i)
+            int   b = array.get(kB, i)
             label lb = label.new(b, p, "", xloc = xloc.bar_index, yloc = yloc.price,
                  style = label.style_circle, color = cBig, size = size.normal)
             array.push(bigLbls, lb)
@@ -790,6 +873,46 @@ if showBig and barstate.islast
                 array.push(bigLines, ln)
             prevBar := b
             prevP := p
+    // خط السيولة الأزرق + مستوى الاتجاه الأزرق من آخر قمتين/قاعين
+    if not na(bigLiqLine)
+        line.delete(bigLiqLine)
+        bigLiqLine := na
+    if not na(bigLvlLine)
+        line.delete(bigLvlLine)
+        bigLvlLine := na
+    if showLiq or showLvl
+        // ابحث عن آخر قاعين وآخر قمتين بين المُبقاة
+        int b1 = na
+        int b2 = na
+        int t1 = na
+        int t2 = na
+        if nb > 0
+            for i = nb - 1 to 0
+                bool tp = array.get(kT, i)
+                if tp
+                    if na(t1)
+                        t1 := i
+                    else if na(t2)
+                        t2 := i
+                else
+                    if na(b1)
+                        b1 := i
+                    else if na(b2)
+                        b2 := i
+        if largeDir == 1 and showLiq and not na(b1) and not na(b2)
+            // سيولة صاعدة: تصل آخر قاعين (على الذيول)
+            bigLiqLine := line.new(array.get(kB, b2), array.get(kP, b2), array.get(kB, b1), array.get(kP, b1),
+                 xloc = xloc.bar_index, color = cLiqB, width = 2, extend = extend.right)
+        if largeDir == -1 and showLiq and not na(t1) and not na(t2)
+            bigLiqLine := line.new(array.get(kB, t2), array.get(kP, t2), array.get(kB, t1), array.get(kP, t1),
+                 xloc = xloc.bar_index, color = cLiqB, width = 2, extend = extend.right)
+        if largeDir == 1 and showLvl and not na(b1)
+            // مستوى الاتجاه الأزرق: أفقي عند جسم آخر قاع
+            bigLvlLine := line.new(array.get(kB, b1), array.get(kLvl, b1), bar_index, array.get(kLvl, b1),
+                 xloc = xloc.bar_index, color = cLvlB, width = 1, extend = extend.right)
+        if largeDir == -1 and showLvl and not na(t1)
+            bigLvlLine := line.new(array.get(kB, t1), array.get(kLvl, t1), bar_index, array.get(kLvl, t1),
+                 xloc = xloc.bar_index, color = cLvlB, width = 1, extend = extend.right)
 
 
     if array.size(dispBoxes) > 0
@@ -860,9 +983,10 @@ var table tbl = table.new(position.top_right, 2, 8, border_width = 1,
      border_color = color.new(color.gray, 60), frame_width = 1, frame_color = color.new(color.gray, 40))
 
 if showPanel and barstate.islast
-    bool bigUp = bigDir == 1
+    int  bigEff = largeDir != 0 ? largeDir : bigDir   // اتجاه الكبيرة الحقيقي (من الزرقاء) وإلا التقدير
+    bool bigUp = bigEff == 1
     bool medUp = pmed.dir == 1
-    bool bigDn = bigDir == -1
+    bool bigDn = bigEff == -1
     bool medDn = pmed.dir == -1
     // اتجاه الموجة التاريخية = اتجاه الدرجة الكبيرة
     string histDir = bigUp ? "صاعدة ▲" : bigDn ? "هابطة ▼" : "—"
@@ -893,7 +1017,7 @@ if showPanel and barstate.islast
     table.cell(tbl, 0, 6, "المتوسطة", text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
     table.cell(tbl, 1, 6, f_dir(pmed.dir) + " | " + f_state(pmed.dir), text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
     table.cell(tbl, 0, 7, "الكبيرة",  text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
-    table.cell(tbl, 1, 7, f_dir(bigDir) + " | " + f_state(bigDir), text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
+    table.cell(tbl, 1, 7, f_dir(bigEff) + " | " + f_state(bigEff), text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
 
 // ============================================================================
 //  القسم الأخير القادم:
