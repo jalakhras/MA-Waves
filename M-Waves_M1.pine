@@ -4,10 +4,11 @@
 //  Engine nucleus: القمم والقيعان للدرجات الثلاث + قاعدة الشمعتين + الكسر
 // ----------------------------------------------------------------------------
 //  المنهج:
-//   • الدرجة الصغيرة (أحمر/أخضر): تُكتشف بقاعدة «الشمعتين الصحيحتين» في التصحيح.
+//   • الدرجة الصغيرة (أحمر/أخضر): تُكتشف بقاعدة «الشمعتين الصحيحتين» في التصحيح،
+//     مع قانونَي التتابُع والفعالية (لا تُرسم النقطة إلا بعد تأكّدها).
 //   • الدرجة المتوسطة (برتقالي): تُشتق من الصغيرة «بالكسر» (قاعدة الاستراتيجية).
-//   • الدرجة الكبيرة (أزرق): تُشتق من المتوسطة بنفس آلية الكسر (تماماً كطريقة المتوسطة،
-//     لكن مصدرها المتوسطة لا الصغيرة).
+//   • الدرجة الكبيرة (أزرق): اتجاهها فقط = اتجاه ترند الموجة التاريخية (bigDir)؛
+//     أُزيل اشتقاقها بالكسر. بناء قمم/قيعان الكبيرة (آخر 7 موجات، §07) لاحقاً.
 //
 //  هذا إصدار أوّلي للتحقّق مقابل تحليلك اليدوي. الأجزاء التقديرية المتبقّية (اختيار
 //  الموجة التاريخية، والفريم) تُقارَب بمعاملات قابلة للضبط — لا تُطابَق 100%.
@@ -17,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v0.33", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300)
+indicator("M-Waves Engine v0.43", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -51,8 +52,7 @@ cLiqM = input.color(#C55A11, "سيولة المتوسطة", group = grpCol)
 cLvlM = input.color(color.new(#C55A11, 30), "مستوى المتوسطة", group = grpCol)
 cLiqB = input.color(#1F3A5F, "سيولة الكبيرة",  group = grpCol)
 cLvlB = input.color(color.new(#1F3A5F, 30), "مستوى الكبيرة", group = grpCol)
-cTentS = input.color(#9C27B0, "مؤقّت غير مؤكّد (صغيرة)", group = grpCol)
-cTentM = input.color(#E91E63, "مؤقّت غير مؤكّد (متوسطة)", group = grpCol)
+cMedDead = input.color(#C00000, "المتوسطة غير الفعّالة", group = grpCol)
 
 // ===== الموجة التاريخية =====
 grpHist   = "الموجة التاريخية"
@@ -61,6 +61,11 @@ useHistN  = input.bool(false, "تحديد الموجة بعدد الشموع (ب
      tooltip = "مفعّل: تُرسم الحدود على آخر «عدد الشموع». مطفأ: تُحدَّد تلقائياً من الدرجة الكبيرة.")
 histBars  = input.int(100, "عدد شموع الموجة التاريخية", minval = 1, group = grpHist)
 cHist     = input.color(color.new(#B8860B, 80), "لون الموجة التاريخية", group = grpHist)
+showHoh   = input.bool(true,  "إظهار حدود تاريخ التاريخ", group = grpHist)
+useHohN   = input.bool(false, "تحديد تاريخ التاريخ بعدد الشموع (بدل التلقائي)", group = grpHist,
+     tooltip = "مفعّل: يأخذ «عدد شموع تاريخ التاريخ». مطفأ: بطول مساوٍ للموجة التاريخية قبلها مباشرةً.")
+hohBars   = input.int(100, "عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
+cHoh      = input.color(color.new(#808080, 88), "لون تاريخ التاريخ", group = grpHist)
 
 // ===== خطوط السيولة ومستويات الاتجاه =====
 grpLiq  = "السيولة والمستويات"
@@ -242,25 +247,14 @@ var int   curLoBar  = na
 var int   curLoTime = na
 var int   corr      = 0      // عدّاد شموع التصحيح الصحيحة
 var float corrRef   = na     // مرجع تدرّج التصحيح (أدنى/أعلى آخر شمعة مُحتسبة)
+var float corrPrevBHi = na   // أعلى جسم آخر شمعة تصحيح مُحتسبة (لفحص الابتلاع)
+var float corrPrevBLo = na   // أسفل جسمها
 
 var Proc pmed = Proc.new()  // معالج المتوسطة (يُغذّى بالصغيرة)
-var Proc pbig = Proc.new()  // معالج الكبيرة (يُغذّى بالمتوسطة)
 
 var DegMem memS = DegMem.new()  // ذاكرة الصغيرة
 var DegMem memM = DegMem.new()  // ذاكرة المتوسطة
-var DegMem memB = DegMem.new()  // ذاكرة الكبيرة
 
-// مستويات الدرجة المتوسطة (على الأجسام) لبناء المناطق
-var array<float> zlP  = array.new<float>()   // قيمة «خط المستوى» (للتقارب): قمة=أعلى الجسم، قاع=أسفل الجسم
-var array<float> zlHi = array.new<float>()   // أعلى جسم النقطة
-var array<float> zlLo = array.new<float>()   // أسفل جسم النقطة
-var array<int>   zlB  = array.new<int>()      // الشمعة (لمقارنة نطاق الموجة)
-var array<int>   zlTm = array.new<int>()      // الوقت (للرسم بإحداثيات زمنية)
-// بيانات المناطق المخزّنة (لرسم الأقرب للسعر فقط)
-var array<float> zTopA  = array.new<float>()
-var array<float> zBotA  = array.new<float>()
-var array<int>   zLeftT = array.new<int>()   // وقت الطرف الأيسر للمنطقة
-var array<int>   zAnchor = array.new<int>()  // شمعة إنشاء المنطقة (نقطتها في الموجة الحالية)
 var array<box>   dispBoxes = array.new<box>()   // الصناديق المعروضة حالياً (٦ كحدّ أقصى)
 
 // لربط النقاط بخطوط
@@ -268,9 +262,18 @@ var float lastSmallP   = na
 var int   lastSmallBar = na
 var float lastMedP     = na
 var int   lastMedBar   = na
-// لتتبّع آخر القمم/القيعان الكبيرة (لتحديد الموجة التاريخية تلقائياً)
-var int   lastBigBar   = na
-var int   prevBigBar   = na
+var array<int> medBars = array.new<int>()   // شمع آخر النقاط المتوسطة (لطول الموجة التلقائي)
+// مخزن دوائر المتوسطة (للفعالية: برتقالية فعّالة ← حمراء عند تغطيتها)
+var array<float> mcP   = array.new<float>()   // سعر النقطة (الذيل)
+var array<float> mcLvl = array.new<float>()   // قيمة المستوى (الجسم) للمناطق
+var array<float> mcHi  = array.new<float>()   // أعلى الجسم
+var array<float> mcLo  = array.new<float>()   // أسفل الجسم
+var array<int>   mcBar = array.new<int>()
+var array<int>   mcTm  = array.new<int>()
+var array<bool>  mcTop = array.new<bool>()
+var array<bool>  mcEff = array.new<bool>()    // فعّالة؟
+var array<label> mcLbl = array.new<label>()
+
 
 atrv = ta.atr(14)   // لقياس طول السهم بمعزل عن سعر الأداة
 
@@ -322,27 +325,31 @@ storeSArrow(bool isTop, float px, int bar, color colA, int lastType) =>
     array.push(sArrB, bar)
     isTop ? 1 : -1
 
-// يحذف الأسهم الصغيرة الواقعة (حصرياً) بين شمعتين — لتنظيف التصحيح المتوسط
-eraseSmallBetween(int b1, int b2) =>
-    int lo = math.min(b1, b2)
-    int hi = math.max(b1, b2)
-    if array.size(sArr) > 0
-        for k = array.size(sArr) - 1 to 0
-            int bk = array.get(sArrB, k)
-            if bk > lo and bk < hi
-                polyline.delete(array.get(sArr, k))
-                array.remove(sArr, k)
-                array.remove(sArrB, k)
-
 // حدّ الموجة التاريخية المؤثّرة في السعر (يدوي/تلقائي) — يُحسب مبكراً ليُستخدم موحّداً
-int autoLen = not na(prevBigBar) ? bar_index - prevBigBar + 1 : (not na(lastBigBar) ? bar_index - lastBigBar + 1 : 150)
+// طول الموجة التلقائي = من النقطة المتوسطة السابعة الأخيرة حتى الآن (الموجة ≈ آخر 7 تأرجحات متوسطة)
+int autoLen = 150
+if array.size(medBars) > 0
+    int idxA = math.max(0, array.size(medBars) - 7)
+    autoLen := bar_index - array.get(medBars, idxA) + 1
 int wlen    = useHistN ? histBars : autoLen
 wlen := math.min(math.min(math.max(wlen, 1), bar_index + 1), 4500)
 int histLeft = bar_index - wlen + 1   // بداية الموجة الحالية
+// تاريخ التاريخ: يدوي بعدد الشموع، أو تلقائياً بطول مساوٍ للموجة التاريخية قبلها مباشرةً
+int hohLen  = useHohN ? hohBars : wlen
+hohLen := math.min(math.min(math.max(hohLen, 1), math.max(histLeft, 1)), math.max(4900 - wlen, 1))
+int hohLeft = math.max(histLeft - hohLen, 0)   // بداية تاريخ التاريخ
 
 // اتجاه الدرجة الكبيرة = اتجاه خط ترند كامل الموجة التاريخية:
 //   إن كانت قمّة الموجة أحدث من قاعها ⇒ صاعدة، والعكس ⇒ هابطة. (لا اشتقاق بالكسر)
-int bigDir = ta.highestbars(high, wlen) > ta.lowestbars(low, wlen) ? 1 : -1
+//   ثبات (hysteresis): لا ينقلب إلا إذا اتّضح الفارق، تفادياً للتذبذب قرب التوازن.
+int hbW = ta.highestbars(high, wlen)
+int lbW = ta.lowestbars(low, wlen)
+int rawBigDir = hbW > lbW ? 1 : -1
+var int bigDir = 0
+if bigDir == 0
+    bigDir := rawBigDir
+else if rawBigDir != bigDir and math.abs(hbW - lbW) > wlen * 0.1
+    bigDir := rawBigDir
 
 emitSmallTop = false
 emitSmallBot = false
@@ -356,7 +363,7 @@ if barstate.isconfirmed
     body = math.abs(close - open)
     uw   = high - math.max(close, open)
     lw   = math.min(close, open) - low
-    isValid = (not useValid) or (body > 0 and body >= uw and body >= lw)
+    isValid = (not useValid) or (body > 0 and body > uw and body > lw)
     bear = close < open
     bull = close > open
 
@@ -383,13 +390,24 @@ if barstate.isconfirmed
             curHiTime := time
             corr := 0
             corrRef := na
+            corrPrevBHi := na
+            corrPrevBLo := na
         else if isValid and bear
+            float bHiC = math.max(open, close)
+            float bLoC = math.min(open, close)
             if corr == 0
                 corr := 1
                 corrRef := low
+                corrPrevBHi := bHiC
+                corrPrevBLo := bLoC
             else if low < corrRef
-                corr := corr + 1
-                corrRef := low
+                // فحص الابتلاع: لا تُحتسب إن ابتلع جسمها جسم السابقة أو العكس
+                bool engulf = (bHiC >= corrPrevBHi and bLoC <= corrPrevBLo) or (corrPrevBHi >= bHiC and corrPrevBLo <= bLoC)
+                if not engulf
+                    corr := corr + 1
+                    corrRef := low
+                    corrPrevBHi := bHiC
+                    corrPrevBLo := bLoC
             if corr >= minCorr
                 emitSmallTop := true
                 sPx := curHi
@@ -405,6 +423,8 @@ if barstate.isconfirmed
                 curLoTime := time
                 corr := 0
                 corrRef := na
+                corrPrevBHi := na
+                corrPrevBLo := na
     else
         // موجة هابطة: القاع = أدنى سعر قبل التصحيح. التصحيح = شمعتان صحيحتان
         // كل واحدة قمّتها أعلى من سابقتها (لا يُشترط تتابُعهما زمنياً).
@@ -416,13 +436,23 @@ if barstate.isconfirmed
             curLoTime := time
             corr := 0
             corrRef := na
+            corrPrevBHi := na
+            corrPrevBLo := na
         else if isValid and bull
+            float bHiC = math.max(open, close)
+            float bLoC = math.min(open, close)
             if corr == 0
                 corr := 1
                 corrRef := high
+                corrPrevBHi := bHiC
+                corrPrevBLo := bLoC
             else if high > corrRef
-                corr := corr + 1
-                corrRef := high
+                bool engulf = (bHiC >= corrPrevBHi and bLoC <= corrPrevBLo) or (corrPrevBHi >= bHiC and corrPrevBLo <= bLoC)
+                if not engulf
+                    corr := corr + 1
+                    corrRef := high
+                    corrPrevBHi := bHiC
+                    corrPrevBLo := bLoC
             if corr >= minCorr
                 emitSmallBot := true
                 sPx := curLo
@@ -438,6 +468,8 @@ if barstate.isconfirmed
                 curHiTime := time
                 corr := 0
                 corrRef := na
+                corrPrevBHi := na
+                corrPrevBLo := na
 
     // عند تأكيد قمة/قاع صغيرة: لا تُرسم إلا بعد تأكّدها (تتابُع + فعالية) حسب اتجاه الموجة الكبيرة
     if emitSmallTop or emitSmallBot
@@ -504,19 +536,41 @@ if barstate.isconfirmed
         [emM, ePM, eBHiM, eBLoM, eTimeM, eBM, eTopM] = feed(pmed, sPx, sBHi, sBLo, sTime, sBar, isTop)
         if emM
             float levelM = eTopM ? eBHiM : eBLoM   // خط المستوى (قمة=أعلى الجسم، قاع=أسفل الجسم)
+            label mlbl = na
             if showMed
-                label.new(eBM, ePM, "", xloc = xloc.bar_index, yloc = yloc.price,
+                mlbl := label.new(eBM, ePM, "", xloc = xloc.bar_index, yloc = yloc.price,
                      style = label.style_circle, color = cMed, size = size.small)
+            // خزّن النقطة المتوسطة (فعّالة مبدئياً)
+            array.push(mcP, ePM)
+            array.push(mcLvl, levelM)
+            array.push(mcHi, eBHiM)
+            array.push(mcLo, eBLoM)
+            array.push(mcBar, eBM)
+            array.push(mcTm, eTimeM)
+            array.push(mcTop, eTopM)
+            array.push(mcEff, true)
+            array.push(mcLbl, mlbl)
+            // (الفعالية تُحسب في نهاية الشارت حسب الفاصل histLeft: داخل الموجة التاريخية
+            //  كل النقاط فعّالة برتقالية؛ وفي تاريخ التاريخ يُلوَّن المُغطّى أحمر.)
+            // حدّ المخزن
+            if array.size(mcP) > 80
+                array.shift(mcP)
+                array.shift(mcLvl)
+                array.shift(mcHi)
+                array.shift(mcLo)
+                array.shift(mcBar)
+                array.shift(mcTm)
+                array.shift(mcTop)
+                array.shift(mcEff)
+                array.shift(mcLbl)
             if linkMed and not na(lastMedBar)
                 line.new(lastMedBar, lastMedP, eBM, ePM, xloc = xloc.bar_index,
                      color = cLineM, width = 2)
-            // نهاية تصحيح متوسط (قاع متوسط في الصعود / قمة متوسطة في الهبوط):
-            //   • امسح كل الأسهم الصغيرة داخل التصحيح (بين الطرفين المتوسطين).
-            //   • أعد تأسيس قوانين الصغيرة من النقطة المتوسطة (موجة صغيرة جديدة).
+            // نهاية تصحيح متوسط: أعد تأسيس مراجع الصغيرة من النقطة المتوسطة (موجة صغيرة جديدة).
+            // (لا مسح يدوي بالنطاق — القوانين تمنع رسم ما يجب أن يُمسح أصلاً.)
             bool upW    = bigDir == 1
             bool corrEnd = (upW and not eTopM) or ((not upW) and eTopM)
-            if corrEnd and not na(lastMedBar)
-               // eraseSmallBetween(lastMedBar, eBM)
+            if corrEnd
                 if upW
                     ldBotP := ePM
                     ldBotBar := eBM
@@ -534,72 +588,18 @@ if barstate.isconfirmed
                 ldType := 0
             lastMedP := ePM
             lastMedBar := eBM
+            array.push(medBars, eBM)
+            if array.size(medBars) > 20
+                array.shift(medBars)
             // سيولة ومستوى الدرجة المتوسطة
             updateDeg(memM, eTopM, ePM, levelM, eBM, bigDir, cLiqM, cLvlM, showLiq, showLvl)
 
-            // --- المناطق (الكتاب §208,213-221): مستطيل «من جسم لجسم» ---
-            //   • الحدّ الأعلى = أعلى جسم القمة، الحدّ الأسفل = أسفل جسم القاع.
-            //   • خطّان متقاربان بنفس المستوى (قمتان أو قمة وقاع) عدا «قمة مع قاعها» المتتالي.
-            //   • ابحث ضمن الموجة الحالية؛ فإن لم تجد (منفرد) ارجع لتاريخ التاريخ.
-            if showZones
-                float tol      = zoneTol * atrv
-                int   lastI    = array.size(zlP) - 1   // المتتالي مباشرةً (قمة مع قاعها) — يُستبعد
-                int   bestIdx  = -1
-                // مرحلة 1: ضمن الموجة الحالية (الشمعة ≥ بداية الموجة التاريخية)
-                float bestD = tol
-                if array.size(zlP) > 0
-                    for i = 0 to array.size(zlP) - 1
-                        if i != lastI and array.get(zlB, i) >= histLeft
-                            float d = math.abs(levelM - array.get(zlP, i))
-                            if d <= bestD
-                                bestD := d
-                                bestIdx := i
-                // مرحلة 2: منفرد ⇒ ارجع لتاريخ التاريخ (شمعة قبل بداية الموجة الحالية)
-                if bestIdx == -1 and array.size(zlP) > 0
-                    bestD := tol
-                    for i = 0 to array.size(zlP) - 1
-                        if i != lastI and array.get(zlB, i) < histLeft
-                            float d = math.abs(levelM - array.get(zlP, i))
-                            if d <= bestD
-                                bestD := d
-                                bestIdx := i
-                if bestIdx >= 0
-                    float pHi   = array.get(zlHi, bestIdx)
-                    float pLo   = array.get(zlLo, bestIdx)
-                    int   pTime = array.get(zlTm, bestIdx)
-                    // من جسم لجسم: أعلى الحدّين العلويين، وأدنى الحدّين السفليين
-                    array.push(zTopA,  math.max(eBHiM, pHi))
-                    array.push(zBotA,  math.min(eBLoM, pLo))
-                    array.push(zLeftT, pTime)
-                    array.push(zAnchor, eBM)
-                    if array.size(zTopA) > 60
-                        array.shift(zTopA)
-                        array.shift(zBotA)
-                        array.shift(zLeftT)
-                        array.shift(zAnchor)
-                array.push(zlP,  levelM)
-                array.push(zlHi, eBHiM)
-                array.push(zlLo, eBLoM)
-                array.push(zlB,  eBM)
-                array.push(zlTm, eTimeM)
-                if array.size(zlP) > 24
-                    array.shift(zlP)
-                    array.shift(zlHi)
-                    array.shift(zlLo)
-                    array.shift(zlB)
-                    array.shift(zlTm)
+            // (المناطق تُبنى في نهاية الشارت من النقاط المتوسطة الفعّالة فقط — أسفل)
 
-            // --- الدرجة الكبيرة: تُغذّى بنقاط المتوسطة (لا الصغيرة) بنفس آلية الكسر ---
-            [emB, ePB, eBHiB, eBLoB, eTimeB, eBB, eTopB] = feed(pbig, ePM, eBHiM, eBLoM, eTimeM, eBM, eTopM)
-            if emB
-                float levelB = eTopB ? eBHiB : eBLoB
-                if showBig
-                    label.new(eBB, ePB, "", xloc = xloc.bar_index, yloc = yloc.price,
-                         style = label.style_circle, color = cBig, size = size.normal)
-                prevBigBar := lastBigBar
-                lastBigBar := eBB
-                // سيولة ومستوى الدرجة الكبيرة (الاتجاه من ترند الموجة لا من الكسر)
-                updateDeg(memB, eTopB, ePB, levelB, eBB, bigDir, cLiqB, cLvlB, showLiq, showLvl)
+
+            // ملاحظة: الدرجة الكبيرة (الاتجاه) تُؤخذ من bigDir (ترند الموجة).
+            //         بناء قمم/قيعان الكبيرة الصحيح (آخر 7 موجات، §07) يأتي لاحقاً —
+            //         أُزيل اشتقاقها بالكسر لإنهاء التناقض المنهجي.
 
 // ===================== حدود الموجة التاريخية ==============================
 // • إذا أدخل المستخدم عدد شموع > 0: تُرسم الحدود على آخر هذا العدد من الشموع.
@@ -622,17 +622,90 @@ if showHist and barstate.islast
          style = label.style_label_lower_right, color = hBorder, textcolor = color.white,
          size = size.small)
 
-// ============== عرض أقرب 3 مناطق فوق السعر و3 تحته فقط ==============
-// (يخفّف التكدّس ويمنع ضغط المقياس الرأسي/ضيق المخطّط)
-if showZones and barstate.islast
+// حدود تاريخ التاريخ (الموجة الكبيرة السابقة مباشرةً)
+var box   hohBox = na
+var label hohLb  = na
+if showHoh and barstate.islast and hohLeft < histLeft
+    if not na(hohBox)
+        box.delete(hohBox)
+    if not na(hohLb)
+        label.delete(hohLb)
+    int   hohRight = math.max(histLeft - 1, hohLeft)
+    float hohHi    = na
+    float hohLo    = na
+    for k = (bar_index - hohRight) to (bar_index - hohLeft)
+        float hk = high[k]
+        float lk = low[k]
+        hohHi := na(hohHi) ? hk : math.max(hohHi, hk)
+        hohLo := na(hohLo) ? lk : math.min(hohLo, lk)
+    color hohBd    = color.new(color.gray, 0)
+    string hohTxt  = useHohN ? "تاريخ التاريخ (يدوي)" : "تاريخ التاريخ (تلقائي)"
+    if not na(hohHi)
+        hohBox := box.new(hohLeft, hohHi, hohRight, hohLo, border_color = hohBd, border_width = 1,
+             bgcolor = cHoh)
+        hohLb := label.new(hohLeft, hohLo, hohTxt, xloc = xloc.bar_index, yloc = yloc.price,
+             style = label.style_label_upper_right, color = hohBd, textcolor = color.white,
+             size = size.small)
+
+// ============== فعالية الدرجة المتوسطة (تُحسب نهايةً حسب الفاصل) ==============
+// • داخل الموجة التاريخية (bar >= histLeft): كل النقاط فعّالة (برتقالية).
+// • في تاريخ التاريخ (bar < histLeft): النقطة المُغطّاة بنقطة لاحقة تتجاوزها (قمة أعلى/قاع أدنى) ⇒ حمراء.
+//   نطاق تاريخ التاريخ = موجة بطول مساوٍ للموجة التاريخية قبلها مباشرةً: [histLeft - wlen , histLeft - 1].
+if barstate.islast
+    int mm = array.size(mcP)
+    if mm > 0
+        for i = 0 to mm - 1
+            int   bi = array.get(mcBar, i)
+            bool  effI = true
+            if bi < histLeft
+                // نقطة تاريخ التاريخ: مُغطّاة؟ (نقطة لاحقة من نفس النوع تتجاوزها)
+                bool tp = array.get(mcTop, i)
+                float pv = array.get(mcP, i)
+                bool covered = false
+                for j = 0 to mm - 1
+                    if array.get(mcBar, j) > bi and array.get(mcTop, j) == tp
+                        if tp ? (array.get(mcP, j) > pv) : (array.get(mcP, j) < pv)
+                            covered := true
+                            break
+                effI := bi >= hohLeft and not covered
+            array.set(mcEff, i, effI)
+            label li = array.get(mcLbl, i)
+            if not na(li)
+                label.set_color(li, effI ? cMed : cMedDead)
+
+
     if array.size(dispBoxes) > 0
         for i = 0 to array.size(dispBoxes) - 1
             box.delete(array.get(dispBoxes, i))
         array.clear(dispBoxes)
-    int n = array.size(zTopA)
+    float tol  = zoneTol * atrv
+    int   rEdge = time + zoneExt * (1000 * timeframe.in_seconds(timeframe.period))
+    int   m    = array.size(mcP)
+    // ابنِ المناطق من النقاط المتوسطة الفعّالة فقط (برتقالية)، من جسم لجسم،
+    // عدا «قمة مع قاعها» المتتالي، وأولوية الموجة الحالية (الشمعة ≥ histLeft).
+    array<float> zT = array.new<float>()
+    array<float> zB = array.new<float>()
+    array<int>   zL = array.new<int>()
+    if m > 0
+        for i = 0 to m - 1
+            if array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
+                float lvlI = array.get(mcLvl, i)
+                int   barI = array.get(mcBar, i)
+                int   bestJ = -1
+                float bestD = tol
+                for j = 0 to m - 1
+                    if j != i and array.get(mcEff, j) and math.abs(j - i) > 1 and array.get(mcBar, j) >= histLeft
+                        float d = math.abs(lvlI - array.get(mcLvl, j))
+                        if d <= bestD
+                            bestD := d
+                            bestJ := j
+                // كوّن المنطقة مرّة واحدة: عندما تكون i هي الطرف الأيسر
+                if bestJ >= 0 and barI < array.get(mcBar, bestJ)
+                    array.push(zT, math.max(array.get(mcHi, i), array.get(mcHi, bestJ)))
+                    array.push(zB, math.min(array.get(mcLo, i), array.get(mcLo, bestJ)))
+                    array.push(zL, math.min(array.get(mcTm, i), array.get(mcTm, bestJ)))
+    int n = array.size(zT)
     if n > 0
-        int rEdge = time + zoneExt * (1000 * timeframe.in_seconds(timeframe.period))
-        int histStartR = histLeft
         for side = 0 to 1
             array<int> used = array.new<int>()
             int picked = 0
@@ -640,20 +713,18 @@ if showZones and barstate.islast
                 float bestDist = 1e18
                 int   bestI    = -1
                 for i = 0 to n - 1
-                    // فقط مناطق الموجة الحالية (نقطتها داخل حدودها)
-                    if array.get(zAnchor, i) >= histStartR
-                        float mid = (array.get(zTopA, i) + array.get(zBotA, i)) / 2.0
-                        bool  isAbove = mid >= close
-                        bool  sideOk  = side == 0 ? isAbove : not isAbove
-                        if sideOk and not array.includes(used, i)
-                            float dist = math.abs(mid - close)
-                            if dist < bestDist
-                                bestDist := dist
-                                bestI := i
+                    float mid     = (array.get(zT, i) + array.get(zB, i)) / 2.0
+                    bool  isAbove = mid >= close
+                    bool  sideOk  = side == 0 ? isAbove : not isAbove
+                    if sideOk and not array.includes(used, i)
+                        float dist = math.abs(mid - close)
+                        if dist < bestDist
+                            bestDist := dist
+                            bestI := i
                 if bestI == -1
                     break
                 array.push(used, bestI)
-                box b = box.new(array.get(zLeftT, bestI), array.get(zTopA, bestI), rEdge, array.get(zBotA, bestI),
+                box b = box.new(array.get(zL, bestI), array.get(zT, bestI), rEdge, array.get(zB, bestI),
                      xloc = xloc.bar_time, border_color = zoneBorder, bgcolor = zoneFill, border_width = 1)
                 array.push(dispBoxes, b)
                 picked := picked + 1
