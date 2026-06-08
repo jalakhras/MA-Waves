@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v0.43", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v0.46", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -33,6 +33,17 @@ showMed   = input.bool(true,  "الدرجة المتوسطة (برتقالي)", 
 showBig   = input.bool(true,  "الدرجة الكبيرة (أزرق)",      group = grpShow)
 linkSmall = input.bool(true,  "وصل قمم/قيعان الصغيرة بخطوط", group = grpShow)
 linkMed   = input.bool(true,  "وصل قمم/قيعان المتوسطة بخطوط", group = grpShow)
+linkBig   = input.bool(true,  "وصل قمم/قيعان الكبيرة بخطوط",  group = grpShow)
+
+// ===== الدرجة الكبيرة (Layer 3): تجميع legs من المتوسطة الفعّالة =====
+grpBig    = "الدرجة الكبيرة"
+bigMinSwings = input.int(2, "أدنى نقاط متوسطة في الموجة الكبيرة", minval = 1, maxval = 10, group = grpBig,
+     tooltip = "فلتر مساعد (تلقائي): أقل عدد نقاط متوسطة لاعتبار الحركة موجة كبيرة")
+bigMinATR    = input.float(3.0, "أدنى حجم للموجة الكبيرة (× ATR)", minval = 0.0, step = 0.5, group = grpBig,
+     tooltip = "فلتر مساعد: 0 = تعطيل")
+bigMinBars   = input.int(30, "أدنى زمن للموجة الكبيرة (شموع)", minval = 0, group = grpBig,
+     tooltip = "فلتر مساعد: 0 = تعطيل")
+bigLegs      = input.int(7, "عدد الموجات الكبيرة المرشّحة", minval = 2, maxval = 15, group = grpBig)
 // ===== شكل السهم (مصمت يشبه shape.arrowup مع تحكّم بالطول والعرض) =====
 grpArr    = "شكل السهم"
 arrLenAtr = input.float(1.5, "طول السهم (× ATR)", minval = 0.2, step = 0.1, group = grpArr)
@@ -273,6 +284,9 @@ var array<int>   mcTm  = array.new<int>()
 var array<bool>  mcTop = array.new<bool>()
 var array<bool>  mcEff = array.new<bool>()    // فعّالة؟
 var array<label> mcLbl = array.new<label>()
+// كائنات عرض الدرجة الكبيرة (تُمسح وتُعاد كل تحديث في نهاية الشارت)
+var array<label> bigLbls  = array.new<label>()
+var array<line>  bigLines = array.new<line>()
 
 
 atrv = ta.atr(14)   // لقياس طول السهم بمعزل عن سعر الأداة
@@ -672,6 +686,110 @@ if barstate.islast
             label li = array.get(mcLbl, i)
             if not na(li)
                 label.set_color(li, effI ? cMed : cMedDead)
+
+// ============== الدرجة الكبيرة (Layer 3 — دفعة 1: تجميع legs + نقاط زرقاء candidate) ==============
+// تُجمّع من القمم/القيعان المتوسطة الفعّالة (لا من الشموع، ولا ZigZag خام):
+//   • تتبّع امتداد الاتجاه؛ يُؤكَّد رأس الموجة الكبيرة عند انعكاس متوسط يتجاوز فلاتر الحجم/الزمن/البنية (مساعدة، تلقائية).
+//   • طرفا كل leg = نقطة زرقاء candidate (تُنظَّف بالتتابُع/الفعالية في دفعة 2).
+if showBig and barstate.islast
+    // امسح كائنات الكبيرة السابقة
+    if array.size(bigLbls) > 0
+        for i = 0 to array.size(bigLbls) - 1
+            label.delete(array.get(bigLbls, i))
+        array.clear(bigLbls)
+    if array.size(bigLines) > 0
+        for i = 0 to array.size(bigLines) - 1
+            line.delete(array.get(bigLines, i))
+        array.clear(bigLines)
+    // اجمع نقاط الكبيرة المرشّحة
+    array<float> bcP   = array.new<float>()
+    array<int>   bcBar = array.new<int>()
+    array<bool>  bcTop = array.new<bool>()
+    float minAmp = bigMinATR * atrv
+    int   mcn    = array.size(mcP)
+    int   bdir   = 0
+    float extP   = na
+    int   extB   = na
+    int   legSw  = 0
+    // Layer 3 يستعمل كل النقاط المتوسطة المؤكّدة بنيوياً (مستخرجة بالكسر) حيث bar <= histLeft،
+    // بصرف النظر عن «الفعالية الحالية» (التي تخصّ المناطق فقط). التنظيف بقوانين الكبيرة لاحقاً.
+    for i = 0 to mcn - 1
+        if array.get(mcBar, i) <= histLeft
+            float p = array.get(mcP, i)
+            int   b = array.get(mcBar, i)
+            if bdir == 0
+                if na(extP)
+                    extP := p
+                    extB := b
+                else
+                    bdir := p > extP ? 1 : -1
+                    legSw := 1
+                    if (bdir == 1 and p > extP) or (bdir == -1 and p < extP)
+                        extP := p
+                        extB := b
+            else
+                legSw := legSw + 1
+                if bdir == 1
+                    if p > extP
+                        extP := p
+                        extB := b
+                    else
+                        bool okAmp  = bigMinATR <= 0 or (extP - p) >= minAmp
+                        bool okBars = bigMinBars <= 0 or (b - extB) >= bigMinBars
+                        bool okSw   = legSw >= bigMinSwings
+                        if okAmp and okBars and okSw
+                            array.push(bcP, extP)
+                            array.push(bcBar, extB)
+                            array.push(bcTop, true)
+                            bdir := -1
+                            extP := p
+                            extB := b
+                            legSw := 1
+                else
+                    if p < extP
+                        extP := p
+                        extB := b
+                    else
+                        bool okAmp  = bigMinATR <= 0 or (p - extP) >= minAmp
+                        bool okBars = bigMinBars <= 0 or (b - extB) >= bigMinBars
+                        bool okSw   = legSw >= bigMinSwings
+                        if okAmp and okBars and okSw
+                            array.push(bcP, extP)
+                            array.push(bcBar, extB)
+                            array.push(bcTop, false)
+                            bdir := 1
+                            extP := p
+                            extB := b
+                            legSw := 1
+    // الامتداد الأخير المعلّق = نقطة زرقاء candidate أخيرة
+    if not na(extP) and bdir != 0
+        array.push(bcP, extP)
+        array.push(bcBar, extB)
+        array.push(bcTop, bdir == 1)
+    // أبقِ آخر (bigLegs + 1) نقطة فقط
+    int keep = bigLegs + 1
+    while array.size(bcP) > keep
+        array.shift(bcP)
+        array.shift(bcBar)
+        array.shift(bcTop)
+    // ارسم النقاط الزرقاء candidate + روابطها
+    int nb = array.size(bcP)
+    int prevBar = na
+    float prevP = na
+    if nb > 0
+        for i = 0 to nb - 1
+            float p = array.get(bcP, i)
+            int   b = array.get(bcBar, i)
+            bool  tp = array.get(bcTop, i)
+            label lb = label.new(b, p, "", xloc = xloc.bar_index, yloc = yloc.price,
+                 style = label.style_circle, color = cBig, size = size.normal)
+            array.push(bigLbls, lb)
+            if linkBig and not na(prevBar)
+                line ln = line.new(prevBar, prevP, b, p, xloc = xloc.bar_index,
+                     color = color.new(cBig, 0), width = 2)
+                array.push(bigLines, ln)
+            prevBar := b
+            prevP := p
 
 
     if array.size(dispBoxes) > 0
