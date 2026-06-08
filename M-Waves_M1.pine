@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v0.50", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v0.55", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -86,6 +86,7 @@ showLvl = input.bool(true, "مستويات الاتجاه (على الأجسام
 // ===== الاستنتاجات وحالة السوق =====
 grpConc   = "الاستنتاجات والحالة"
 showPanel = input.bool(true, "لوحة الاستنتاجات والحالة", group = grpConc)
+liqTol    = input.float(0.1, "هامش تسامح قوة السيولة (×ATR)", minval = 0.0, step = 0.05, group = grpConc)
 
 // ===== المناطق (المستوى الثاني) =====
 grpZone    = "المناطق (المستوى الثاني)"
@@ -240,9 +241,9 @@ updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color 
             m.liq := line.new(m.ptBar, m.ptP, m.ltBar, m.ltP, xloc = xloc.bar_index, color = liqCol, width = 2, extend = extend.right)
     if sLvl
         if dir == 1 and not na(m.lbBody)
-            m.lvl := line.new(m.lbBar, m.lbBody, bar_index, m.lbBody, xloc = xloc.bar_index, color = lvlCol, width = 1, style = line.style_solid, extend = extend.right)
+            m.lvl := line.new(m.lbBar, m.lbBody, bar_index, m.lbBody, xloc = xloc.bar_index, color = lvlCol, width = 2, style = line.style_solid, extend = extend.right)
         if dir == -1 and not na(m.ltBody)
-            m.lvl := line.new(m.ltBar, m.ltBody, bar_index, m.ltBody, xloc = xloc.bar_index, color = lvlCol, width = 1, style = line.style_solid, extend = extend.right)
+            m.lvl := line.new(m.ltBar, m.ltBody, bar_index, m.ltBody, xloc = xloc.bar_index, color = lvlCol, width = 2, style = line.style_solid, extend = extend.right)
 
 // ===================== الدرجة الصغيرة: محرّك الشمعتين ========================
 var int   sdir      = 0      // 1=نبحث عن قمة (موجة صاعدة)، -1=نبحث عن قاع
@@ -290,6 +291,11 @@ var array<line>  bigLines = array.new<line>()
 var line  bigLiqLine = na
 var line  bigLvlLine = na
 var int   largeDir   = 0    // اتجاه الدرجة الكبيرة من النقاط الزرقاء المنظّفة
+// كسر خط السيولة المتوسط (المراحل): الاتجاه والشمعة
+var int    medBreakDir = 0   // 0 سليم، -1 كسر هابط (لسيولة صاعدة)، 1 كسر صاعد (لسيولة هابطة)
+var int    medBreakBar = na
+var int    medPrevDir  = 0
+var string medPhase    = "—"
 
 
 atrv = ta.atr(14)   // لقياس طول السهم بمعزل عن سعر الأداة
@@ -547,7 +553,7 @@ if barstate.isconfirmed
         lastSmallBar := sBar
         // سيولة ومستوى الدرجة الصغيرة (قيمة المستوى = حافة الجسم المواجهة)
         float sLevel = isTop ? sBHi : sBLo
-        updateDeg(memS, isTop, sPx, sLevel, sBar, bigDir, cLiqS, cLvlS, showLiq, showLvl)
+        updateDeg(memS, isTop, sPx, sLevel, sBar, sdir, cLiqS, cLvlS, showLiq, showLvl)
 
         // --- الدرجة المتوسطة ---
         [emM, ePM, eBHiM, eBLoM, eTimeM, eBM, eTopM] = feed(pmed, sPx, sBHi, sBLo, sTime, sBar, isTop)
@@ -609,7 +615,7 @@ if barstate.isconfirmed
             if array.size(medBars) > 20
                 array.shift(medBars)
             // سيولة ومستوى الدرجة المتوسطة
-            updateDeg(memM, eTopM, ePM, levelM, eBM, bigDir, cLiqM, cLvlM, showLiq, showLvl)
+            updateDeg(memM, eTopM, ePM, levelM, eBM, pmed.dir, cLiqM, cLvlM, showLiq, showLvl)
 
             // (المناطق تُبنى في نهاية الشارت من النقاط المتوسطة الفعّالة فقط — أسفل)
 
@@ -617,6 +623,31 @@ if barstate.isconfirmed
             // ملاحظة: الدرجة الكبيرة (الاتجاه) تُؤخذ من bigDir (ترند الموجة).
             //         بناء قمم/قيعان الكبيرة الصحيح (آخر 7 موجات، §07) يأتي لاحقاً —
             //         أُزيل اشتقاقها بالكسر لإنهاء التناقض المنهجي.
+
+    // ===== كاشف كسر خط السيولة المتوسط (نصف الجسم) — أساس المراحل الخمس =====
+    // الكسر = إغلاق شمعة خلف خط السيولة بأكثر من نصف جسمها.
+    //   سيولة صاعدة (آخر قاعين) ⇒ كسر هابط يبدأ التصريف/الذعر.
+    //   سيولة هابطة (آخر قمتين) ⇒ كسر صاعد.
+    if pmed.dir != medPrevDir
+        medBreakDir := 0
+        medPrevDir := pmed.dir
+    float medLiqLvl = na
+    if pmed.dir == 1 and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar != memM.pbBar
+        float slope = (memM.lbP - memM.pbP) / (memM.lbBar - memM.pbBar)
+        medLiqLvl := memM.lbP + slope * (bar_index - memM.lbBar)
+    if pmed.dir == -1 and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar != memM.ptBar
+        float slope = (memM.ltP - memM.ptP) / (memM.ltBar - memM.ptBar)
+        medLiqLvl := memM.ltP + slope * (bar_index - memM.ltBar)
+    float bodyC = math.abs(close - open)
+    if not na(medLiqLvl) and bodyC > 0
+        if pmed.dir == 1 and close < medLiqLvl and (medLiqLvl - close) > 0.5 * bodyC and medBreakDir != -1
+            medBreakDir := -1
+            medBreakBar := bar_index
+        if pmed.dir == -1 and close > medLiqLvl and (close - medLiqLvl) > 0.5 * bodyC and medBreakDir != 1
+            medBreakDir := 1
+            medBreakBar := bar_index
+    // المرحلة (مبدئية): مشاركة عامة ما لم يُكسر؛ بعد الكسر تصريف/ذعر حسب الاتجاه
+    medPhase := medBreakDir == 0 ? (pmed.dir == 1 ? "مشاركة عامة صاعدة" : pmed.dir == -1 ? "مشاركة عامة هابطة" : "—") : (medBreakDir == -1 ? "كسر سيولة ↓ (تصريف/ذعر)" : "كسر سيولة ↑ (تجميع/ذعر)")
 
 // ===================== حدود الموجة التاريخية ==============================
 // • إذا أدخل المستخدم عدد شموع > 0: تُرسم الحدود على آخر هذا العدد من الشموع.
@@ -780,8 +811,8 @@ if showBig and barstate.islast
         array.push(bcLvl, extLvl)
         array.push(bcBar, extB)
         array.push(bcTop, bdir == 1)
-    // أبقِ آخر (bigLegs + 1) نقطة فقط
-    int keep = bigLegs + 1
+    // أبقِ مرشّحات كافية (آخر ~2×عدد الموجات) — التقليم النهائي بعد التنظيف
+    int keep = 2 * bigLegs + 2
     while array.size(bcP) > keep
         array.shift(bcP)
         array.shift(bcLvl)
@@ -789,17 +820,18 @@ if showBig and barstate.islast
         array.shift(bcTop)
     // اتجاه الكبيرة (bootstrap من ميل المرشّحات): آخر نقطة مقابل أولاها
     int nb0 = array.size(bcP)
-    // اتجاه الموجة التاريخية = نوع نقطة الحدود المتوسطة عند/قبل histLeft:
-    //   قاع ⇒ صاعدة (1)، قمة ⇒ هابطة (-1). (لا من ميل المرشّحات ولا حركة السعر اللحظية)
+    // اتجاه الموجة التاريخية = نوع أقرب نقطة متوسطة إلى histLeft (من الجهتين):
+    //   قاع ⇒ صاعدة (1)، قمة ⇒ هابطة (-1). (بدايتها قد تقع بعد histLeft بقليل)
     int histDir = 0
-    int bbar = -1
+    int bdist = 1000000000
     float pinBP = na
     float pinBL = na
     int   pinBB = na
     if mcn > 0
         for i = 0 to mcn - 1
-            if array.get(mcBar, i) <= histLeft and array.get(mcBar, i) > bbar
-                bbar := array.get(mcBar, i)
+            int dHL = math.abs(array.get(mcBar, i) - histLeft)
+            if dHL < bdist
+                bdist := dHL
                 histDir := array.get(mcTop, i) ? -1 : 1
                 pinBP := array.get(mcP, i)
                 pinBL := array.get(mcLvl, i)
@@ -847,6 +879,13 @@ if showBig and barstate.islast
                     pendEffP := p
                     pendEffL := lv
                     pendEffB := b
+    // ادفع آخر نقطة فعالية معلّقة (تصحيح حديث نحتاجه للسيولة) إن لم تُدفع
+    if not na(pendEffP)
+        array.push(kP, pendEffP)
+        array.push(kLvl, pendEffL)
+        array.push(kB, pendEffB)
+        array.push(kT, histDir != 1)
+        pendEffP := na
     // النقطة الزرقاء الحدودية المثبّتة عند histLeft (بداية الـleg الكبير النشط) — تُرسم دائماً.
     //   صاعدة ⇒ قاع أزرق حدودي؛ هابطة ⇒ قمة زرقاء حدودية. لا تخضع لحذف الفعالية.
     if not na(pinBP)
@@ -908,11 +947,13 @@ if showBig and barstate.islast
                  xloc = xloc.bar_index, color = cLiqB, width = 2, extend = extend.right)
         if largeDir == 1 and showLvl and not na(b1)
             // مستوى الاتجاه الأزرق: أفقي عند جسم آخر قاع
-            bigLvlLine := line.new(array.get(kB, b1), array.get(kLvl, b1), bar_index, array.get(kLvl, b1),
-                 xloc = xloc.bar_index, color = cLvlB, width = 1, extend = extend.right)
+            float lvlU = na(array.get(kLvl, b1)) ? array.get(kP, b1) : array.get(kLvl, b1)
+            bigLvlLine := line.new(array.get(kB, b1), lvlU, bar_index, lvlU,
+                 xloc = xloc.bar_index, color = cLvlB, width = 2, extend = extend.right)
         if largeDir == -1 and showLvl and not na(t1)
-            bigLvlLine := line.new(array.get(kB, t1), array.get(kLvl, t1), bar_index, array.get(kLvl, t1),
-                 xloc = xloc.bar_index, color = cLvlB, width = 1, extend = extend.right)
+            float lvlD = na(array.get(kLvl, t1)) ? array.get(kP, t1) : array.get(kLvl, t1)
+            bigLvlLine := line.new(array.get(kB, t1), lvlD, bar_index, lvlD,
+                 xloc = xloc.bar_index, color = cLvlB, width = 2, extend = extend.right)
 
 
     if array.size(dispBoxes) > 0
@@ -995,10 +1036,11 @@ if showPanel and barstate.islast
     color  liqCol = (bigUp and medUp) ? color.new(#2E7D32, 0) : (bigDn and medDn) ? color.new(#C00000, 0) : color.new(#C55A11, 0)
     string entry  = (bigUp and medUp) ? "شراء فقط" : (bigDn and medDn) ? "بيع فقط" : "شراء وبيع"
     bool strong = true
+    float liqTolV = liqTol * atrv
     if pmed.dir == 1 and not na(memM.lbP) and not na(memM.ptP)
-        strong := memM.lbP > memM.ptP
+        strong := (memM.lbP - memM.ptP) > liqTolV
     if pmed.dir == -1 and not na(memM.ltP) and not na(memM.pbP)
-        strong := memM.ltP < memM.pbP
+        strong := (memM.pbP - memM.ltP) > liqTolV
     string strTxt = strong ? "قوية" : "ضعيفة"
     color  hd  = color.new(#1F3A5F, 0)
     color  lt  = color.new(#EAF1F8, 0)
@@ -1015,7 +1057,7 @@ if showPanel and barstate.islast
     table.cell(tbl, 0, 5, "الصغيرة",  text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
     table.cell(tbl, 1, 5, f_dir(sdir) + " | " + f_state(sdir), text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
     table.cell(tbl, 0, 6, "المتوسطة", text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
-    table.cell(tbl, 1, 6, f_dir(pmed.dir) + " | " + f_state(pmed.dir), text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
+    table.cell(tbl, 1, 6, f_dir(pmed.dir) + " | " + medPhase, text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
     table.cell(tbl, 0, 7, "الكبيرة",  text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
     table.cell(tbl, 1, 7, f_dir(bigEff) + " | " + f_state(bigEff), text_color = #1F3A5F, bgcolor = lt, text_size = size.small)
 
