@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v1.18", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v1.28", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -50,6 +50,8 @@ bigMinATR    = input.float(3.0, "أدنى حجم للموجة الكبيرة (×
 bigMinBars   = input.int(30, "أدنى زمن للموجة الكبيرة (شموع)", minval = 0, group = grpBig,
      tooltip = "فلتر مساعد: 0 = تعطيل")
 bigLegs      = input.int(7, "عدد الموجات الكبيرة المرشّحة", minval = 2, maxval = 15, group = grpBig)
+useBigBreak  = input.bool(false, "استخراج الكبيرة بالكسر (من المتوسطة الفعّالة)", group = grpBig,
+     tooltip = "مسار بديل: تُشتقّ القمم/القيعان الزرقاء بنفس آلية الكسر (Proc/feed) لكن مُغذّاة بالنقاط المتوسطة الفعّالة، بدل تجميع الموجات. الاتجاه يُؤخذ من بنية الزرقاء.")
 // ===== شكل السهم (مصمت يشبه shape.arrowup مع تحكّم بالطول والعرض) =====
 grpArr    = "شكل السهم"
 arrLenAtr = input.float(0.5, "طول السهم (× ATR)", minval = 0.2, step = 0.1, group = grpArr)
@@ -64,11 +66,11 @@ cBig   = input.color(color.new(#1F3A5F, 45), "لون دائرة الكبيرة",
 cLineS = input.color(color.new(color.gray, 55), "لون خط الصغيرة",  group = grpCol)
 cLineM = input.color(color.new(#C55A11, 35),    "لون خط المتوسطة", group = grpCol)
 cLiqS = input.color(#C00000, "سيولة الصغيرة",  group = grpCol)
-cLvlS = input.color(color.new(#C00000, 30), "مستوى الصغيرة", group = grpCol)
+cLvlS = input.color(#C00000, "مستوى الصغيرة", group = grpCol)
 cLiqM = input.color(#C55A11, "سيولة المتوسطة", group = grpCol)
-cLvlM = input.color(color.new(#C55A11, 30), "مستوى المتوسطة", group = grpCol)
+cLvlM = input.color(#C55A11, "مستوى المتوسطة", group = grpCol)
 cLiqB = input.color(#1F3A5F, "سيولة الكبيرة",  group = grpCol)
-cLvlB = input.color(color.new(#1F3A5F, 30), "مستوى الكبيرة", group = grpCol)
+cLvlB = input.color(#1F3A5F, "مستوى الكبيرة", group = grpCol)
 cMedDead = input.color(color.new(#C00000, 45), "المتوسطة غير الفعّالة", group = grpCol)
 
 // ===== الموجة التاريخية =====
@@ -238,7 +240,7 @@ type DegMem
     line  liq    = na
     line  lvl    = na
 
-updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color liqCol, color lvlCol, bool sLiq, bool sLvl, int waveStart, int liqExt, int lvlExt) =>
+updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color liqCol, color lvlCol, bool sLiq, bool sLvl, int waveStart, int liqExt, int lvlExt, float bandHi, float bandLo) =>
     if isTop
         m.ptP := m.ltP
         m.ptBar := m.ltBar
@@ -262,17 +264,28 @@ updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color 
     if sLiq
         if dir == 1 and not na(m.lbP) and not na(m.pbP) and (na(waveStart) or (m.lbBar >= waveStart and m.pbBar >= waveStart))
             float slU = m.lbBar != m.pbBar ? (m.lbP - m.pbP) / (m.lbBar - m.pbBar) : 0.0
-            int   rbU = bar_index + liqExt
+            int   rbU = last_bar_index + liqExt
+            // قصّ صارم: لا يتجاوز السعر المُسقَط نطاق الموجة (لا حدّ أدنى يتغلّب على القصّ)
+            if slU > 0 and not na(bandHi)
+                rbU := math.min(rbU, math.max(m.lbBar, m.lbBar + int((bandHi - m.lbP) / slU)))
+            if slU < 0 and not na(bandLo)
+                rbU := math.min(rbU, math.max(m.lbBar, m.lbBar + int((bandLo - m.lbP) / slU)))
             m.liq := line.new(m.pbBar, m.pbP, rbU, m.lbP + slU * (rbU - m.lbBar), xloc = xloc.bar_index, color = liqCol, width = 2)
         if dir == -1 and not na(m.ltP) and not na(m.ptP) and (na(waveStart) or (m.ltBar >= waveStart and m.ptBar >= waveStart))
             float slD = m.ltBar != m.ptBar ? (m.ltP - m.ptP) / (m.ltBar - m.ptBar) : 0.0
-            int   rbD = bar_index + liqExt
+            int   rbD = last_bar_index + liqExt
+            if slD > 0 and not na(bandHi)
+                rbD := math.min(rbD, math.max(m.ltBar, m.ltBar + int((bandHi - m.ltP) / slD)))
+            if slD < 0 and not na(bandLo)
+                rbD := math.min(rbD, math.max(m.ltBar, m.ltBar + int((bandLo - m.ltP) / slD)))
             m.liq := line.new(m.ptBar, m.ptP, rbD, m.ltP + slD * (rbD - m.ltBar), xloc = xloc.bar_index, color = liqCol, width = 2)
     if sLvl
-        if dir == 1 and not na(m.lbBody) and (na(waveStart) or m.lbBar >= waveStart)
-            m.lvl := line.new(m.lbBar, m.lbBody, bar_index + lvlExt, m.lbBody, xloc = xloc.bar_index, color = lvlCol, width = 2, style = line.style_solid)
-        if dir == -1 and not na(m.ltBody) and (na(waveStart) or m.ltBar >= waveStart)
-            m.lvl := line.new(m.ltBar, m.ltBody, bar_index + lvlExt, m.ltBody, xloc = xloc.bar_index, color = lvlCol, width = 2, style = line.style_solid)
+        // مستوى الاتجاه = جسم آخر تطرّف في الاتجاه النشط (نقطة واحدة) — يظهر دائماً للاتجاه الحالي
+        //   يمتدّ من نقطته حتى آخر شمعة بالشارت + lvlExt (لا شمعة الانبثاق) حتى يصل السعر الحالي.
+        if dir == 1 and not na(m.lbBody)
+            m.lvl := line.new(m.lbBar, m.lbBody, last_bar_index + lvlExt, m.lbBody, xloc = xloc.bar_index, color = lvlCol, width = 2, style = line.style_solid)
+        if dir == -1 and not na(m.ltBody)
+            m.lvl := line.new(m.ltBar, m.ltBody, last_bar_index + lvlExt, m.ltBody, xloc = xloc.bar_index, color = lvlCol, width = 2, style = line.style_solid)
 
 // ===================== آلة المراحل العامة (لكل درجة على سيولتها) ==============
 // منفصلة تماماً عن آلة الاتجاه. تُبنى على كسر خط سيولة نفس الدرجة (نصف الجسم للقراءة)،
@@ -590,6 +603,14 @@ if array.size(medBars) > 0
 int wlen    = useHistN ? histBars : autoLen
 wlen := math.min(math.min(math.max(wlen, 1), bar_index + 1), 4500)
 int histLeft = bar_index - wlen + 1   // بداية الموجة الحالية
+// نطاق الموجة الحالية (يُحسب مبكراً) — يُستخدم لرسم الصندوق
+float hwHiE = ta.highest(high, wlen)
+float hwLoE = ta.lowest(low, wlen)
+// حزام قصّ امتداد السيولة: يُحسب دائماً من الطول التلقائي (لا من الاختيار اليدوي)
+//   حتى لا يتضخّم الحزام عند تحديد الموجة بعدد شموع كبير ⇒ لا إسقاط لسعر بعيد ⇒ لا تكدّس.
+int   bandLen  = math.min(math.max(autoLen, 1), bar_index + 1)
+float hwHiBand = ta.highest(high, bandLen)
+float hwLoBand = ta.lowest(low, bandLen)
 // تاريخ التاريخ: يدوي بعدد الشموع، أو تلقائياً بطول مساوٍ للموجة التاريخية قبلها مباشرةً
 int hohLen  = useHohN ? hohBars : wlen
 hohLen := math.min(math.min(math.max(hohLen, 1), math.max(histLeft, 1)), math.max(4900 - wlen, 1))
@@ -805,7 +826,7 @@ if barstate.isconfirmed
         int sActive = smallActiveDir != 0 ? smallActiveDir : (largeDir != 0 ? largeDir : bigDir)
         // سيولة ومستوى الدرجة الصغيرة (قيمة المستوى = حافة الجسم المواجهة)
         float sLevel = isTop ? sBHi : sBLo
-        updateDeg(memS, isTop, sPx, sLevel, sBar, sActive, cLiqS, cLvlS, showLiq, showLvl, smGate, liqExtBars, lvlExtBars)
+        updateDeg(memS, isTop, sPx, sLevel, sBar, sActive, cLiqS, cLvlS, showLiq, showLvl, smGate, liqExtBars, lvlExtBars, hwHiBand, hwLoBand)
         // آلة المراحل العامة عند انبثاق نقطة صغيرة
         phaseOnPivot(smallPh, isTop, sPx, sBar)
 
@@ -892,7 +913,7 @@ if barstate.isconfirmed
                     medActiveDir := -1
             int mActive = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
             // سيولة ومستوى الدرجة المتوسطة
-            updateDeg(memM, eTopM, ePM, levelM, eBM, mActive, cLiqM, cLvlM, showLiq, showLvl, medGate, liqExtBars, lvlExtBars)
+            updateDeg(memM, eTopM, ePM, levelM, eBM, mActive, cLiqM, cLvlM, showLiq, showLvl, medGate, liqExtBars, lvlExtBars, hwHiBand, hwLoBand)
 
             // --- آلة المراحل العامة عند انبثاق نقطة متوسطة (ذعر⇒يأس + تتبّع الامتداد) ---
             phaseOnPivot(medPh, eTopM, ePM, eBM)
@@ -1167,8 +1188,8 @@ if barstate.isconfirmed
 // • إذا تركه 0: تُحدَّد تلقائياً من الدرجة الكبيرة (من آخر موجة كبيرة حتى الآن).
 var box   hbox = na
 var label hlbl = na
-float hwHi = ta.highest(high, wlen)
-float hwLo = ta.lowest(low, wlen)
+float hwHi = hwHiE
+float hwLo = hwLoE
 if showHist and barstate.islast
     if not na(hbox)
         box.delete(hbox)
@@ -1274,10 +1295,50 @@ if showBig and barstate.islast
     float extLvl = na
     int   extB   = na
     int   legSw  = 0
+    int   bigBreakDir = 0   // اتجاه بنية الزرقاء بالكسر (يغذّي largeDir عند التفعيل)
+    // ===== مسار [NEW-1]: استخراج الكبيرة بالكسر من النقاط المتوسطة الفعّالة =====
+    //   نفس آلية Proc/feed التي تشتقّ المتوسطة من الصغيرة، لكن مُغذّاة بالمتوسطة الفعّالة (mcEff):
+    //   صعوداً: كسر قاع متوسط ⇒ قمة زرقاء (أعلى قبله) + قاع أزرق (أدنى بعده)؛ والعكس هبوطاً.
+    //   العمق: داخل الموجة/تاريخ التاريخ بلا حدّ؛ يكفي 7 نقاط زرقاء قبل تاريخ التاريخ (hohLeft).
+    if useBigBreak
+        Proc pb = Proc.new()
+        for i = 0 to mcn - 1
+            // غذِّ كل النقاط المتوسطة المتناوبة (كما تُشتقّ المتوسطة من كل الصغيرة):
+            //   محرّك الكسر نفسه يستخرج البنية الحقيقية ويتجاهل المكسور (فلتر الفعالية للكبيرة).
+            [emb, ePb, eBHib, eBLob, eTmb, eBb, eTpb] = feed(pb, array.get(mcP, i), array.get(mcLvl, i), array.get(mcLvl, i), array.get(mcBar, i), array.get(mcBar, i), array.get(mcTop, i))
+            if emb
+                array.push(bcP, ePb)
+                array.push(bcLvl, eBHib)
+                array.push(bcBar, eBb)
+                array.push(bcTop, eTpb)
+        // النقطة المعلّقة الأخيرة (التطرّف الجاري) = أحدث نقطة زرقاء مرشّحة
+        if pb.dir == 1 and not na(pb.maxTopP)
+            array.push(bcP, pb.maxTopP)
+            array.push(bcLvl, pb.maxTopBHi)
+            array.push(bcBar, pb.maxTopBar)
+            array.push(bcTop, true)
+        else if pb.dir == -1 and not na(pb.minBotP)
+            array.push(bcP, pb.minBotP)
+            array.push(bcLvl, pb.minBotBHi)
+            array.push(bcBar, pb.minBotBar)
+            array.push(bcTop, false)
+        bigBreakDir := pb.dir
+        // حدّ العمق: أبقِ كل النقاط >= hohLeft + آخر 7 نقاط قبل hohLeft فقط
+        int beforeN = 0
+        if array.size(bcBar) > 0
+            for i = 0 to array.size(bcBar) - 1
+                if array.get(bcBar, i) < hohLeft
+                    beforeN += 1
+        while beforeN > 7 and array.size(bcBar) > 0
+            array.shift(bcP)
+            array.shift(bcLvl)
+            array.shift(bcBar)
+            array.shift(bcTop)
+            beforeN -= 1
     // Layer 3 يستعمل كل النقاط المتوسطة المؤكّدة بنيوياً (مستخرجة بالكسر) حيث bar <= histLeft،
     // بصرف النظر عن «الفعالية الحالية» (التي تخصّ المناطق فقط). التنظيف بقوانين الكبيرة لاحقاً.
     for i = 0 to mcn - 1
-        if array.get(mcBar, i) <= histLeft
+        if (not useBigBreak) and array.get(mcBar, i) <= histLeft
             float p = array.get(mcP, i)
             float lv = array.get(mcLvl, i)
             int   b = array.get(mcBar, i)
@@ -1334,14 +1395,14 @@ if showBig and barstate.islast
                             extB := b
                             legSw := 1
     // الامتداد الأخير المعلّق = نقطة زرقاء candidate أخيرة
-    if not na(extP) and bdir != 0
+    if (not useBigBreak) and not na(extP) and bdir != 0
         array.push(bcP, extP)
         array.push(bcLvl, extLvl)
         array.push(bcBar, extB)
         array.push(bcTop, bdir == 1)
     // أبقِ مرشّحات كافية (آخر ~2×عدد الموجات) — التقليم النهائي بعد التنظيف
     int keep = 2 * bigLegs + 2
-    while array.size(bcP) > keep
+    while (not useBigBreak) and array.size(bcP) > keep
         array.shift(bcP)
         array.shift(bcLvl)
         array.shift(bcBar)
@@ -1364,7 +1425,9 @@ if showBig and barstate.islast
                 pinBP := array.get(mcP, i)
                 pinBL := array.get(mcLvl, i)
                 pinBB := array.get(mcBar, i)
-    if histDir == 0
+    if useBigBreak and bigBreakDir != 0
+        histDir := bigBreakDir   // [D] الاتجاه من بنية الزرقاء المُشتقّة بالكسر
+    else if histDir == 0
         histDir := bigDir
     largeDir := histDir
     // تنظيف الزرقاء حسب اتجاه الموجة التاريخية (لا اتجاه كل leg):
@@ -1378,7 +1441,30 @@ if showBig and barstate.islast
     float pendEffP = na   // نقطة الفعالية المعلّقة (قاع صعوداً / قمة هبوطاً)
     float pendEffL = na
     int   pendEffB = na
-    if nb0 > 0
+    // ===== مسار الكسر [NEW-2]: إبقاء متناوب (النقاط الزرقاء بالكسر نظيفة ومتناوبة أصلاً) =====
+    //   أبقِ: كل نقاط الموجة التاريخية (bar >= histLeft) + 7 نقاط زرقاء قبل histLeft (للاتجاه)
+    //         + نافذة الرسم (bar >= drawLeft = آخر drawWaves موجات). الأقدم يُمسح.
+    //   لا حاجة لحلقة تتابُع/فعالية: الكسر طبّق القوانين ضمنياً، والاتجاه من ميل كل قطعة.
+    if useBigBreak
+        int cntB = array.size(bcBar)
+        int sevenBar = -1
+        int beforeC  = 0
+        if cntB > 0
+            for i = cntB - 1 to 0
+                if array.get(bcBar, i) < histLeft
+                    beforeC += 1
+                    if beforeC >= 7
+                        sevenBar := array.get(bcBar, i)
+                        break
+        int cutoffB = sevenBar < 0 ? 0 : math.min(drawLeft, sevenBar)
+        if cntB > 0
+            for i = 0 to cntB - 1
+                if array.get(bcBar, i) >= cutoffB
+                    array.push(kP,   array.get(bcP, i))
+                    array.push(kLvl, array.get(bcLvl, i))
+                    array.push(kB,   array.get(bcBar, i))
+                    array.push(kT,   array.get(bcTop, i))
+    if (not useBigBreak) and nb0 > 0
         for i = 0 to nb0 - 1
             float p  = array.get(bcP, i)
             float lv = array.get(bcLvl, i)
@@ -1408,7 +1494,7 @@ if showBig and barstate.islast
                     pendEffL := lv
                     pendEffB := b
     // ادفع آخر نقطة فعالية معلّقة (تصحيح حديث نحتاجه للسيولة) إن لم تُدفع
-    if not na(pendEffP)
+    if (not useBigBreak) and not na(pendEffP)
         array.push(kP, pendEffP)
         array.push(kLvl, pendEffL)
         array.push(kB, pendEffB)
@@ -1416,7 +1502,7 @@ if showBig and barstate.islast
         pendEffP := na
     // النقطة الزرقاء الحدودية المثبّتة عند histLeft (بداية الـleg الكبير النشط) — تُرسم دائماً.
     //   صاعدة ⇒ قاع أزرق حدودي؛ هابطة ⇒ قمة زرقاء حدودية. لا تخضع لحذف الفعالية.
-    if not na(pinBP)
+    if (not useBigBreak) and not na(pinBP)
         bool dup = array.size(kB) > 0 and array.get(kB, array.size(kB) - 1) == pinBB
         if not dup
             array.push(kP, pinBP)
@@ -1476,7 +1562,11 @@ if showBig and barstate.islast
             float lp1 = array.get(kP, b1)
             float lp2 = array.get(kP, b2)
             float slBu = lb1 != lb2 ? (lp1 - lp2) / (lb1 - lb2) : 0.0
-            int   rbBu = bar_index + liqExtBars
+            int   rbBu = last_bar_index + liqExtBars
+            if slBu > 0 and not na(hwHiBand)
+                rbBu := math.min(rbBu, math.max(lb1, lb1 + int((hwHiBand - lp1) / slBu)))
+            if slBu < 0 and not na(hwLoBand)
+                rbBu := math.min(rbBu, math.max(lb1, lb1 + int((hwLoBand - lp1) / slBu)))
             bigLiqLine := line.new(lb2, lp2, rbBu, lp1 + slBu * (rbBu - lb1),
                  xloc = xloc.bar_index, color = cLiqB, width = 2)
         if largeDir == -1 and showLiq and not na(t1) and not na(t2)
@@ -1485,17 +1575,21 @@ if showBig and barstate.islast
             float ltp1 = array.get(kP, t1)
             float ltp2 = array.get(kP, t2)
             float slBd = lt1 != lt2 ? (ltp1 - ltp2) / (lt1 - lt2) : 0.0
-            int   rbBd = bar_index + liqExtBars
+            int   rbBd = last_bar_index + liqExtBars
+            if slBd > 0 and not na(hwHiBand)
+                rbBd := math.min(rbBd, math.max(lt1, lt1 + int((hwHiBand - ltp1) / slBd)))
+            if slBd < 0 and not na(hwLoBand)
+                rbBd := math.min(rbBd, math.max(lt1, lt1 + int((hwLoBand - ltp1) / slBd)))
             bigLiqLine := line.new(lt2, ltp2, rbBd, ltp1 + slBd * (rbBd - lt1),
                  xloc = xloc.bar_index, color = cLiqB, width = 2)
         if largeDir == 1 and showLvl and not na(b1)
             // مستوى الاتجاه الأزرق: أفقي عند جسم أحدث قاع، يمتدّ حتى الحالية + lvlExtBars
             float lvlU = na(array.get(kLvl, b1)) ? array.get(kP, b1) : array.get(kLvl, b1)
-            bigLvlLine := line.new(array.get(kB, b1), lvlU, bar_index + lvlExtBars, lvlU,
+            bigLvlLine := line.new(array.get(kB, b1), lvlU, last_bar_index + lvlExtBars, lvlU,
                  xloc = xloc.bar_index, color = cLvlB, width = 2)
         if largeDir == -1 and showLvl and not na(t1)
             float lvlD = na(array.get(kLvl, t1)) ? array.get(kP, t1) : array.get(kLvl, t1)
-            bigLvlLine := line.new(array.get(kB, t1), lvlD, bar_index + lvlExtBars, lvlD,
+            bigLvlLine := line.new(array.get(kB, t1), lvlD, last_bar_index + lvlExtBars, lvlD,
                  xloc = xloc.bar_index, color = cLvlB, width = 2)
         // ===== مرحلة الكبيرة: كسر نصف الجسم مقابل خط سيولة الكبيرة =====
         //   صاعدة (آخر قاعين): كسر هابط ⇒ ذعر. هابطة (آخر قمتين): كسر صاعد ⇒ ذعر.
