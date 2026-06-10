@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v1.33", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v1.47", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -268,19 +268,11 @@ updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color 
         if dir == 1 and not na(m.lbP) and not na(m.pbP) and (na(waveStart) or (m.lbBar >= waveStart and m.pbBar >= waveStart))
             float slU = m.lbBar != m.pbBar ? (m.lbP - m.pbP) / (m.lbBar - m.pbBar) : 0.0
             int   rbU = last_bar_index + liqExt
-            // قصّ صارم: لا يتجاوز السعر المُسقَط نطاق الموجة (لا حدّ أدنى يتغلّب على القصّ)
-            if slU > 0 and not na(bandHi)
-                rbU := math.min(rbU, math.max(m.lbBar, m.lbBar + int((bandHi - m.lbP) / slU)))
-            if slU < 0 and not na(bandLo)
-                rbU := math.min(rbU, math.max(m.lbBar, m.lbBar + int((bandLo - m.lbP) / slU)))
+            // الامتداد يتبع liqExt فقط (لا قصّ بالنطاق) — مطابق للدرس؛ التكدّس يُحَلّ بـ Scale price chart only
             m.liq := line.new(m.pbBar, m.pbP, rbU, m.lbP + slU * (rbU - m.lbBar), xloc = xloc.bar_index, color = liqCol, width = 2)
         if dir == -1 and not na(m.ltP) and not na(m.ptP) and (na(waveStart) or (m.ltBar >= waveStart and m.ptBar >= waveStart))
             float slD = m.ltBar != m.ptBar ? (m.ltP - m.ptP) / (m.ltBar - m.ptBar) : 0.0
             int   rbD = last_bar_index + liqExt
-            if slD > 0 and not na(bandHi)
-                rbD := math.min(rbD, math.max(m.ltBar, m.ltBar + int((bandHi - m.ltP) / slD)))
-            if slD < 0 and not na(bandLo)
-                rbD := math.min(rbD, math.max(m.ltBar, m.ltBar + int((bandLo - m.ltP) / slD)))
             m.liq := line.new(m.ptBar, m.ptP, rbD, m.ltP + slD * (rbD - m.ltBar), xloc = xloc.bar_index, color = liqCol, width = 2)
     if sLvl
         // مستوى الاتجاه = جسم آخر تطرّف في الاتجاه النشط (نقطة واحدة) — يظهر دائماً للاتجاه الحالي
@@ -539,6 +531,45 @@ var array<bool>  mcTop = array.new<bool>()
 var array<bool>  mcEff = array.new<bool>()    // فعّالة؟
 var array<label> mcLbl = array.new<label>()
 var array<label> mcLblO = array.new<label>()   // الحلقة الخارجية (الحدّ) للمتوسطة
+// ===== مصفوفات المناطق المبنيّة (5-أ): تُعاد بناؤها عند islast من النقاط الفعّالة =====
+//   كل منطقة = طرفان (top/bottom = حافتا المستطيل) + bar المرساة (للترقيم لاحقاً 5-ب).
+//   المنفردة بلا شريك = top==bottom (خط m.A فقط، لا عرض).
+var array<float> zTop    = array.new<float>()
+var array<float> zBot    = array.new<float>()
+var array<int>   zAnchor = array.new<int>()
+var array<int>   zLeftTm = array.new<int>()   // زمن الحافة اليسرى (لرسم المستطيل بـ bar_time)
+var array<int>   bluePivotBars = array.new<int>()   // بارات النقاط الزرقاء (الكبيرة) الفعّالة — لـ override المناطق
+// هل بار النقطة = نقطة زرقاء (كبيرة فعّالة في kP)؟ — لمنع تزاوج زرقاء-زرقاء في المناطق
+f_isBlue(int br) =>
+    bool r = false
+    if array.size(bluePivotBars) > 0
+        for k = 0 to array.size(bluePivotBars) - 1
+            if array.get(bluePivotBars, k) == br
+                r := true
+                break
+    r
+// هل المنطقة المرشّحة [cB,cT] محتواة داخل منطقة موجودة أو تحتوي واحدة؟ (منع تداخل الاحتواء)
+f_zoneContain(float cT, float cB) =>
+    bool hit = false
+    int zc = array.size(zTop)
+    if zc > 0
+        for k = 0 to zc - 1
+            float zt = array.get(zTop, k)
+            float zb = array.get(zBot, k)
+            if (cT <= zt and cB >= zb) or (zt <= cT and zb >= cB)   // المرشّحة داخل موجودة أو العكس
+                hit := true
+                break
+    hit
+// فعالية البار المتوسط (covered؟) — لتلوين الزرقاء غير الفعّالة حمراء ببوردر أزرق
+f_barMedEff(int br) =>
+    bool e = true
+    int nm = array.size(mcBar)
+    if nm > 0
+        for k = 0 to nm - 1
+            if array.get(mcBar, k) == br
+                e := array.get(mcEff, k)
+                break
+    e
 // كائنات عرض الدرجة الكبيرة (تُمسح وتُعاد كل تحديث في نهاية الشارت)
 var array<label> bigLbls  = array.new<label>()
 var array<line>  bigLines = array.new<line>()
@@ -676,31 +707,22 @@ int hohLeft = math.max(histLeft - hohLen, 0)   // بداية تاريخ التا
 //   الأقدم يُحسب للحالة لكن لا يُرسم (أداء أخفّ). ثابتة من نهاية الشارت عبر last_bar_index.
 int drawLeft = math.max(0, last_bar_index - drawWaves * wlen)
 
-// بداية المنطقة التالية في اتجاه الصفقة:
-//   المنطقة = نطاق بين مستويين متوسطين فعّالين متقاربين (أقرب شريك) في الموجة الحالية.
+// بداية المنطقة التالية في اتجاه الصفقة (الهدف):
 //   شراء (up): الحافة السفلى (zb) لأقرب منطقة فوق السعر. بيع: الحافة العليا (zt) لأقرب منطقة تحته.
+//   خط m.A المنفرد (zt==zb) = مستوى هدف صالح أيضاً (بلا عرض منطقة) — ملاحظة المستخدم.
 f_nextZoneEdge(float px, bool up) =>
-    int   n    = array.size(mcP)
     float best = na
-    if n > 0
-        for i = 0 to n - 1
-            if array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
-                float li = array.get(mcLvl, i)
-                int   nj = -1
-                float nd = 1e18
-                for j = 0 to n - 1
-                    if j != i and array.get(mcEff, j) and array.get(mcBar, j) >= histLeft and math.abs(j - i) > 1
-                        float dd = math.abs(li - array.get(mcLvl, j))
-                        if dd < nd
-                            nd := dd
-                            nj := j
-                if nj >= 0
-                    float zt = math.max(li, array.get(mcLvl, nj))
-                    float zb = math.min(li, array.get(mcLvl, nj))
-                    if up and zb > px and (na(best) or zb < best)
-                        best := zb
-                    if (not up) and zt < px and (na(best) or zt > best)
-                        best := zt
+    int   zn   = array.size(zTop)
+    if zn > 0
+        for k = 0 to zn - 1
+            float zt = array.get(zTop, k)
+            float zb = array.get(zBot, k)
+            if up
+                if zb > px and (na(best) or zb < best)
+                    best := zb
+            else
+                if zt < px and (na(best) or zt > best)
+                    best := zt
     best
 
 // اتجاه الدرجة الكبيرة = اتجاه خط ترند كامل الموجة التاريخية:
@@ -1141,26 +1163,15 @@ if barstate.isconfirmed
     bool  inZone = false
     float zbCur  = na
     float ztCur  = na
-    int   mm = array.size(mcP)
-    if mm > 0
-        for i = 0 to mm - 1
-            if array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
-                float li = array.get(mcLvl, i)
-                int   nj = -1
-                float nd = 1e18
-                for j = 0 to mm - 1
-                    if j != i and array.get(mcEff, j) and array.get(mcBar, j) >= histLeft and math.abs(j - i) > 1
-                        float dd = math.abs(li - array.get(mcLvl, j))
-                        if dd < nd
-                            nd := dd
-                            nj := j
-                if nj >= 0
-                    float zt = math.max(li, array.get(mcLvl, nj))
-                    float zb = math.min(li, array.get(mcLvl, nj))
-                    if close <= zt and close >= zb
-                        inZone := true
-                        zbCur  := zb
-                        ztCur  := zt
+    int   zn = array.size(zTop)
+    if zn > 0
+        for k = 0 to zn - 1
+            float zt = array.get(zTop, k)
+            float zb = array.get(zBot, k)
+            if zt > zb and close <= zt and close >= zb   // zt>zb يستبعد خطوط m.A المنفردة (بلا عرض)
+                inZone := true
+                zbCur  := zb
+                ztCur  := zt
     // المرحلة المتوسطة: 1=ذعر، 2=يأس، 3=تجميع(قاع)، 4=تصريف(قمة)، 0=مشاركة.
     int   mc2 = medPh.code
     // أساسية: شراء = قاع (يأس/تجميع)؛ بيع = قمة (يأس/تصريف) — تنقيح الدفعة 4 لاحقاً
@@ -1254,6 +1265,7 @@ if barstate.isconfirmed
                  color = color.new(#C00000, 0), textcolor = color.white, size = size.small, tooltip = tipS)
         // غير مؤكّدة (خلف مدخل): صغيرة بانتظار الدرجة الرابعة + عالية المخاطر — وسم «؟» + لون أفتح، قرب السعر
         if showOppWaiting
+            int mm = array.size(mcP)
             bool unconfBuy  = ((smConfBuy and pendBuySmall and not pendBuyMed and not d4Up) or (oppHRBuy and not oppHRBuy[1])) and not entryBuy
             bool unconfSell = ((smConfSell and pendSellSmall and not pendSellMed and not d4Dn) or (oppHRSell and not oppHRSell[1])) and not entrySell
             if unconfBuy
@@ -1368,6 +1380,7 @@ if barstate.islast
                 if na(seqRef) or (seqIsTop ? pv > seqRef : pv < seqRef)
                     seqRef := pv
 
+    // (بناء المناطق نُقل إلى ما بعد كتلة الكبيرة لتطبيق override الزرقاء — انظر أدناه)
 // ============== الدرجة الكبيرة (Layer 3 — دفعة 1: تجميع legs + نقاط زرقاء candidate) ==============
 // تُجمّع من القمم/القيعان المتوسطة الفعّالة (لا من الشموع، ولا ZigZag خام):
 //   • تتبّع امتداد الاتجاه؛ يُؤكَّد رأس الموجة الكبيرة عند انعكاس متوسط يتجاوز فلاتر الحجم/الزمن/البنية (مساعدة، تلقائية).
@@ -1608,6 +1621,11 @@ if showBig and barstate.islast
             array.push(kLvl, pinBL)
             array.push(kB, pinBB)
             array.push(kT, histDir == -1)
+    // خزّن بارات الزرقاء النهائية لاستعمالها في override فعالية المناطق (الزرقاء = قمة/قاع متوسط صالح)
+    array.clear(bluePivotBars)
+    if array.size(kB) > 0
+        for i = 0 to array.size(kB) - 1
+            array.push(bluePivotBars, array.get(kB, i))
     // ارسم النقاط الزرقاء الفعّالة (بعد التنظيف) + روابطها
     int nb = array.size(kP)
     int prevBar = na
@@ -1616,12 +1634,16 @@ if showBig and barstate.islast
         for i = 0 to nb - 1
             float p = array.get(kP, i)
             int   b = array.get(kB, i)
-            // طبقتان متراكزتان: حلقة خارجية (حدّ أغمق) ثم تعبئة لون الدرجة فوقها
+            // الفعالية: زرقاء التاريخ مرجع دائم (فعّالة)؛ الحالية تخضع للتغطية المتوسطة
+            bool  me = (b < histLeft) ? true : f_barMedEff(b)
+            // طبقتان متراكزتان. فعّالة: حدّ أزرق غامق + تعبئة زرقاء. غير فعّالة: حدّ أزرق (دلالة) + تعبئة حمراء.
+            color outC = me ? f_dark(cBig) : cBig
+            color inC  = me ? cBig : cMedDead
             label lbO = label.new(b, p, "", xloc = xloc.bar_index, yloc = yloc.price,
-                 style = label.style_circle, color = f_dark(cBig), size = size.normal)
+                 style = label.style_circle, color = outC, size = size.normal)
             array.push(bigLbls, lbO)
             label lb = label.new(b, p, "", xloc = xloc.bar_index, yloc = yloc.price,
-                 style = label.style_circle, color = cBig, size = size.small)
+                 style = label.style_circle, color = inC, size = size.small)
             array.push(bigLbls, lb)
             if linkBig and not na(prevBar)
                 line ln = line.new(prevBar, prevP, b, p, xloc = xloc.bar_index,
@@ -1646,18 +1668,21 @@ if showBig and barstate.islast
             for i = 0 to nb - 1
                 bool tp = array.get(kT, i)
                 int  bb = array.get(kB, i)
-                if tp
-                    if na(t1) or bb > array.get(kB, t1)
-                        t2 := t1
-                        t1 := i
-                    else if na(t2) or bb > array.get(kB, t2)
-                        t2 := i
-                else
-                    if na(b1) or bb > array.get(kB, b1)
-                        b2 := b1
-                        b1 := i
-                    else if na(b2) or bb > array.get(kB, b2)
-                        b2 := i
+                // تخطَّ الزرقاء غير الفعّالة (الحمراء): السيولة/المستوى على الزرقاء الفعّالة فقط
+                bool meL = (bb < histLeft) ? true : f_barMedEff(bb)
+                if meL
+                    if tp
+                        if na(t1) or bb > array.get(kB, t1)
+                            t2 := t1
+                            t1 := i
+                        else if na(t2) or bb > array.get(kB, t2)
+                            t2 := i
+                    else
+                        if na(b1) or bb > array.get(kB, b1)
+                            b2 := b1
+                            b1 := i
+                        else if na(b2) or bb > array.get(kB, b2)
+                            b2 := i
         if largeDir == 1 and showLiq and not na(b1) and not na(b2)
             // سيولة صاعدة: تصل أحدث قاعين ثم تُسقَط حتى الشمعة الحالية + liqExtBars
             int   lb1 = array.get(kB, b1)
@@ -1666,10 +1691,7 @@ if showBig and barstate.islast
             float lp2 = array.get(kP, b2)
             float slBu = lb1 != lb2 ? (lp1 - lp2) / (lb1 - lb2) : 0.0
             int   rbBu = last_bar_index + liqExtBars
-            if slBu > 0 and not na(hwHiBand)
-                rbBu := math.min(rbBu, math.max(lb1, lb1 + int((hwHiBand - lp1) / slBu)))
-            if slBu < 0 and not na(hwLoBand)
-                rbBu := math.min(rbBu, math.max(lb1, lb1 + int((hwLoBand - lp1) / slBu)))
+            // الامتداد يتبع liqExtBars فقط (لا قصّ بالنطاق) — موحّد مع الأصفر/الأحمر
             bigLiqLine := line.new(lb2, lp2, rbBu, lp1 + slBu * (rbBu - lb1),
                  xloc = xloc.bar_index, color = cLiqB, width = 2)
         if largeDir == -1 and showLiq and not na(t1) and not na(t2)
@@ -1679,10 +1701,6 @@ if showBig and barstate.islast
             float ltp2 = array.get(kP, t2)
             float slBd = lt1 != lt2 ? (ltp1 - ltp2) / (lt1 - lt2) : 0.0
             int   rbBd = last_bar_index + liqExtBars
-            if slBd > 0 and not na(hwHiBand)
-                rbBd := math.min(rbBd, math.max(lt1, lt1 + int((hwHiBand - ltp1) / slBd)))
-            if slBd < 0 and not na(hwLoBand)
-                rbBd := math.min(rbBd, math.max(lt1, lt1 + int((hwLoBand - ltp1) / slBd)))
             bigLiqLine := line.new(lt2, ltp2, rbBd, ltp1 + slBd * (rbBd - lt1),
                  xloc = xloc.bar_index, color = cLiqB, width = 2)
         if largeDir == 1 and showLvl and not na(b1)
@@ -1731,6 +1749,138 @@ if showBig and barstate.islast
             bigCtxReview := not na(lastBrkB) and (na(lastRecB) or lastBrkB > lastRecB)
 
 
+// ===== override فعالية الزرقاء + بناء قائمة المناطق (5-أ) — بعد كتلة الكبيرة =====
+//   الدرس 02: القمة/القاع الأزرق = بداية موجة متوسطة ⇒ نقطة متوسطة صالحة للمناطق،
+//   فلا تُسقطها التغطية المتوسطة. القاعدة: mcEff = زرقاء(بارها في bluePivotBars) OR (غير مُغطّاة).
+//   ثم التزاوج: جوار زمني داخل الموجة (غير التصحيح)؛ المنفردة ⇒ أقرب نقطة سعرياً في التاريخ؛ وإلا m.A فقط.
+if barstate.islast
+    int mmz = array.size(mcP)
+    // override الزرقاء: زرقاء التاريخ (bar < histLeft) = مرجع موجة كبيرة سابقة ⇒ فعّالة للمناطق.
+    //   أمّا زرقاء الموجة الحالية فتخضع لقانون التغطية كأي نقطة (لا override) — فالمُغطّاة منها (e) تخرج.
+    if mmz > 0 and array.size(bluePivotBars) > 0
+        for i = 0 to mmz - 1
+            int bri = array.get(mcBar, i)
+            if bri < histLeft                       // التاريخ فقط
+                bool isBlue = false
+                for k = 0 to array.size(bluePivotBars) - 1
+                    if array.get(bluePivotBars, k) == bri
+                        isBlue := true
+                        break
+                if isBlue
+                    array.set(mcEff, i, true)
+    array.clear(zTop)
+    array.clear(zBot)
+    array.clear(zAnchor)
+    array.clear(zLeftTm)
+    if mmz > 0
+        array<int> effIdx = array.new<int>()
+        for i = 0 to mmz - 1
+            if array.get(mcEff, i)
+                array.push(effIdx, i)            // الفعّالة فقط، بترتيب الزمن (المصفوفة مرتّبة بالدفع)
+        int en = array.size(effIdx)
+        if en > 0
+            array<bool> usedZ = array.new<bool>(en, false)
+            // المرحلة 1: داخل الموجة الفعّالة — الأقرب سعرياً أولاً (عالمياً)، مع:
+            //   استبعاد التصحيح المتجاور (قمة+قاعها المباشر)، ومنع الاحتواء (منطقة داخل منطقة).
+            array<int>   pAi = array.new<int>()
+            array<int>   pBi = array.new<int>()
+            array<float> pD  = array.new<float>()
+            for a = 0 to en - 1
+                int iaa = array.get(effIdx, a)
+                if array.get(mcBar, iaa) >= histLeft and a < en - 1
+                    for b = a + 1 to en - 1
+                        int jbb = array.get(effIdx, b)
+                        if array.get(mcBar, jbb) >= histLeft
+                            bool adjc = (b - a) == 1
+                            bool oppc = array.get(mcTop, jbb) != array.get(mcTop, iaa)
+                            if not (adjc and oppc)              // استبعاد التصحيح المتجاور فقط
+                                array.push(pAi, a)
+                                array.push(pBi, b)
+                                array.push(pD, math.abs(array.get(mcLvl, iaa) - array.get(mcLvl, jbb)))
+            int np = array.size(pD)
+            if np > 0
+                array<bool> pDone = array.new<bool>(np, false)
+                for _it = 1 to np
+                    int   best = -1
+                    float bd   = 1e18
+                    for x = 0 to np - 1
+                        if not array.get(pDone, x)
+                            if (not array.get(usedZ, array.get(pAi, x))) and (not array.get(usedZ, array.get(pBi, x)))
+                                if array.get(pD, x) < bd
+                                    bd   := array.get(pD, x)
+                                    best := x
+                    if best < 0
+                        break
+                    array.set(pDone, best, true)
+                    int aa  = array.get(pAi, best)
+                    int bb  = array.get(pBi, best)
+                    int ica = array.get(effIdx, aa)
+                    int icb = array.get(effIdx, bb)
+                    float la = array.get(mcLvl, ica)
+                    float lb = array.get(mcLvl, icb)
+                    float cT = math.max(la, lb)
+                    float cB = math.min(la, lb)
+                    if not f_zoneContain(cT, cB)              // لا تتداخل احتواءً ⇒ ارسم
+                        array.set(usedZ, aa, true)
+                        array.set(usedZ, bb, true)
+                        array.push(zTop, cT)
+                        array.push(zBot, cB)
+                        array.push(zAnchor, math.max(array.get(mcBar, ica), array.get(mcBar, icb)))
+                        array.push(zLeftTm, math.min(array.get(mcTm, ica), array.get(mcTm, icb)))
+            // المرحلة 2: استعارة عالمية بالأقرب سعرياً — أقرب زوج (منفردة حالية ↔ نقطة تاريخ التاريخ) أولاً.
+            //   يمنع خطف منفردة بعيدة لشريك تحتاجه منفردة أقرب (2-3 فرق 82 قبل 1-3 فرق 980)، مع منع الاحتواء.
+            array<int>   qAi = array.new<int>()
+            array<int>   qBi = array.new<int>()
+            array<float> qD  = array.new<float>()
+            for a = 0 to en - 1
+                int ia2 = array.get(effIdx, a)
+                if not array.get(usedZ, a) and array.get(mcBar, ia2) >= histLeft
+                    for b = 0 to en - 1
+                        int jb2 = array.get(effIdx, b)
+                        if array.get(mcBar, jb2) < histLeft and array.get(mcBar, jb2) >= hohLeft
+                            array.push(qAi, a)
+                            array.push(qBi, b)
+                            array.push(qD, math.abs(array.get(mcLvl, ia2) - array.get(mcLvl, jb2)))
+            int nq = array.size(qD)
+            if nq > 0
+                array<bool> qDone = array.new<bool>(nq, false)
+                for _it2 = 1 to nq
+                    int   qbest = -1
+                    float qbd   = 1e18
+                    for x = 0 to nq - 1
+                        if not array.get(qDone, x)
+                            if (not array.get(usedZ, array.get(qAi, x))) and (not array.get(usedZ, array.get(qBi, x)))
+                                if array.get(qD, x) < qbd
+                                    qbd   := array.get(qD, x)
+                                    qbest := x
+                    if qbest < 0
+                        break
+                    array.set(qDone, qbest, true)
+                    int qa  = array.get(qAi, qbest)
+                    int qb  = array.get(qBi, qbest)
+                    int iqa = array.get(effIdx, qa)
+                    int iqb = array.get(effIdx, qb)
+                    float la2 = array.get(mcLvl, iqa)
+                    float lb2 = array.get(mcLvl, iqb)
+                    float cT2 = math.max(la2, lb2)
+                    float cB2 = math.min(la2, lb2)
+                    if not f_zoneContain(cT2, cB2)
+                        array.set(usedZ, qa, true)
+                        array.set(usedZ, qb, true)
+                        array.push(zTop, cT2)
+                        array.push(zBot, cB2)
+                        array.push(zAnchor, math.max(array.get(mcBar, iqa), array.get(mcBar, iqb)))
+                        array.push(zLeftTm, math.min(array.get(mcTm, iqa), array.get(mcTm, iqb)))
+            // المرحلة 3: ما تبقّى من منفردات الموجة الحالية بلا شريك صالح ⇒ خط m.A فقط (طبيعي)
+            for a = en - 1 to 0
+                int ia3 = array.get(effIdx, a)
+                if not array.get(usedZ, a) and array.get(mcBar, ia3) >= histLeft
+                    array.set(usedZ, a, true)
+                    array.push(zTop, array.get(mcLvl, ia3))
+                    array.push(zBot, array.get(mcLvl, ia3))
+                    array.push(zAnchor, array.get(mcBar, ia3))
+                    array.push(zLeftTm, array.get(mcTm, ia3))
+
 // ===================== المناطق (مستقلّة عن إظهار الكبيرة) =====================
 // مطابق للدرس: ارسم مستوى أفقياً على جسم كل قمة/قاع متوسط فعّال (أصفر).
 //   المحلّل يختار المنطقة بصرياً بين مستويين متقاربين (لا مسافة رقمية في الشرح).
@@ -1755,42 +1905,18 @@ if showZones and barstate.islast
                 line lv = line.new(array.get(mcTm, i), array.get(mcLvl, i), rEdge, array.get(mcLvl, i),
                      xloc = xloc.bar_time, color = zoneLvlCol, width = 1)
                 array.push(zoneLvls, lv)
-    // (2) مستطيلات اقتراحية (اختياري — ليس من الاستراتيجية): المرساة = نقطة فعّالة في الموجة الحالية.
-    //     الشريك = أقرب نقطة فعّالة في الموجة الحالية؛ فإن كانت «فرداً» (لا شريك حالي) ⇒ أقرب نقطة
-    //     فعّالة في تاريخ التاريخ. عدا الزوج المباشر (|j−i|>1)، بلا مسافة رقمية، منع تكرار الزوج.
-    if zoneAutoBox and m > 0
-        array<int> zKey = array.new<int>()
-        for i = 0 to m - 1
-            if array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
-                float lvlI  = array.get(mcLvl, i)
-                // 1) أقرب شريك في الموجة الحالية
-                int   bestJ = -1
-                float bestD = 1e18
-                for j = 0 to m - 1
-                    if j != i and array.get(mcEff, j) and math.abs(j - i) > 1 and array.get(mcBar, j) >= histLeft
-                        float d = math.abs(lvlI - array.get(mcLvl, j))
-                        if d <= bestD
-                            bestD := d
-                            bestJ := j
-                // 2) فرد بلا شريك حالي ⇒ ابحث في تاريخ التاريخ
-                if bestJ < 0
-                    float bestDf = 1e18
-                    for j = 0 to m - 1
-                        if j != i and array.get(mcEff, j) and math.abs(j - i) > 1 and array.get(mcBar, j) < histLeft
-                            float d = math.abs(lvlI - array.get(mcLvl, j))
-                            if d <= bestDf
-                                bestDf := d
-                                bestJ := j
-                if bestJ >= 0
-                    int key = math.min(i, bestJ) * 100000 + math.max(i, bestJ)
-                    if not array.includes(zKey, key)
-                        array.push(zKey, key)
-                        float zt = math.max(lvlI, array.get(mcLvl, bestJ))
-                        float zb = math.min(lvlI, array.get(mcLvl, bestJ))
-                        int   zl = math.min(array.get(mcTm, i), array.get(mcTm, bestJ))
-                        box bx = box.new(zl, zt, rEdge, zb, xloc = xloc.bar_time,
-                             border_color = zoneBorder, bgcolor = zoneFill, border_width = 1)
-                        array.push(dispBoxes, bx)
+    // (2) مستطيلات اقتراحية (اختياري): تُرسم من قائمة المناطق المبنيّة (5-أ) — التزاوج الصحيح
+    //     (تتالٍ فعّال + زوج واحد + استعارة المنفردة). المنفردة (zt==zb) لا مستطيل لها (خط m.A فقط).
+    if zoneAutoBox
+        int znb = array.size(zTop)
+        if znb > 0
+            for k = 0 to znb - 1
+                float zt = array.get(zTop, k)
+                float zb = array.get(zBot, k)
+                if zt > zb
+                    box bx = box.new(array.get(zLeftTm, k), zt, rEdge, zb, xloc = xloc.bar_time,
+                         border_color = zoneBorder, bgcolor = zoneFill, border_width = 1)
+                    array.push(dispBoxes, bx)
 
 // ===================== الاستنتاجات وحالة السوق (لوحة) =====================
 // تُقرأ من اتجاهات الدرجات وذاكرة السيولة:
