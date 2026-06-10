@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v1.28", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v1.30", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -71,7 +71,10 @@ cLiqM = input.color(#C55A11, "سيولة المتوسطة", group = grpCol)
 cLvlM = input.color(#C55A11, "مستوى المتوسطة", group = grpCol)
 cLiqB = input.color(#1F3A5F, "سيولة الكبيرة",  group = grpCol)
 cLvlB = input.color(#1F3A5F, "مستوى الكبيرة", group = grpCol)
-cMedDead = input.color(color.new(#C00000, 45), "المتوسطة غير الفعّالة", group = grpCol)
+cMedDead = input.color(color.new(#C00000, 45), "تعبئة المتوسطة غير الفعّالة (داخل أحمر)", group = grpCol)
+cBigDead = input.color(color.new(#C00000, 45), "تعبئة الكبيرة غير الفعّالة (داخل أحمر)", group = grpCol)
+// حدّ أغمق تلقائياً من لون الدرجة (للدوائر الفعّالة) — صلب بلا شفافية
+f_dark(color c) => color.rgb(color.r(c) * 0.5, color.g(c) * 0.5, color.b(c) * 0.5)
 
 // ===== الموجة التاريخية =====
 grpHist   = "الموجة التاريخية"
@@ -483,6 +486,7 @@ var array<int>   mcTm  = array.new<int>()
 var array<bool>  mcTop = array.new<bool>()
 var array<bool>  mcEff = array.new<bool>()    // فعّالة؟
 var array<label> mcLbl = array.new<label>()
+var array<label> mcLblO = array.new<label>()   // الحلقة الخارجية (الحدّ) للمتوسطة
 // كائنات عرض الدرجة الكبيرة (تُمسح وتُعاد كل تحديث في نهاية الشارت)
 var array<label> bigLbls  = array.new<label>()
 var array<line>  bigLines = array.new<line>()
@@ -784,8 +788,11 @@ if barstate.isconfirmed
         // اتجاه الموجة الصغيرة النشطة (يُحسب قبل الرسم): يبدأ = اتجاه الموجة التاريخية،
         //   ولا ينقلب إلا بكسر البنية: قمة أعلى من آخر قمة ⇒ صاعدة، قاع أدنى من آخر قاع ⇒ هابطة.
         //   (= قاعدة الدرس: كسر آخر قاع صعوداً / آخر قمة هبوطاً يبدأ موجة صغيرة جديدة.)
-        if smallActiveDir == 0 and bigDir != 0
-            smallActiveDir := bigDir
+        if smallActiveDir == 0
+            // [D] التمهيد من المصدر البنيوي للأكبر (largeDir) أولاً؛ نافذة bigDir احتياط أخير فقط
+            int sBoot = largeDir != 0 ? largeDir : bigDir
+            if sBoot != 0
+                smallActiveDir := sBoot
         if isTop and not na(memS.ltP) and sPx > memS.ltP
             smallActiveDir := 1
         if (not isTop) and not na(memS.lbP) and sPx < memS.lbP
@@ -835,8 +842,12 @@ if barstate.isconfirmed
         if emM
             float levelM = eTopM ? eBHiM : eBLoM   // خط المستوى (قمة=أعلى الجسم، قاع=أسفل الجسم)
             label mlbl = na
+            label mlblO = na
             if showMed and eBM >= drawLeft
-                mlbl := label.new(eBM, ePM, "", xloc = xloc.bar_index, yloc = yloc.price,
+                // الحلقة الخارجية (الحدّ) أولاً ثم التعبئة فوقها — فعّالة مبدئياً (حدّ أغمق + تعبئة لون الدرجة)
+                mlblO := label.new(eBM, ePM, "", xloc = xloc.bar_index, yloc = yloc.price,
+                     style = label.style_circle, color = f_dark(cMed), size = size.small)
+                mlbl  := label.new(eBM, ePM, "", xloc = xloc.bar_index, yloc = yloc.price,
                      style = label.style_circle, color = cMed, size = size.tiny)
             // خزّن النقطة المتوسطة (فعّالة مبدئياً)
             array.push(mcP, ePM)
@@ -848,6 +859,7 @@ if barstate.isconfirmed
             array.push(mcTop, eTopM)
             array.push(mcEff, true)
             array.push(mcLbl, mlbl)
+            array.push(mcLblO, mlblO)
             // (الفعالية تُحسب في نهاية الشارت حسب الفاصل histLeft: داخل الموجة التاريخية
             //  كل النقاط فعّالة برتقالية؛ وفي تاريخ التاريخ يُلوَّن المُغطّى أحمر.)
             // حدّ المخزن
@@ -855,6 +867,9 @@ if barstate.isconfirmed
                 label oldLbl = array.get(mcLbl, 0)
                 if not na(oldLbl)
                     label.delete(oldLbl)
+                label oldLblO = array.get(mcLblO, 0)
+                if not na(oldLblO)
+                    label.delete(oldLblO)
                 array.shift(mcP)
                 array.shift(mcLvl)
                 array.shift(mcHi)
@@ -864,6 +879,7 @@ if barstate.isconfirmed
                 array.shift(mcTop)
                 array.shift(mcEff)
                 array.shift(mcLbl)
+                array.shift(mcLblO)
             if linkMed and not na(lastMedBar) and eBM >= drawLeft
                 line.new(lastMedBar, lastMedP, eBM, ePM, xloc = xloc.bar_index,
                      color = cLineM, width = 2)
@@ -871,7 +887,7 @@ if barstate.isconfirmed
             // (M5) يُمسح بصرياً ما رُسم من أسهم صغيرة داخل ساق التصحيح (أدناه) — الحالة الوظيفية تبقى.
             // نهاية تصحيح متوسط: الاتجاه الحاكم = اتجاه الموجة المتوسطة المنتِجة للتصحيح
             //   (fallback إلى bigDir فقط عند الصفر — تمهيد أوّلي مشروع، لا قاعدة دائمة).
-            int  corrDir = medActiveDir != 0 ? medActiveDir : bigDir
+            int  corrDir = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
             bool upW     = corrDir == 1
             bool corrEnd = (upW and not eTopM) or ((not upW) and eTopM)
             if corrEnd
@@ -1262,8 +1278,11 @@ if barstate.islast
             bool effI = (not covered) and effSeq
             array.set(mcEff, i, effI)
             label li = array.get(mcLbl, i)
+            label liO = array.get(mcLblO, i)
             if not na(li)
-                label.set_color(li, effI ? cMed : cMedDead)
+                label.set_color(li, effI ? cMed : cMedDead)        // التعبئة الداخلية
+            if not na(liO)
+                label.set_color(liO, effI ? f_dark(cMed) : cMed)   // الحلقة (حدّ): أغمق للفعّالة، لون الدرجة لغير الفعّالة
             // قدّم مرجع التتابُع على النقاط المُبقاة من نوع الدافعة داخل الموجة النشطة
             if medActiveDir != 0 and bi >= wsM and tp == seqIsTop and effI
                 if na(seqRef) or (seqIsTop ? pv > seqRef : pv < seqRef)
@@ -1517,8 +1536,12 @@ if showBig and barstate.islast
         for i = 0 to nb - 1
             float p = array.get(kP, i)
             int   b = array.get(kB, i)
+            // طبقتان متراكزتان: حلقة خارجية (حدّ أغمق) ثم تعبئة لون الدرجة فوقها
+            label lbO = label.new(b, p, "", xloc = xloc.bar_index, yloc = yloc.price,
+                 style = label.style_circle, color = f_dark(cBig), size = size.normal)
+            array.push(bigLbls, lbO)
             label lb = label.new(b, p, "", xloc = xloc.bar_index, yloc = yloc.price,
-                 style = label.style_circle, color = cBig, size = size.normal)
+                 style = label.style_circle, color = cBig, size = size.small)
             array.push(bigLbls, lb)
             if linkBig and not na(prevBar)
                 line ln = line.new(prevBar, prevP, b, p, xloc = xloc.bar_index,
