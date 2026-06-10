@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v1.30", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v1.32", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -294,13 +294,17 @@ updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color 
 // منفصلة تماماً عن آلة الاتجاه. تُبنى على كسر خط سيولة نفس الدرجة (نصف الجسم للقراءة)،
 // ثم تسلسل: مشاركة عامة ⇒ ذعر ⇒ (أول قاع/قمة) يأس ⇒ (كسر آخر امتداد) مشاركة جديدة.
 type Phase
-    int   code       = 0    // 0 مشاركة عامة، 1 ذعر، 2 يأس
+    int   code       = 0    // 0 مشاركة، 1 ذعر، 2 يأس، 3 تجميع، 4 تصريف
     int   brkDir     = 0    // -1 سياق صاعد كُسر هبوطاً، 1 سياق هابط كُسر صعوداً
     int   brkBar     = na
-    float despairExt = na
+    float despairExt = na   // آخر نقطة retracement في اليأس/التجميع (كسرها = مشاركة جديدة)
+    int   trendDir   = 0    // اتجاه الترند الحالي (لكشف التصريف داخل المشاركة)
+    float partExt    = na   // ذروة المشاركة (أعلى قمة صعوداً / أدنى قاع هبوطاً)
+    float despDeep   = na   // عمق اليأس (أدنى قاع صعوداً / أعلى قمة هبوطاً) — لبداية التجميع
 
-// تحديث المرحلة لكل بار: كسر السيولة (نصف الجسم) ⇒ ذعر؛ كسر امتداد اليأس ⇒ مشاركة جديدة
+// تحديث المرحلة لكل بار: كسر السيولة (نصف الجسم) ⇒ ذعر؛ كسر امتداد اليأس/التجميع ⇒ مشاركة جديدة
 phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
+    p.trendDir := dir
     float body = math.abs(c - o)
     if not na(liqLvl) and body > 0
         if dir == 1 and c < liqLvl and (liqLvl - c) > 0.5 * body and p.brkDir != -1
@@ -308,35 +312,81 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
             p.brkBar := bar_index
             p.code := 1
             p.despairExt := na
+            p.partExt := na
+            p.despDeep := na
         if dir == -1 and c > liqLvl and (c - liqLvl) > 0.5 * body and p.brkDir != 1
             p.brkDir := 1
             p.brkBar := bar_index
             p.code := 1
             p.despairExt := na
-    if p.code == 2 and not na(p.despairExt)
+            p.partExt := na
+            p.despDeep := na
+    if (p.code == 2 or p.code == 3 or p.code == 4) and not na(p.despairExt)
         if p.brkDir == -1 and c > p.despairExt
             p.code := 0
             p.brkDir := 0
             p.despairExt := na
+            p.despDeep := na
+            p.partExt := na
         if p.brkDir == 1 and c < p.despairExt
             p.code := 0
             p.brkDir := 0
             p.despairExt := na
+            p.despDeep := na
+            p.partExt := na
 
-// تحديث المرحلة عند انبثاق نقطة من نفس الدرجة: ذعر⇒يأس وتتبّع آخر امتداد
+// تحديث المرحلة عند انبثاق نقطة من نفس الدرجة
 phaseOnPivot(Phase p, bool isTop, float pivP, int pivBar) =>
+    // --- المشاركة(0): توقّف التقدّم ⇒ تصريف(قمة) صعوداً / تجميع(قاع) هبوطاً ---
+    // القاعدة موضعية: قمة⇒تصريف، قاع⇒تجميع (لا تتبع اتجاه الموجة).
+    if p.code == 0
+        if p.trendDir == 1 and isTop
+            if na(p.partExt) or pivP > p.partExt
+                p.partExt := pivP            // قمة أعلى ⇒ ما زال مشاركة صاعدة
+            else
+                p.code := 4                  // قمة أدنى (إخفاق) ⇒ تصريف (قمة)
+        if p.trendDir == -1 and not isTop
+            if na(p.partExt) or pivP < p.partExt
+                p.partExt := pivP            // قاع أدنى ⇒ ما زال مشاركة هابطة
+            else
+                p.code := 3                  // قاع أعلى (إخفاق) ⇒ تجميع (قاع)
+    else if p.code == 4 and p.trendDir == 1 and isTop and not na(p.partExt) and pivP > p.partExt
+        p.partExt := pivP
+        p.code := 0                          // استئناف صنع قمة أعلى ⇒ عودة للمشاركة الصاعدة
+    else if p.code == 3 and p.trendDir == -1 and not isTop and not na(p.partExt) and pivP < p.partExt
+        p.partExt := pivP
+        p.code := 0                          // استئناف صنع قاع أدنى ⇒ عودة للمشاركة الهابطة
+    // --- الذعر(1) ⇒ اليأس(2): أول نقطة معاكسة بعد الكسر ---
+    bool justYas = false
     if p.code == 1 and not na(p.brkBar) and pivBar > p.brkBar
         if (p.brkDir == -1 and not isTop) or (p.brkDir == 1 and isTop)
             p.code := 2
             p.despairExt := na
-    if p.code == 2
+            p.despDeep := pivP
+            justYas := true
+    // --- اليأس(2) ⇄ القاعدة/القمة: تجميع(قاع) سياق صاعد / تصريف(قمة) سياق هابط ---
+    if (p.code == 2 or p.code == 3 or p.code == 4) and not justYas
+        // النهاية: آخر نقطة retracement (كسرها = مشاركة جديدة) — تُتتبّع في كل الحالات
         if p.brkDir == -1 and isTop
             p.despairExt := pivP
         if p.brkDir == 1 and not isTop
             p.despairExt := pivP
+        // العمق + الكشف الموضعي
+        if p.brkDir == -1 and not isTop          // سياق صاعد مكسور: قيعان ⇒ تجميع
+            if na(p.despDeep) or pivP < p.despDeep
+                p.despDeep := pivP
+                p.code := 2                      // قاع أدنى ⇒ يأس مستمرّ/انتكاس
+            else
+                p.code := 3                      // قاع أعلى ⇒ تجميع (قاع)
+        if p.brkDir == 1 and isTop                // سياق هابط مكسور: قمم ⇒ تصريف
+            if na(p.despDeep) or pivP > p.despDeep
+                p.despDeep := pivP
+                p.code := 2                      // قمة أعلى ⇒ يأس مستمرّ/انتكاس
+            else
+                p.code := 4                      // قمة أدنى ⇒ تصريف (قمة)
 
 phaseText(Phase p, int dir) =>
-    p.code == 1 ? "ذعر" : p.code == 2 ? "يأس" : (dir == 1 ? "مشاركة عامة صاعدة" : dir == -1 ? "مشاركة عامة هابطة" : "—")
+    p.code == 1 ? "ذعر" : p.code == 2 ? "يأس" : p.code == 3 ? "تجميع" : p.code == 4 ? "تصريف" : (dir == 1 ? "مشاركة عامة صاعدة" : dir == -1 ? "مشاركة عامة هابطة" : "—")
 
 // ===================== كسر السيولة البنيوي (شمعتان) — للتجدّد ==================
 // منفصل تماماً عن المراحل (نصف الجسم). الكسر البنيوي = شمعتان متتاليتان مغلقتان خلف الخط:
@@ -1039,8 +1089,8 @@ if barstate.isconfirmed
     int psBrk  = smallPh.brkDir
     int psCode = smallPh.code
     phaseOnBar(smallPh, sDir, smLiqLvl, close, open)
-    smConfBuy  := psCode == 2 and smallPh.code == 0 and psBrk == -1   // مشاركة صغيرة صاعدة جديدة
-    smConfSell := psCode == 2 and smallPh.code == 0 and psBrk == 1    // مشاركة صغيرة هابطة جديدة
+    smConfBuy  := (psCode == 2 or psCode == 3) and smallPh.code == 0 and psBrk == -1   // مشاركة صغيرة صاعدة جديدة (من يأس/تجميع)
+    smConfSell := (psCode == 2 or psCode == 4) and smallPh.code == 0 and psBrk == 1    // مشاركة صغيرة هابطة جديدة (من يأس/تصريف)
     bool smStruct = false
     if useRenewal and not na(memS.liq)
         smStruct := structuralBreak(smLB, sDir, smLiqLvl, close, open)
@@ -1081,14 +1131,14 @@ if barstate.isconfirmed
                         inZone := true
                         zbCur  := zb
                         ztCur  := zt
-    // المرحلة المتوسطة: 1=ذعر، 2=يأس، 0=مشاركة. التجميع/التصريف لا يتأكّد إلا بالمشاركة الجديدة.
+    // المرحلة المتوسطة: 1=ذعر، 2=يأس، 3=تجميع(قاع)، 4=تصريف(قمة)، 0=مشاركة.
     int   mc2 = medPh.code
-    // أساسية (انتظار تأكيد): داخل منطقة + مسموح + يأس
-    oppBasicBuy  := inZone and buyOK  and mc2 == 2
-    oppBasicSell := inZone and sellOK and mc2 == 2
-    // عالية المخاطر: داخل منطقة + اتجاه + تصحيح بعد الذعر (ذعر/يأس) وليست أساسية مؤكّدة بعد
-    oppHRBuy  := inZone and bEff == 1  and (mc2 == 1 or mc2 == 2)
-    oppHRSell := inZone and bEff == -1 and (mc2 == 1 or mc2 == 2)
+    // أساسية: شراء = قاع (يأس/تجميع)؛ بيع = قمة (يأس/تصريف) — تنقيح الدفعة 4 لاحقاً
+    oppBasicBuy  := inZone and buyOK  and (mc2 == 2 or mc2 == 3)
+    oppBasicSell := inZone and sellOK and (mc2 == 2 or mc2 == 4)
+    // عالية المخاطر: شراء = ذعر/يأس/تجميع؛ بيع = ذعر/يأس/تصريف
+    oppHRBuy  := inZone and bEff == 1  and (mc2 == 1 or mc2 == 2 or mc2 == 3)
+    oppHRSell := inZone and bEff == -1 and (mc2 == 1 or mc2 == 2 or mc2 == 4)
     oppText := "لا فرصة"
     if inZone
         oppText := "داخل منطقة — لا مرحلة مناسبة"
@@ -1103,13 +1153,13 @@ if barstate.isconfirmed
     // ===== المرحلة 3: انتظار (درجة الفرصة) ⇒ تأكيد بدرجة أصغر ⇒ دخول/وقف/هدف =====
     // الصفقة المتوسطة: التأكيد بالصغيرة (مشاركة صغيرة جديدة) ⇒ دخول مؤكّد.
     // الصفقة الصغيرة: التأكيد يحتاج درجة أصغر (غير متوفّرة) ⇒ تبقى انتظاراً (لا دخول آلي).
-    if inZone and buyOK and medPh.code == 2
+    if inZone and buyOK and (medPh.code == 2 or medPh.code == 3)
         pendBuyMed := true
-    if inZone and buyOK and smallPh.code == 2
+    if inZone and buyOK and (smallPh.code == 2 or smallPh.code == 3)
         pendBuySmall := true
-    if inZone and sellOK and medPh.code == 2
+    if inZone and sellOK and (medPh.code == 2 or medPh.code == 4)
         pendSellMed := true
-    if inZone and sellOK and smallPh.code == 2
+    if inZone and sellOK and (smallPh.code == 2 or smallPh.code == 4)
         pendSellSmall := true
     if medPh.code == 1
         pendBuyMed  := false
