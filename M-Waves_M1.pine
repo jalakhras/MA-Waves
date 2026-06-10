@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v1.47", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v1.48", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -539,6 +539,8 @@ var array<float> zBot    = array.new<float>()
 var array<int>   zAnchor = array.new<int>()
 var array<int>   zLeftTm = array.new<int>()   // زمن الحافة اليسرى (لرسم المستطيل بـ bar_time)
 var array<int>   bluePivotBars = array.new<int>()   // بارات النقاط الزرقاء (الكبيرة) الفعّالة — لـ override المناطق
+var array<float> zHistP  = array.new<float>()   // مستوى نقطة التاريخ التي دخلت زوجاً (لرسم خط m.A عليها)
+var array<int>   zHistTm = array.new<int>()      // زمنها
 // هل بار النقطة = نقطة زرقاء (كبيرة فعّالة في kP)؟ — لمنع تزاوج زرقاء-زرقاء في المناطق
 f_isBlue(int br) =>
     bool r = false
@@ -1772,6 +1774,8 @@ if barstate.islast
     array.clear(zBot)
     array.clear(zAnchor)
     array.clear(zLeftTm)
+    array.clear(zHistP)
+    array.clear(zHistTm)
     if mmz > 0
         array<int> effIdx = array.new<int>()
         for i = 0 to mmz - 1
@@ -1871,6 +1875,9 @@ if barstate.islast
                         array.push(zBot, cB2)
                         array.push(zAnchor, math.max(array.get(mcBar, iqa), array.get(mcBar, iqb)))
                         array.push(zLeftTm, math.min(array.get(mcTm, iqa), array.get(mcTm, iqb)))
+                        // iqb = نقطة التاريخ (الشريك) ⇒ سجّلها لرسم خط m.A عليها
+                        array.push(zHistP,  array.get(mcLvl, iqb))
+                        array.push(zHistTm, array.get(mcTm, iqb))
             // المرحلة 3: ما تبقّى من منفردات الموجة الحالية بلا شريك صالح ⇒ خط m.A فقط (طبيعي)
             for a = en - 1 to 0
                 int ia3 = array.get(effIdx, a)
@@ -1905,6 +1912,13 @@ if showZones and barstate.islast
                 line lv = line.new(array.get(mcTm, i), array.get(mcLvl, i), rEdge, array.get(mcLvl, i),
                      xloc = xloc.bar_time, color = zoneLvlCol, width = 1)
                 array.push(zoneLvls, lv)
+        // نقاط التاريخ التي دخلت أزواجاً (شركاء المنفردة) ⇒ ارسم خط m.A عليها أيضاً
+        int nh = array.size(zHistP)
+        if nh > 0
+            for i = 0 to nh - 1
+                line lvh = line.new(array.get(zHistTm, i), array.get(zHistP, i), rEdge, array.get(zHistP, i),
+                     xloc = xloc.bar_time, color = zoneLvlCol, width = 1)
+                array.push(zoneLvls, lvh)
     // (2) مستطيلات اقتراحية (اختياري): تُرسم من قائمة المناطق المبنيّة (5-أ) — التزاوج الصحيح
     //     (تتالٍ فعّال + زوج واحد + استعارة المنفردة). المنفردة (zt==zb) لا مستطيل لها (خط m.A فقط).
     if zoneAutoBox
