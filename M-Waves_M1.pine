@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v1.86", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v1.88", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "محرّك الدرجات"
@@ -112,7 +112,7 @@ grpZone    = "المناطق (المستوى الثاني)"
 showZones  = input.bool(true, "إظهار وحدة المناطق", group = grpZone)
 showZoneLevels = input.bool(true, "إظهار خطوط مستويات M.A (الأساس الذي تُبنى عليه المستطيلات)", group = grpZone)
 grpRenew   = "التجدّد البنيوي (كسر السيولة بشمعتين)"
-useRenewal = input.bool(false, "تفعيل تجدّد السيولة (مسح عند كسر بشمعتين وانتظار نقطتين) — قيد الاختبار", group = grpRenew)
+useRenewal = input.bool(true, "تجدّد السيولة (مسح عند كسر بشمعتين وانتظار نقطتين)", group = grpRenew)
 useSmallTL = input.bool(false, "كسر مستوى الصغير يقلب اتجاهها (عدّ صغير جديد) — قيد الاختبار", group = grpRenew)
 grpOpp     = "الفرص (المستوى الثاني)"
 showOpp    = input.bool(true, "إظهار إشارات الفرص على الشارت", group = grpOpp)
@@ -1461,37 +1461,37 @@ if barstate.isconfirmed
             string tipS = "دخول: " + str.tostring(entryP, format.mintick) + "\nوقف: " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "\nهدف: " + (na(tgtP) ? "NO_TARGET_ZONE" : str.tostring(tgtP, format.mintick)) + diagTip
             label.new(bar_index, entryP, "بيع", yloc = yloc.price, style = label.style_label_down,
                  color = color.new(#C00000, 0), textcolor = color.white, size = size.small, tooltip = tipS)
-        // غير مؤكّدة (خلف مدخل): صغيرة بانتظار الدرجة الرابعة + عالية المخاطر — وسم «؟» + لون أفتح، قرب السعر
+        // ثانوية عالية المخاطر (تصحيح بعد الزعر) = لون كهرمانيّ مميّز ووسم HR؛ صغيرة بانتظار الرابعة = «؟» أفتح.
         if showOppWaiting
             int mm = array.size(mcP)
-            bool unconfBuy  = ((smConfBuy and pendBuySmall and not pendBuyMed and not d4Up) or (oppHRBuy and not oppHRBuy[1])) and not entryBuy
-            bool unconfSell = ((smConfSell and pendSellSmall and not pendSellMed and not d4Dn) or (oppHRSell and not oppHRSell[1])) and not entrySell
-            if unconfBuy
+            bool hrBuy    = oppHRBuy  and not oppHRBuy[1]  and not entryBuy
+            bool hrSell   = oppHRSell and not oppHRSell[1] and not entrySell
+            bool waitBuy  = smConfBuy and pendBuySmall and not pendBuyMed and not d4Up and not entryBuy
+            bool waitSell = smConfSell and pendSellSmall and not pendSellMed and not d4Dn and not entrySell
+            if hrBuy or waitBuy
                 float ub = na
                 for i = 0 to mm - 1
                     if array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
                         float lv = array.get(mcLvl, i)
                         if lv > close and (na(ub) or lv < ub)
                             ub := lv
-                // الوقف من حافة منطقة الإعداد بهامش (لا memS.lbP الخام) + شبكة أمان: الوقف تحت الدخول والهدف فوقه.
                 float sPwB = inZone ? zbCur - buf : ((not na(zbEntryB)) ? zbEntryB - buf : memS.lbP)
                 if not na(sPwB) and not na(ub) and sPwB < close and ub > close
                     string tipUB = "دخول: " + str.tostring(close, format.mintick) + "\nوقف: " + str.tostring(sPwB, format.mintick) + "\nهدف: " + str.tostring(ub, format.mintick) + diagTip
-                    label.new(bar_index, close, "شراء؟", yloc = yloc.price, style = label.style_label_up,
-                         color = color.new(#1B5E20, 50), textcolor = color.white, size = size.tiny, tooltip = tipUB)
-            if unconfSell
+                    label.new(bar_index, close, hrBuy ? "شراء HR" : "شراء؟", yloc = yloc.price, style = label.style_label_up,
+                         color = hrBuy ? color.new(#C77800, 0) : color.new(#1B5E20, 50), textcolor = color.white, size = size.tiny, tooltip = tipUB)
+            if hrSell or waitSell
                 float us = na
                 for i = 0 to mm - 1
                     if array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
                         float lv = array.get(mcLvl, i)
                         if lv < close and (na(us) or lv > us)
                             us := lv
-                // الوقف من حافة منطقة الإعداد بهامش (لا memS.ltP الخام) + شبكة أمان: الوقف فوق الدخول والهدف تحته.
                 float sPwS = inZone ? ztCur + buf : ((not na(ztEntryS)) ? ztEntryS + buf : memS.ltP)
                 if not na(sPwS) and not na(us) and sPwS > close and us < close
                     string tipUS = "دخول: " + str.tostring(close, format.mintick) + "\nوقف: " + str.tostring(sPwS, format.mintick) + "\nهدف: " + str.tostring(us, format.mintick) + diagTip
-                    label.new(bar_index, close, "بيع؟", yloc = yloc.price, style = label.style_label_down,
-                         color = color.new(#C00000, 50), textcolor = color.white, size = size.tiny, tooltip = tipUS)
+                    label.new(bar_index, close, hrSell ? "بيع HR" : "بيع؟", yloc = yloc.price, style = label.style_label_down,
+                         color = hrSell ? color.new(#8D6E00, 0) : color.new(#C00000, 50), textcolor = color.white, size = size.tiny, tooltip = tipUS)
 
 // ===================== حدود الموجة التاريخية ==============================
 // • إذا أدخل المستخدم عدد شموع > 0: تُرسم الحدود على آخر هذا العدد من الشموع.
