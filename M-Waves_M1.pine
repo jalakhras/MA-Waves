@@ -18,176 +18,188 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.38", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.43", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
-// ============================ الإعدادات ====================================
-grpEng  = "⚙️ محرّك الدرجات"
-minCorr = input.int(2, "عدد شموع التصحيح لتأكيد القمة/القاع", minval = 1, maxval = 5, group = grpEng,
-     tooltip = "قاعدة الاستراتيجية = شمعتان صحيحتان في اتجاه التصحيح")
-useValid = input.bool(true, "اشتراط الشمعة الصحيحة (جسم ≥ كل ذيل)", group = grpEng,
-     tooltip = "استبعاد النويز كاندل: أي ذيل أطول من الجسم")
+// ============================ Settings / الإعدادات ====================================
+// ----- 🌐 Language -----
+grpLang   = "🌐 Language / اللغة"
+lang      = input.string("عربي", "Language / اللغة", options = ["عربي", "English"], group = grpLang)
+f_t(string ar, string en) => lang == "English" ? en : ar   // chart text follows the language; input labels are static in Pine
 
-grpShow   = "👁️ الإظهار والطبقات"
-showSmall = input.bool(true,  "إظهار قمم/قيعان الصغيرة (أحمر/أخضر)", group = grpShow)
-showMed   = input.bool(true,  "الدرجة المتوسطة (برتقالي)",  group = grpShow)
-showBig   = input.bool(true,  "الدرجة الكبيرة (أزرق)",      group = grpShow)
-showPending = input.bool(true, "إظهار الدوائر المعلّقة (رماديّة)", group = grpShow)   // [V4.8]
-linkSmall = input.bool(true,  "وصل قمم/قيعان الصغيرة بخطوط", group = grpShow)
-linkMed   = input.bool(true,  "وصل قمم/قيعان المتوسطة بخطوط", group = grpShow)
-linkBig   = input.bool(true,  "وصل قمم/قيعان الكبيرة بخطوط",  group = grpShow)
-drawWaves = input.int(3, "عدد الموجات المرسومة (أداء)", minval = 1, maxval = 20, group = grpShow,
-     tooltip = "القمم/القيعان الصغيرة والمتوسطة والإشارات تُرسم على آخر هذا العدد من الموجات فقط. الأقدم يُحسب للحالة دون رسم. (الكبيرة الزرقاء تبقى 7).")
-showArrows = input.bool(true, "إظهار جميع الأسهم الصغيرة", group = grpShow,
-     tooltip = "إخفاء/إظهار كل أسهم القمم والقيعان الصغيرة (الخطوط الواصلة تبقى حسب مفتاحها).")
+// ----- ⚙️ Engine -----
+grpEng  = "⚙️ Engine / المحرّك"
+minCorr = input.int(2, "Correction candles to confirm pivot / شموع التصحيح للتأكيد", minval = 1, maxval = 5, group = grpEng,
+     tooltip = "Strategy rule = two valid candles in the correction direction.\nقاعدة الاستراتيجية: شمعتان صحيحتان في اتجاه التصحيح.")
+useValid = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpEng,
+     tooltip = "Excludes noise candles (any wick longer than the body).\nيستبعد شمعة النويز: أيّ ذيل أطول من الجسم.")
 
-// ===== الدرجة الكبيرة (Layer 3): تجميع legs من المتوسطة الفعّالة =====
-grpBig    = "📈 الدرجة الكبيرة (متقدّم)"
-bigMinSwings = input.int(2, "أدنى نقاط متوسطة في الموجة الكبيرة", minval = 1, maxval = 10, group = grpBig,
-     tooltip = "فلتر مساعد (تلقائي): أقل عدد نقاط متوسطة لاعتبار الحركة موجة كبيرة")
-bigMinATR    = input.float(3.0, "أدنى حجم للموجة الكبيرة (× ATR)", minval = 0.0, step = 0.5, group = grpBig,
-     tooltip = "فلتر مساعد: 0 = تعطيل")
-bigMinBars   = input.int(30, "أدنى زمن للموجة الكبيرة (شموع)", minval = 0, group = grpBig,
-     tooltip = "فلتر مساعد: 0 = تعطيل")
-bigLegs      = input.int(7, "عدد الموجات الكبيرة المرشّحة", minval = 2, maxval = 15, group = grpBig)
-useBigBreak  = input.bool(true, "استخراج الكبيرة بالكسر (من المتوسطة الفعّالة)", group = grpBig,
-     tooltip = "قاعدة الاستراتيجية (إجبارية): تُشتقّ القمم/القيعان الزرقاء بآلية الكسر (Proc/feed) مُغذّاة بالنقاط المتوسطة الفعّالة. الاتجاه من بنية الزرقاء.")
-// ===== شكل السهم (مصمت يشبه سهم TradingView — تحكّم بالطول والعرض) =====
-grpArr    = "📐 الأحجام والأشكال"
-medCircleSize = input.string("صغير", "حجم دائرة المتوسطة", options = ["دقيق","صغير","عادي","كبير","ضخم"], group = grpArr,
-     tooltip = "حجم دائرة TradingView الأصلية (5 مستويات ثابتة — المنصّة لا تتيح حجماً كسرياً للدوائر الأصلية).")
-bigCircleSize = input.string("عادي", "حجم دائرة الكبيرة",  options = ["دقيق","صغير","عادي","كبير","ضخم"], group = grpArr)
-arrLenAtr = input.float(0.4, "طول السهم (× ATR)", minval = 0.1, step = 0.1, group = grpArr,
-     tooltip = "افتراضيّ مقارب لحجم سهم TradingView القياسي. ارفع/اخفض ليطابق أداتك.")
-arrWidth  = input.int(2, "عرض السهم (شموع)", minval = 1, maxval = 10, group = grpArr,
-     tooltip = "عرض رأس السهم بعدد الشموع (عدد صحيح — أصغر وحدة = شمعة واحدة).")
+// ----- 👁️ Display & Layers -----
+grpShow   = "👁️ Display & Layers / الإظهار والطبقات"
+showSmall = input.bool(true,  "Small pivots (red/green) / الصغيرة (أحمر/أخضر)", group = grpShow)
+showMed   = input.bool(true,  "Medium degree (orange) / المتوسطة (برتقالي)",  group = grpShow)
+showBig   = input.bool(true,  "Big degree (blue) / الكبيرة (أزرق)",      group = grpShow)
+showPending = input.bool(true, "Pending circles (grey) / الدوائر المعلّقة (رماديّة)", group = grpShow)
+showArrows = input.bool(true, "All small arrows / كل الأسهم الصغيرة", group = grpShow,
+     tooltip = "Show/hide every small pivot arrow (connector lines keep their own toggle).\nإظهار/إخفاء كل الأسهم الصغيرة (الخطوط الواصلة بمفتاحها).")
+linkSmall = input.bool(true,  "Link small pivots / وصل الصغيرة بخطوط", group = grpShow)
+linkMed   = input.bool(true,  "Link medium pivots / وصل المتوسطة بخطوط", group = grpShow)
+linkBig   = input.bool(true,  "Link big pivots / وصل الكبيرة بخطوط",  group = grpShow)
+showOpp    = input.bool(true, "Opportunity & entry signals / إشارات الفرص والدخول", group = grpShow)
+showOppWaiting = input.bool(true, "Unconfirmed signals (waiting/high-risk/small) / الفرص غير المؤكّدة", group = grpShow)
+drawWaves = input.int(3, "Drawn waves (performance) / عدد الموجات المرسومة", minval = 1, maxval = 20, group = grpShow,
+     tooltip = "Small/medium pivots and signals draw on the last N waves only; older still feed state. (Blue stays 7.)\nترسم آخر N موجة فقط؛ الأقدم يُحسب دون رسم. (الكبيرة تبقى 7.)")
 
-// ===== الألوان (كلٌّ في سطر) =====
-grpCol = "🎨 الألوان"
-cTop   = input.color(#F23645, "لون سهم القمة (صغيرة)",  group = grpCol)
-cBot   = input.color(#089981, "لون سهم القاع (صغيرة)",  group = grpCol)
-cMed   = input.color(color.new(#C55A11, 45), "لون دائرة المتوسطة",     group = grpCol)
-cMedBorder = input.color(color.new(#5A2D08, 0), "حدّ (بوردر) دائرة المتوسطة — ثابت، محجوز لاستخدام لاحق", group = grpCol)
-cBig   = input.color(color.new(#1F3A5F, 45), "تعبئة دائرة الكبيرة (فعّالة)", group = grpCol)
-cBigBorder = input.color(color.new(#0E1B2E, 0), "حدّ (بوردر) دائرة الكبيرة — ثابت، محجوز لاستخدام لاحق", group = grpCol)
-cLineS = input.color(color.new(color.gray, 55), "لون خط الصغيرة",  group = grpCol)
-cLineM = input.color(color.new(#C55A11, 35),    "لون خط المتوسطة", group = grpCol)
-cLiqS = input.color(#C00000, "سيولة الصغيرة",  group = grpCol)
-cLvlS = input.color(#C00000, "مستوى الصغيرة", group = grpCol)
-cLiqM = input.color(#C55A11, "سيولة المتوسطة", group = grpCol)
-cLvlM = input.color(#C55A11, "مستوى المتوسطة", group = grpCol)
-cLiqB = input.color(#1F3A5F, "سيولة الكبيرة",  group = grpCol)
-cLvlB = input.color(#1F3A5F, "مستوى الكبيرة", group = grpCol)
-cMedDead = input.color(color.new(#C00000, 45), "تعبئة المتوسطة غير الفعّالة (داخل أحمر)", group = grpCol)
-cBigDead = input.color(color.new(#C00000, 45), "تعبئة الكبيرة غير الفعّالة (داخل أحمر)", group = grpCol)
-cPend    = input.color(color.new(#B2B5BE, 25), "تعبئة المعلّقة (غير محدَّدة — رماديّ)", group = grpCol)
-cPendBordMed = input.color(#FFD700, "بوردر المعلّقة المتوسطة (أصفر)", group = grpCol)   // [V3.8] تمييز درجة المعلّقة
-cPendBordBig = input.color(#2962FF, "بوردر المعلّقة الكبيرة (أزرق)",  group = grpCol)
-// حدّ أغمق تلقائياً من لون الدرجة (للدوائر الفعّالة) — صلب بلا شفافية
-f_dark(color c) => color.rgb(color.r(c) * 0.5, color.g(c) * 0.5, color.b(c) * 0.5)
-// مُعيِّن حجم الدائرة (سلسلة ⇒ ثابت size) + درجة أصغر للحلقة الداخلية — معمّم لكل الدرجات (إعادة استخدام)
-f_lblSize(string s)   => s == "دقيق" ? size.tiny : s == "صغير" ? size.small : s == "كبير" ? size.large : s == "ضخم" ? size.huge : size.normal
-f_lblSizeIn(string s) => s == "ضخم" ? size.large : s == "كبير" ? size.normal : s == "عادي" ? size.small : size.tiny
+// ----- 📐 Sizes & Shapes -----
+grpArr    = "📐 Sizes & Shapes / الأحجام والأشكال"
+medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة", options = ["Fine","Small","Normal","Large","Huge"], group = grpArr,
+     tooltip = "Native TradingView circle size (5 fixed steps).\nحجم الدائرة الأصلية (5 مستويات ثابتة).")
+bigCircleSize = input.string("Normal", "Big circle size / حجم دائرة الكبيرة",  options = ["Fine","Small","Normal","Large","Huge"], group = grpArr)
+arrLenAtr = input.float(0.4, "Arrow length (× ATR) / طول السهم", minval = 0.1, step = 0.1, group = grpArr,
+     tooltip = "Close to TradingView's standard arrow size; raise/lower to fit your symbol.\nمقارب لحجم سهم TradingView القياسي.")
+arrWidth  = input.int(2, "Arrow width (candles) / عرض السهم", minval = 1, maxval = 10, group = grpArr,
+     tooltip = "Arrow-head width in candles (1 = one candle).\nعرض رأس السهم بالشموع (1 = شمعة).")
 
-// ===== الموجة التاريخية =====
-grpHist   = "🌊 الموجة التاريخية"
-showHist  = input.bool(true,  "إظهار حدود الموجة التاريخية", group = grpHist)
-useHistN  = input.bool(false, "تحديد الموجة بعدد الشموع (بدل التلقائي)", group = grpHist,
-     tooltip = "مفعّل: تُرسم الحدود على آخر «عدد الشموع». مطفأ: تُحدَّد تلقائياً من الدرجة الكبيرة.")
-histBars  = input.int(100, "عدد شموع الموجة التاريخية", minval = 1, group = grpHist)
-histAnchorBig = input.bool(false, "إرساء تلقائيّ على التطرّف الكبير (أوسع — الدرس 03)", group = grpHist,
-     tooltip = "مطفأ (افتراضيّ): إرساء تلقائيّ على الانقلاب المتوسط (الدرس 09 — أضيق، يتجدّد سريعًا). مفعّل: إرساء على آخر قاع كبير (صعودًا) / قمّة كبيرة (هبوطًا) = أصل الموجة الكبيرة ⇒ موجة أوسع أقرب للدرس 03. قارن الاثنين.")
-cHist     = input.color(color.new(#607D8B, 82), "لون الموجة التاريخية", group = grpHist)   // [V4.62] أزرق-رماديّ هادئ، قريب من رماديّ تاريخ التاريخ مع تمييز
-showHoh   = input.bool(true,  "إظهار حدود تاريخ التاريخ", group = grpHist)
-useHohN   = input.bool(false, "تحديد تاريخ التاريخ بعدد الشموع (بدل التلقائي)", group = grpHist,
-     tooltip = "مفعّل: يأخذ «عدد شموع تاريخ التاريخ». مطفأ: بطول مساوٍ للموجة التاريخية قبلها مباشرةً.")
-hohBars   = input.int(100, "عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
-hohMinRatio = input.float(0.618, "حدّ «مقارِبة الحجم» لتاريخ التاريخ (× سعة الموجة التاريخية)", minval = 0.1, maxval = 1.0, step = 0.05, group = grpHist,
-     tooltip = "تاريخ التاريخ = أحدث ساق كبيرة سابقة سعتها ≥ هذه النسبة من سعة الموجة التاريخية (موجة مقارِبة لا تصحيح). الافتراضي 0.618 (فيبوناتشي). يُتخطّى ما دونها.")
-cHoh      = input.color(color.new(#808080, 88), "لون تاريخ التاريخ", group = grpHist)
+// ----- 🎨 Colors (grouped by degree: small · medium · big · pending) -----
+grpCol = "🎨 Colors / الألوان"
+cTop   = input.color(#F23645, "Small top arrow / سهم القمة (صغيرة)",  group = grpCol)
+cBot   = input.color(#089981, "Small bottom arrow / سهم القاع (صغيرة)",  group = grpCol)
+cLineS = input.color(color.new(color.gray, 55), "Small line / خط الصغيرة",  group = grpCol)
+cLiqS = input.color(#C00000, "Small liquidity / سيولة الصغيرة",  group = grpCol)
+cLvlS = input.color(#C00000, "Small level / مستوى الصغيرة", group = grpCol)
+cMed   = input.color(color.new(#C55A11, 45), "Medium fill (active) / تعبئة المتوسطة (فعّالة)",     group = grpCol)
+cMedBorder = input.color(color.new(#5A2D08, 0), "Medium border / حدّ المتوسطة", group = grpCol)
+cMedDead = input.color(color.new(#C00000, 45), "Medium inactive fill / المتوسطة غير الفعّالة", group = grpCol)
+cLineM = input.color(color.new(#C55A11, 35),    "Medium line / خط المتوسطة", group = grpCol)
+cLiqM = input.color(#C55A11, "Medium liquidity / سيولة المتوسطة", group = grpCol)
+cLvlM = input.color(#C55A11, "Medium level / مستوى المتوسطة", group = grpCol)
+cBig   = input.color(color.new(#1F3A5F, 45), "Big fill (active) / تعبئة الكبيرة (فعّالة)", group = grpCol)
+cBigBorder = input.color(color.new(#0E1B2E, 0), "Big border / حدّ الكبيرة", group = grpCol)
+cBigDead = input.color(color.new(#C00000, 45), "Big inactive fill / الكبيرة غير الفعّالة", group = grpCol)
+cLiqB = input.color(#1F3A5F, "Big liquidity / سيولة الكبيرة",  group = grpCol)
+cLvlB = input.color(#1F3A5F, "Big level / مستوى الكبيرة", group = grpCol)
+cPend    = input.color(color.new(#B2B5BE, 25), "Pending fill (grey) / تعبئة المعلّقة", group = grpCol)
+cPendBordMed = input.color(#FFD700, "Pending medium border (yellow) / حدّ المعلّقة المتوسطة", group = grpCol)
+cPendBordBig = input.color(#2962FF, "Pending big border (blue) / حدّ المعلّقة الكبيرة",  group = grpCol)
 
-// ===== خطوط السيولة ومستويات الاتجاه =====
-grpLiq  = "💧 السيولة والمستويات"
-showLiq = input.bool(true, "خطوط السيولة (على الذيول)",      group = grpLiq)
-showLvl = input.bool(true, "مستويات الاتجاه (على الأجسام)", group = grpLiq)
-liqExtBars = input.int(24, "امتداد إضافي لخطوط السيولة بعد السعر الحالي (شموع)", minval = 0, group = grpLiq,
-     tooltip = "يصل خط السيولة حتى الشمعة الحالية ثم يمتدّ هذا العدد من الشموع إضافةً (مُسقَطاً بالميل). 0 = حتى السعر الحالي فقط.")
-lvlExtBars = input.int(24, "امتداد إضافي لخطوط المستوى بعد السعر الحالي (شموع)", minval = 0, group = grpLiq,
-     tooltip = "يصل خط المستوى حتى الشمعة الحالية ثم يمتدّ هذا العدد من الشموع إضافةً (أفقياً). 0 = حتى السعر الحالي فقط.")
-// [V4.26] عرض مستقلّ لكلّ درجة (يتحكّم بخطّي تلك الدرجة: السيولة + المستوى). افتراضيّ هرميّ: الأكبر أعرض
-//   ⇒ حين تتطابق نقاط الدرجات يظهر الأكبر كحاشية حول الأصغر (الأزرق ضمنيًّا أصفر، [[degree-nesting]]).
-wSmall = input.int(2, "عرض خطوط الصغيرة (سيولة+مستوى)",  minval = 1, maxval = 8, group = grpLiq)
-wMed   = input.int(2, "عرض خطوط المتوسطة (سيولة+مستوى)", minval = 1, maxval = 8, group = grpLiq)
-wBig   = input.int(3, "عرض خطوط الكبيرة (سيولة+مستوى)",  minval = 1, maxval = 8, group = grpLiq)
-keepBrokenLiq = input.bool(false, "الاحتفاظ بخطوط السيولة المكسورة", group = grpLiq,
-     tooltip = "عند كسر خط السيولة (نصف الجسم) يُجمَّد نسخة منه عند نقطة الكسر بلون/نمط مميّز بدل حذفه. الخط الحيّ يستمرّ.")
-keepBrokenLvl = input.bool(false, "الاحتفاظ بمستويات الاتجاه المكسورة", group = grpLiq,
-     tooltip = "عند انقلاب اتجاه المتوسطة (كسر المستوى بشمعتين) يُجمَّد المستوى القديم بدل حذفه.")
-brokenCol   = input.color(#787B86, "لون الخطوط المكسورة", group = grpLiq)
-brokenWidth = input.int(1, "عرض الخطوط المكسورة (سماكة)", minval = 1, maxval = 5, group = grpLiq)
+// ----- 🌊 Historical Wave -----
+grpHist   = "🌊 Historical Wave / الموجة التاريخية"
+showHist  = input.bool(true,  "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
+histAnchorBig = input.bool(false, "Anchor on big extreme (wider) / إرساء على التطرّف الكبير", group = grpHist,
+     tooltip = "Off: anchor on last medium reversal (narrower, renews fast). On: anchor on last big low (up)/high (down) ⇒ wider wave.\nمطفأ: آخر انقلاب متوسط (أضيق). مفعّل: آخر تطرّف كبير (أوسع).")
+useHistN  = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist,
+     tooltip = "On: draw bounds over the last N candles. Off: auto from the big degree.\nمفعّل: آخر N شمعة. مطفأ: تلقائي من الكبيرة.")
+histBars  = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
+cHist     = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
+showHoh   = input.bool(true,  "Show prior-history bounds / حدود تاريخ التاريخ", group = grpHist)
+useHohN   = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist,
+     tooltip = "On: take N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
+hohBars   = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
+hohMinRatio = input.float(0.618, "Prior-history size threshold (× wave amplitude) / حدّ حجم تاريخ التاريخ", minval = 0.1, maxval = 1.0, step = 0.05, group = grpHist,
+     tooltip = "Prior-history = newest earlier big leg with amplitude ≥ this ratio of the historical wave. Default 0.618 (Fibonacci).\nتاريخ التاريخ = أحدث ساق كبيرة سابقة سعتها ≥ هذه النسبة.")
+cHoh      = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
 
-// ===== الاستنتاجات وحالة السوق =====
-grpConc   = "🧭 لوحة الاستنتاجات"
-showPanel = input.bool(true, "لوحة الاستنتاجات والحالة", group = grpConc)
-panelPos  = input.string("أعلى يمين", "موضع لوحة الاستنتاجات", group = grpConc,
-     options = ["أعلى يسار","أعلى وسط","أعلى يمين","وسط يسار","وسط","وسط يمين","أسفل يسار","أسفل وسط","أسفل يمين"],
-     tooltip = "اختر موضع اللوحة (Pine لا يدعم السحب بالماوس).")
-liqTol    = input.float(0.0, "هامش قوة السيولة (بصري اختياري — ليس من الاستراتيجية)", minval = 0.0, step = 0.05, group = grpConc,
-     tooltip = "الدرس لا يحدّد رقماً. 0 = مقارنة خالصة (فوق/داخل). أي قيمة هنا أداة بصرية فقط.")
-panelBg   = input.color(#1E222D, "لون خلفية لوحة الاستنتاجات (الشفافية من المنتقي)", group = grpConc)
+// ----- 💧 Liquidity & Levels -----
+grpLiq  = "💧 Liquidity & Levels / السيولة والمستويات"
+showLiq = input.bool(true, "Liquidity lines (on wicks) / خطوط السيولة (على الذيول)",      group = grpLiq)
+showLvl = input.bool(true, "Trend levels (on bodies) / مستويات الاتجاه (على الأجسام)", group = grpLiq)
+wSmall = input.int(2, "Small line width / عرض خطوط الصغيرة",  minval = 1, maxval = 8, group = grpLiq)
+wMed   = input.int(2, "Medium line width / عرض خطوط المتوسطة", minval = 1, maxval = 8, group = grpLiq)
+wBig   = input.int(3, "Big line width / عرض خطوط الكبيرة",  minval = 1, maxval = 8, group = grpLiq)
+liqExtBars = input.int(24, "Liquidity extension past price (candles) / امتداد السيولة بعد السعر", minval = 0, group = grpLiq,
+     tooltip = "Liquidity line reaches the current candle then extends N more (sloped). 0 = up to price only.\nيمتدّ N شمعة إضافية بالميل. 0 = حتى السعر.")
+lvlExtBars = input.int(24, "Level extension past price (candles) / امتداد المستوى بعد السعر", minval = 0, group = grpLiq,
+     tooltip = "Level line reaches the current candle then extends N more (horizontal). 0 = up to price only.\nيمتدّ N شمعة أفقياً. 0 = حتى السعر.")
+keepBrokenLiq = input.bool(false, "Keep broken liquidity lines / الاحتفاظ بالسيولة المكسورة", group = grpLiq,
+     tooltip = "On a liquidity break (half body) a frozen copy stays at the break point instead of being deleted.\nعند الكسر يُجمَّد نسخة بدل الحذف.")
+keepBrokenLvl = input.bool(false, "Keep broken trend levels / الاحتفاظ بالمستويات المكسورة", group = grpLiq,
+     tooltip = "On a medium direction flip (2-candle level break) the old level is frozen instead of deleted.\nعند الانقلاب يُجمَّد المستوى القديم.")
+brokenCol   = input.color(#787B86, "Broken line color / لون الخطوط المكسورة", group = grpLiq)
+brokenWidth = input.int(1, "Broken line width / عرض الخطوط المكسورة", minval = 1, maxval = 5, group = grpLiq)
 
-// ===== المناطق (المستوى الثاني) =====
-// مطابقة 100% للدرس: نرسم «مستويات M.A» أفقية على أجسام القمم/القيعان المتوسطة الفعّالة،
-// ويختار المحلّل المنطقة بصرياً بين مستويين متقاربين. الدرس لم يحدّد مسافة رقمية،
-// لذلك لا نفرض أي حدّ كقانون. (المستطيل التلقائي أداة عرض اختيارية فقط — ليس من الاستراتيجية.)
-grpZone    = "🟦 المناطق (المستوى الثاني)"
-showZones  = input.bool(true, "إظهار وحدة المناطق", group = grpZone)
-showZoneLevels = input.bool(true, "إظهار خطوط مستويات M.A (الأساس الذي تُبنى عليه المستطيلات)", group = grpZone)
-grpRenew   = "🔄 التجدّد البنيوي"
-useRenewal = input.bool(true, "تجدّد السيولة (مسح عند كسر بشمعتين وانتظار نقطتين)", group = grpRenew)
-grpOpp     = "🎯 الفرص والصفقات (المستوى الثاني)"
-showOpp    = input.bool(true, "إظهار/إخفاء إشارات الفرص والدخول", group = grpShow)   // [V4.82] نُقل للمجموعة العليا ليسهُل إيجاده
-showOppWaiting = input.bool(true, "إظهار الفرص غير المؤكّدة (انتظار/عالية مخاطر/صغيرة)", group = grpShow)
-showDiag   = input.bool(false, "تشخيص مؤقّت (inZone/مرحلة/تأكيد + داخليّات الوقف)", group = "🛠️ تشخيص (مؤقّت)")
-showRenewalEvents = input.bool(false, "تشخيص أحداث التجديد (وسوم على الشارت: مسح/تجديد/انقلاب)", group = "🛠️ تشخيص (مؤقّت)",
-     tooltip = "يضع وسمًا عند كلّ حدث تجديد: ✗سيو=مُسِح خط السيولة المتوسط · ⟲متوسط=انقلاب اتجاه المتوسطة · ⟲كبير=انقلاب الكبيرة · ↻أزرق=تجديد مرساة الأزرق. لمتابعة المنطق على فترة بدل التمرير.")
-showEffTable = input.bool(false, "جدول تشخيص الفعالية (لماذا فعّال/غير فعّال + م.A)", group = "🛠️ تشخيص (مؤقّت)")
-showDerivTable = input.bool(false, "جدول الاشتقاق (صغيرة→متوسطة→كبيرة بالترتيب + لماذا)", group = "🛠️ تشخيص (مؤقّت)")
-diagBigWaves = input.int(3, "عدد الموجات الكبيرة في جداول التشخيص", minval = 1, maxval = 10, group = "🛠️ تشخيص (مؤقّت)", tooltip = "1 = الموجة الحالية فقط؛ 3 = آخر 3 موجات كبيرة (يُخفي النقاط الصغيرة في جدول الاشتقاق ليُركّز على البنية)")
-bufMult    = input.float(0.5, "هامش الوقف/الإبطال (× سعة الدرجة الصغيرة)", minval = 0.1, maxval = 2.0, step = 0.1, group = grpOpp,
-     tooltip = "الوقف = حافة المنطقة ∓ هامش. والإبطال = كسر الدعم/المقاومة بوضوح (بهامش) لا بمجرّد ملامسة. الهامش = bufMult × سعة آخر تأرجح صغير.")
-// [V4.44] إدارة الصفقات يدويًّا (الدمج بين الأعمق وآخر قاع): قيمة سعريّة. 0 = السلوك الافتراضيّ (آمن).
-grpManage    = "🎯 إدارة الصفقات (يدويّ)"
-mgStopPts    = input.float(0.0, "هامش الوقف خلف آخر قاع/قمّة (سعر، 0=افتراضيّ)", minval = 0.0, step = 0.1, group = grpManage,
-     tooltip = "إن > 0: الوقف = آخر قاع بدرجة التأكيد − هذه القيمة (شراء) / آخر قمّة + القيمة (بيع). إن = 0: يُستعمل الهامش المشتقّ من الدرجة (despDeep − buf).")
-mgTgtPts     = input.float(0.0, "تقريب الهدف قبل المنطقة (سعر، 0=حافّة المنطقة)", minval = 0.0, step = 0.1, group = grpManage,
-     tooltip = "جني الربح قبل حافّة المنطقة التالية بهذه المسافة لضمان التنفيذ. 0 = حافّة المنطقة تمامًا.")
-enableManage = input.bool(true, "تفعيل إدارة الصفقات (وقف متحرّك + صفّ الصفقة)", group = grpManage)
-colBasicBuy  = input.color(#089981,                 "لون شراء أساسي (أخضر)",                group = grpManage)
-colHRBuy     = input.color(color.new(#089981, 60),  "لون شراء عالي المخاطرة (أخضر شفّاف 60)", group = grpManage)
-colBasicSell = input.color(#F23645,                 "لون بيع أساسي (أحمر)",                 group = grpManage)
-colHRSell    = input.color(color.new(#F23645, 60),  "لون بيع عالي المخاطرة (أحمر شفّاف 60)",  group = grpManage)
-grpFH      = "🧪 لوحة اختبار الموجة (الدرس 03)"
-showFrameHelper = input.bool(true, "لوحة اختبار الموجة: زمن الموجة الدافعة المتوسطة ⇒ نوع العمل (مضاربة/سوينغ/استثمار)", group = grpFH)
-fhPos      = input.string("أعلى يسار", "موضع لوحة اختبار الموجة", group = grpFH,
-     options = ["أعلى يسار","أعلى وسط","أعلى يمين","وسط يسار","وسط","وسط يمين","أسفل يسار","أسفل وسط","أسفل يمين"],
-     tooltip = "اختر موضع اللوحة (Pine لا يدعم السحب بالماوس).")
-// الدرس 03 «اختبار الموجة»: نوع العمل يُحدَّد من زمن الموجة الدافعة المتوسطة بالأيام (لا الشموع، ولا رقم مخترع كقانون — الحدّان مشتقّان من نصّ الدرس وقابلان للضبط لكل أداة).
-swingMinDays = input.float(2.0, "حدّ السوينغ الأدنى (أيام/موجة دافعة) — أقلّ منه = مضاربة", minval = 0.1, step = 0.5, group = grpFH,
-     tooltip = "الدرس 03: صفقة السوينغ من يومين إلى أسبوع. زمن الموجة الدافعة المتوسطة أقلّ من هذا ⇒ موجة قصيرة (مضاربة) ⇒ اصعد فريماً.")
-swingMaxDays = input.float(10.0, "حدّ السوينغ الأعلى (أيام/موجة دافعة) — أكثر منه = استثمار", minval = 0.5, step = 0.5, group = grpFH,
-     tooltip = "الفيديو: السوينغ بين يومين و10 أيام (غير إلزاميّ، فيه تساهل). وسيط زمن الموجة الدافعة أكثر من هذا ⇒ استثمار ⇒ انزل فريماً للسوينغ.")
-fhBg       = input.color(#1E222D, "لون خلفية اللوحة (الشفافية من منتقي اللون)", group = grpFH)
-grpD4      = "🔬 الدرجة الرابعة (تأكيد)"
-enableD4   = input.bool(true, "تفعيل تأكيد الدرجة الرابعة (فريم أصغر)", group = grpD4,
-     tooltip = "يؤكّد الصفقات الصغيرة فقط عبر كسر آخر قمة/قاع على فريم أصغر. لا سيولة/مناطق/مراحل.")
-d4tf       = input.timeframe("5", "فريم الدرجة الرابعة (أصغر من الحالي)", group = grpD4)
-zoneAutoBox = input.bool(true, "عرض مستطيلات المناطق", group = grpZone,
-     tooltip = "ترسم المنطقة بين كل زوج مستويين متقاربين (الخوارزمية الكاملة: الأقرب + استهلاك + منع احتواء).")
-zoneExt    = input.int(0, "امتداد إضافي بعد السعر الحالي (شموع)", minval = 0, group = grpZone,
-     tooltip = "افتراضياً تمتدّ المستويات/المناطق حتى السعر الحالي (0).")
-zoneLvlCol = input.color(color.new(#D1D4DC, 0), "لون خطوط م.A (المنطقة)", group = grpZone)   // أبيض فاتح — مميَّز عن الأزرق (مستوى الكبيرة)
-zoneFill   = input.color(color.new(#2E75B6, 72), "تعبئة المستطيل المساعد", group = grpZone)
-zoneBorder = input.color(color.new(#2E75B6, 35), "حدّ المستطيل المساعد",   group = grpZone)
+// ----- 🟦 Zones -----
+grpZone    = "🟦 Zones / المناطق"
+showZones  = input.bool(true, "Show zones module / إظهار وحدة المناطق", group = grpZone)
+showZoneLevels = input.bool(true, "Show M.A level lines / خطوط مستويات M.A", group = grpZone)
+zoneAutoBox = input.bool(true, "Show zone boxes / مستطيلات المناطق", group = grpZone,
+     tooltip = "Draws a zone between each pair of nearby levels (nearest + consume + no-containment).\nمستطيل بين كل زوج مستويين متقاربين.")
+zoneExt    = input.int(0, "Extension past price (candles) / امتداد بعد السعر", minval = 0, group = grpZone,
+     tooltip = "Levels/zones extend to the current price by default (0).\nتمتدّ حتى السعر افتراضياً (0).")
+zoneLvlCol = input.color(color.new(#D1D4DC, 0), "M.A level line color / لون خطوط م.A", group = grpZone)
+zoneFill   = input.color(color.new(#2E75B6, 72), "Zone box fill / تعبئة المستطيل", group = grpZone)
+zoneBorder = input.color(color.new(#2E75B6, 35), "Zone box border / حدّ المستطيل",   group = grpZone)
+
+// ----- 🔄 Structural Renewal -----
+grpRenew   = "🔄 Structural Renewal / التجدّد البنيوي"
+useRenewal = input.bool(true, "Liquidity renewal (clear on 2-candle break, wait two points) / تجدّد السيولة", group = grpRenew)
+
+// ----- 🧭 Conclusions Panel -----
+grpConc   = "🧭 Conclusions Panel / لوحة الاستنتاجات"
+showPanel = input.bool(true, "Conclusions & status panel / لوحة الاستنتاجات والحالة", group = grpConc)
+panelPos  = input.string("Top R", "Panel position / موضع اللوحة", group = grpConc,
+     options = ["Top L","Top C","Top R","Mid L","Center","Mid R","Bot L","Bot C","Bot R"],
+     tooltip = "Pick the panel position (Pine has no mouse drag).\nاختر الموضع (Pine لا يدعم السحب).")
+panelBg   = input.color(#1E222D, "Panel background (transparency from picker) / خلفية اللوحة", group = grpConc)
+liqTol    = input.float(0.0, "Liquidity-strength margin (optional visual) / هامش قوة السيولة", minval = 0.0, step = 0.05, group = grpConc,
+     tooltip = "0 = pure comparison (above/inside). Any value here is a visual aid only.\n0 = مقارنة خالصة. أيّ قيمة أداة بصريّة فقط.")
+
+// ----- 🎯 Trade Management -----
+grpManage    = "🎯 Trade Management / إدارة الصفقات"
+enableManage = input.bool(true, "Enable management (trailing stop + trade row) / تفعيل الإدارة", group = grpManage)
+mgStopPts    = input.float(0.0, "Stop buffer behind last pivot (price, 0=auto) / هامش الوقف", minval = 0.0, step = 0.1, group = grpManage,
+     tooltip = "If > 0: stop = last low − value (buy) / last high + value (sell). If 0: auto buffer from the degree.\nإن>0: الوقف بهذا الهامش. إن=0: هامش تلقائي.")
+mgTgtPts     = input.float(0.0, "Target offset before zone (price, 0=zone edge) / تقريب الهدف", minval = 0.0, step = 0.1, group = grpManage,
+     tooltip = "Take profit this far before the next zone edge to ensure fill. 0 = exact zone edge.\nجني الربح قبل الحافّة بهذه المسافة. 0 = الحافّة تماماً.")
+bufMult    = input.float(0.5, "Stop/invalidation buffer (× small amplitude) / هامش الوقف/الإبطال", minval = 0.1, maxval = 2.0, step = 0.1, group = grpManage,
+     tooltip = "Stop = zone edge ∓ buffer; invalidation = clear support/resistance break (not a mere touch). Buffer = ratio × last small swing.\nالهامش = هذه النسبة × آخر تأرجح صغير.")
+colBasicBuy  = input.color(#089981,                 "Basic Buy color (green) / لون شراء أساسي",                group = grpManage)
+colHRBuy     = input.color(color.new(#089981, 60),  "High-risk Buy color / لون شراء عالي المخاطرة", group = grpManage)
+colBasicSell = input.color(#F23645,                 "Basic Sell color (red) / لون بيع أساسي",                 group = grpManage)
+colHRSell    = input.color(color.new(#F23645, 60),  "High-risk Sell color / لون بيع عالي المخاطرة",  group = grpManage)
+
+// ----- 📈 Big Degree (advanced) -----
+grpBig    = "📈 Big Degree (advanced) / الدرجة الكبيرة (متقدّم)"
+useBigBreak  = input.bool(true, "Extract big by break (from active medium) / استخراج الكبيرة بالكسر", group = grpBig,
+     tooltip = "Blue pivots derived by the break mechanism from active medium points; direction from blue structure.\nتُشتقّ الزرقاء بالكسر من المتوسطة الفعّالة.")
+bigMinSwings = input.int(2, "Min medium points in big wave / أدنى نقاط متوسطة", minval = 1, maxval = 10, group = grpBig,
+     tooltip = "Helper filter (auto): fewest medium points to count a move as a big wave.\nفلتر مساعد: أقل عدد نقاط متوسطة.")
+bigMinATR    = input.float(3.0, "Min big-wave size (× ATR) / أدنى حجم", minval = 0.0, step = 0.5, group = grpBig,
+     tooltip = "Helper filter: 0 = disabled.\nفلتر مساعد: 0 = تعطيل.")
+bigMinBars   = input.int(30, "Min big-wave time (candles) / أدنى زمن", minval = 0, group = grpBig,
+     tooltip = "Helper filter: 0 = disabled.\nفلتر مساعد: 0 = تعطيل.")
+bigLegs      = input.int(7, "Candidate big waves / عدد الموجات الكبيرة المرشّحة", minval = 2, maxval = 15, group = grpBig)
+
+// ----- 🧪 Wave Test panel -----
+grpFH      = "🧪 Wave Test / لوحة اختبار الموجة"
+showFrameHelper = input.bool(true, "Wave-test panel (wave time ⇒ trading type) / لوحة اختبار الموجة", group = grpFH)
+fhPos      = input.string("Top L", "Wave-test panel position / موضع اللوحة", group = grpFH,
+     options = ["Top L","Top C","Top R","Mid L","Center","Mid R","Bot L","Bot C","Bot R"],
+     tooltip = "Pick the panel position (Pine has no mouse drag).\nاختر الموضع (Pine لا يدعم السحب).")
+swingMinDays = input.float(2.0, "Swing lower bound (days/impulse) — below = Scalp / حدّ السوينغ الأدنى", minval = 0.1, step = 0.5, group = grpFH,
+     tooltip = "Median impulse-wave time below this ⇒ short wave (scalp) ⇒ move up a timeframe.\nأقلّ من هذا ⇒ مضاربة ⇒ اصعد فريماً.")
+swingMaxDays = input.float(10.0, "Swing upper bound (days/impulse) — above = Invest / حدّ السوينغ الأعلى", minval = 0.5, step = 0.5, group = grpFH,
+     tooltip = "Median impulse-wave time above this ⇒ invest ⇒ drop a timeframe for swing.\nأكثر من هذا ⇒ استثمار ⇒ انزل فريماً.")
+fhBg       = input.color(#1E222D, "Panel background / خلفية اللوحة", group = grpFH)
+
+// ----- 🔬 Fourth Degree (confirmation) -----
+grpD4      = "🔬 Fourth Degree / الدرجة الرابعة"
+enableD4   = input.bool(true, "Enable fourth-degree confirmation (smaller TF) / تفعيل الدرجة الرابعة", group = grpD4,
+     tooltip = "Confirms small trades only via a last-pivot break on a smaller timeframe. No liquidity/zones/phases.\nيؤكّد الصغيرة فقط عبر كسر على فريم أصغر.")
+d4tf       = input.timeframe("5", "Fourth-degree timeframe (smaller) / فريم الدرجة الرابعة", group = grpD4)
+
+// ----- 🛠️ Diagnostics (temporary) -----
+grpDiag    = "🛠️ Diagnostics / تشخيص (مؤقّت)"
+showDiag   = input.bool(false, "Developer diagnostics (zone/phase/confirm + stop internals) / تشخيص للمطوّر", group = grpDiag)
+showRenewalEvents = input.bool(false, "Renewal-event tags on chart / وسوم أحداث التجديد", group = grpDiag,
+     tooltip = "Tags each renewal event: ✗Liq=medium liquidity cleared · ⟲Med=medium flip · ⟲Big=big flip · ↻Blue=blue anchor renewed.\nوسم عند كل حدث تجديد.")
+showEffTable = input.bool(false, "Effectiveness table (why active/inactive + M.A) / جدول الفعالية", group = grpDiag)
+showDerivTable = input.bool(false, "Derivation table (small→medium→big) / جدول الاشتقاق", group = grpDiag)
+diagBigWaves = input.int(3, "Big waves in diagnostic tables / عدد الموجات في الجداول", minval = 1, maxval = 10, group = grpDiag,
+     tooltip = "1 = current wave only; 3 = last 3 big waves (hides small points in the derivation table).\n1 = الحالية فقط؛ 3 = آخر 3 موجات.")
+
+// ----- helper functions (size/color/position mapping) -----
+f_dark(color c) => color.rgb(color.r(c) * 0.5, color.g(c) * 0.5, color.b(c) * 0.5)   // darker solid border from a degree color
+f_lblSize(string s)   => s == "Fine" ? size.tiny : s == "Small" ? size.small : s == "Large" ? size.large : s == "Huge" ? size.huge : size.normal
+f_lblSizeIn(string s) => s == "Huge" ? size.large : s == "Large" ? size.normal : s == "Normal" ? size.small : size.tiny
 
 
 // ====================== أداة: معالج الدرجة الأعلى ===========================
@@ -456,7 +468,7 @@ phaseOnPivot(Phase p, bool isTop, float pivP, int pivBar) =>
                 p.code := 4                      // قمة أدنى ⇒ تصريف (قمة)
 
 phaseText(Phase p, int dir) =>
-    p.code == 1 ? "ذعر" : p.code == 2 ? "يأس" : p.code == 3 ? "تجميع" : p.code == 4 ? "تصريف" : (dir == 1 ? "مشاركة عامة صاعدة" : dir == -1 ? "مشاركة عامة هابطة" : "—")
+    p.code == 1 ? f_t("ذعر","Panic") : p.code == 2 ? f_t("يأس","Despair") : p.code == 3 ? f_t("تجميع","Accumulation") : p.code == 4 ? f_t("تصريف","Distribution") : (dir == 1 ? f_t("مشاركة عامة صاعدة","Markup") : dir == -1 ? f_t("مشاركة عامة هابطة","Markdown") : "—")
 
 // ===================== كسر السيولة البنيوي (شمعتان) — للتجدّد ==================
 // منفصل تماماً عن المراحل (نصف الجسم). الكسر البنيوي = شمعتان متتاليتان مغلقتان خلف الخط:
@@ -1590,9 +1602,9 @@ if barstate.isconfirmed
     // [V4.68] وسوم أحداث التجديد (تشخيص منطقيّ على الشارت): مسح السيولة المتوسطة + انقلاب اتجاه المتوسطة.
     if showRenewalEvents and barstate.isconfirmed
         if medStruct
-            label.new(bar_index, na, "✗سيو", yloc = yloc.abovebar, style = label.style_label_down, color = color.new(#F23645, 10), textcolor = color.white, size = size.tiny, tooltip = "مُسِح خطّ السيولة المتوسط — كسر بنيويّ بشمعتين على الخطّ المرسوم")
+            label.new(bar_index, na, f_t("✗سيو","✗Liq"), yloc = yloc.abovebar, style = label.style_label_down, color = color.new(#F23645, 10), textcolor = color.white, size = size.tiny, tooltip = f_t("مُسِح خطّ السيولة المتوسط — كسر بنيويّ بشمعتين على الخطّ المرسوم","Medium liquidity line cleared — structural 2-candle break of the drawn line"))
         if medActiveDir != medActiveDir[1]
-            label.new(bar_index, na, "⟲متوسط " + (medActiveDir == 1 ? "▲" : "▼"), yloc = yloc.belowbar, style = label.style_label_up, color = color.new(#FF9800, 10), textcolor = color.white, size = size.tiny, tooltip = "انقلاب اتجاه الموجة المتوسطة — كسر مستوى الاتجاه بشمعتين")
+            label.new(bar_index, na, f_t("⟲متوسط ","⟲Med ") + (medActiveDir == 1 ? "▲" : "▼"), yloc = yloc.belowbar, style = label.style_label_up, color = color.new(#FF9800, 10), textcolor = color.white, size = size.tiny, tooltip = f_t("انقلاب اتجاه الموجة المتوسطة — كسر مستوى الاتجاه بشمعتين","Medium wave direction flip — 2-candle break of the trend level"))
     // البوّابة: عند التفعيل = أحدث حدث (كسر مستوى أو كسر بنيوي)؛ وإلا = كسر المستوى فقط (الموثوق)
     medGate := useRenewal ? (na(medWaveStart) ? medLB.brkBar : na(medLB.brkBar) ? medWaveStart : math.max(medWaveStart, medLB.brkBar)) : medWaveStart
     // نص المرحلة (مطابق للدرس): مشاركة عامة / ذعر / يأس
@@ -1772,17 +1784,17 @@ if barstate.isconfirmed
     // عالية المخاطر: تصحيح بعد الذعر (ذعر/يأس) في الصغيرة أو المتوسطة مع الاتجاه — قبل اكتمال التجميع/التصريف.
     oppHRBuy  := inZone and bEff == 1  and (sc2 == 1 or sc2 == 2 or mc2 == 1 or mc2 == 2) and not oppBasicBuy
     oppHRSell := inZone and bEff == -1 and (sc2 == 1 or sc2 == 2 or mc2 == 1 or mc2 == 2) and not oppBasicSell
-    oppText := "لا فرصة"
+    oppText := f_t("لا فرصة","No opportunity")
     if inZone
-        oppText := "داخل منطقة — لا مرحلة مناسبة"
+        oppText := f_t("داخل منطقة — لا مرحلة مناسبة","In zone — no suitable phase")
     if oppHRBuy
-        oppText := "شراء عالي المخاطر (داخل منطقة)"
+        oppText := f_t("شراء عالي المخاطر (داخل منطقة)","High-risk Buy (in zone)")
     if oppHRSell
-        oppText := "بيع عالي المخاطر (داخل منطقة)"
+        oppText := f_t("بيع عالي المخاطر (داخل منطقة)","High-risk Sell (in zone)")
     if oppBasicBuy
-        oppText := "شراء أساسي (" + (oppBasicBuyDeg == 3 ? "صغيرة" : "متوسطة") + "): انتظار تأكيد تجميع"
+        oppText := f_t("شراء أساسي (","Basic Buy (") + (oppBasicBuyDeg == 3 ? f_t("صغيرة","Small") : f_t("متوسطة","Medium")) + f_t("): انتظار تأكيد تجميع","): awaiting accumulation")
     if oppBasicSell
-        oppText := "بيع أساسي (" + (oppBasicSellDeg == 3 ? "صغيرة" : "متوسطة") + "): انتظار تأكيد تصريف"
+        oppText := f_t("بيع أساسي (","Basic Sell (") + (oppBasicSellDeg == 3 ? f_t("صغيرة","Small") : f_t("متوسطة","Medium")) + f_t("): انتظار تأكيد تصريف","): awaiting distribution")
     // [V4.43] الهدف = المنطقة/المستوى التالي نحو الاتجاه عبر `f_nextZoneEdge` (نفس هدف الدخول المؤكّد tgtP — موحّد).
     //   شراء ⇒ أقرب حافّة سفلى (zb) فوق السعر؛ بيع ⇒ أقرب حافّة عليا (zt) تحت السعر. المنفردة (zt==zb) محتسَبة.
     oppTarget := na
@@ -1790,8 +1802,8 @@ if barstate.isconfirmed
         oppTarget := f_nextZoneEdge(close, true)
     if oppBasicSell or oppHRSell
         oppTarget := f_nextZoneEdge(close, false)
-    if not na(oppTarget) and oppText != "لا فرصة" and oppText != "داخل منطقة — لا مرحلة مناسبة"
-        oppText := oppText + "  → هدف " + str.tostring(oppTarget, format.mintick)
+    if not na(oppTarget) and (oppBasicBuy or oppBasicSell or oppHRBuy or oppHRSell)
+        oppText := oppText + f_t("  → هدف ","  → Target ") + str.tostring(oppTarget, format.mintick)
     // ===== المرحلة 3: انتظار (درجة الفرصة) ⇒ تأكيد بدرجة أصغر ⇒ دخول/وقف/هدف =====
     // الصفقة المتوسطة: التأكيد بالصغيرة (مشاركة صغيرة جديدة) ⇒ دخول مؤكّد.
     // الصفقة الصغيرة: التأكيد يحتاج درجة أصغر (غير متوفّرة) ⇒ تبقى انتظاراً (لا دخول آلي).
@@ -1958,13 +1970,13 @@ if barstate.isconfirmed
             tradeDir := 0
     // [V4.90] تنبيه صوتيّ على الدخول المؤكَّد: أنشئ في TradingView تنبيهًا على «Any alert() function call» واختر الصوت ⇒ يُطلَق تلقائيًّا عند كلّ دخول.
     if entryBuy
-        alert("M-Waves: دخول شراء مؤكّد @ " + str.tostring(entryP, format.mintick) + "  ·  وقف " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "  ·  هدف " + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
+        alert("M-Waves: " + f_t("دخول شراء مؤكّد @ ","Confirmed Buy entry @ ") + str.tostring(entryP, format.mintick) + f_t("  ·  وقف ","  ·  Stop ") + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + f_t("  ·  هدف ","  ·  Target ") + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
     if entrySell
-        alert("M-Waves: دخول بيع مؤكّد @ " + str.tostring(entryP, format.mintick) + "  ·  وقف " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "  ·  هدف " + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
+        alert("M-Waves: " + f_t("دخول بيع مؤكّد @ ","Confirmed Sell entry @ ") + str.tostring(entryP, format.mintick) + f_t("  ·  وقف ","  ·  Stop ") + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + f_t("  ·  هدف ","  ·  Target ") + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
     if oppHRBuy and not oppHRBuy[1]   // [V4.92] تنبيه فرصة عالية المخاطر (تظهر أكثر من المؤكّدة)
-        alert("M-Waves: فرصة شراء عالية المخاطر داخل منطقة (تصحيح بعد الذعر)", alert.freq_once_per_bar)
+        alert("M-Waves: " + f_t("فرصة شراء عالية المخاطر داخل منطقة (تصحيح بعد الذعر)","High-risk Buy opportunity inside a zone (correction after panic)"), alert.freq_once_per_bar)
     if oppHRSell and not oppHRSell[1]
-        alert("M-Waves: فرصة بيع عالية المخاطر داخل منطقة (تصحيح بعد الذعر)", alert.freq_once_per_bar)
+        alert("M-Waves: " + f_t("فرصة بيع عالية المخاطر داخل منطقة (تصحيح بعد الذعر)","High-risk Sell opportunity inside a zone (correction after panic)"), alert.freq_once_per_bar)
     // [V4.50] صناديق الصفقة (مودرن، مكافئ TradingView): أخضر عائد (دخول↔هدف) + أحمر مخاطرة (دخول↔وقف) + شارة RR
     if showOpp and barstate.islast
         if not na(rewardBox)
@@ -1994,12 +2006,12 @@ if barstate.isconfirmed
         string diagTip = showDiag ? ("\n──تشخيص──\ninZone=" + (inZone ? "نعم" : "لا") + "  zbCur=" + (na(zbCur) ? "na" : str.tostring(zbCur, format.mintick)) + "  ztCur=" + (na(ztCur) ? "na" : str.tostring(ztCur, format.mintick)) + "\nzbEntryB=" + (na(zbEntryB) ? "na" : str.tostring(zbEntryB, format.mintick)) + "  ztEntryB=" + (na(ztEntryB) ? "na" : str.tostring(ztEntryB, format.mintick)) + "\nzbEntryS=" + (na(zbEntryS) ? "na" : str.tostring(zbEntryS, format.mintick)) + "  ztEntryS=" + (na(ztEntryS) ? "na" : str.tostring(ztEntryS, format.mintick)) + "\nbuf=" + str.tostring(buf, format.mintick) + "  smallSwing=" + (na(smallSwing) ? "na" : str.tostring(smallSwing, format.mintick)) + "\nmemS.ltP=" + (na(memS.ltP) ? "na" : str.tostring(memS.ltP, format.mintick)) + "  memS.lbP=" + (na(memS.lbP) ? "na" : str.tostring(memS.lbP, format.mintick)) + "\nmedDir=" + (medActiveDir == 1 ? "▲" : medActiveDir == -1 ? "▼" : "—") + "  م.سيو=" + (na(memM.liq) ? "✗مُسِح" : "✓") + "  كسرLiq=" + (na(medLiqBrkBar) ? "لا" : str.tostring(medLiqBrkBar)) + "  م.مست=" + (na(memM.lvl) ? "✗" : "✓")) : ""
         if entryBuy
             float rrB = f_rr(entryP, stopP, tgtP)
-            string tipB = "دخول: " + str.tostring(entryP, format.mintick) + "\nوقف: " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "\nهدف: " + (na(tgtP) ? "NO_TARGET_ZONE" : str.tostring(tgtP, format.mintick)) + "\nR:R = " + (na(rrB) ? "—" : str.tostring(rrB, "#.##")) + diagTip
-            f_tradeSig(bar_index, entryP, "شراء", true, colBasicBuy, rrB, tipB)    // أساسي شراء
+            string tipB = f_t("دخول: ","Entry: ") + str.tostring(entryP, format.mintick) + f_t("\nوقف: ","\nStop: ") + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + f_t("\nهدف: ","\nTarget: ") + (na(tgtP) ? f_t("لا منطقة هدف","No target zone") : str.tostring(tgtP, format.mintick)) + "\nR:R = " + (na(rrB) ? "—" : str.tostring(rrB, "#.##")) + diagTip
+            f_tradeSig(bar_index, entryP, f_t("شراء","Buy"), true, colBasicBuy, rrB, tipB)    // أساسي شراء
         if entrySell
             float rrS = f_rr(entryP, stopP, tgtP)
-            string tipS = "دخول: " + str.tostring(entryP, format.mintick) + "\nوقف: " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "\nهدف: " + (na(tgtP) ? "NO_TARGET_ZONE" : str.tostring(tgtP, format.mintick)) + "\nR:R = " + (na(rrS) ? "—" : str.tostring(rrS, "#.##")) + diagTip
-            f_tradeSig(bar_index, entryP, "بيع", false, colBasicSell, rrS, tipS)   // أساسي بيع
+            string tipS = f_t("دخول: ","Entry: ") + str.tostring(entryP, format.mintick) + f_t("\nوقف: ","\nStop: ") + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + f_t("\nهدف: ","\nTarget: ") + (na(tgtP) ? f_t("لا منطقة هدف","No target zone") : str.tostring(tgtP, format.mintick)) + "\nR:R = " + (na(rrS) ? "—" : str.tostring(rrS, "#.##")) + diagTip
+            f_tradeSig(bar_index, entryP, f_t("بيع","Sell"), false, colBasicSell, rrS, tipS)   // أساسي بيع
         // ثانوية عالية المخاطر (تصحيح بعد الزعر) = لون كهرمانيّ مميّز ووسم HR؛ صغيرة بانتظار الرابعة = «؟» أفتح.
         if showOppWaiting
             bool hrBuy    = oppHRBuy  and not oppHRBuy[1]  and not entryBuy
@@ -2012,22 +2024,22 @@ if barstate.isconfirmed
                 float sPwB = inZone ? zbCur - mgStopPts : ((not na(zbEntryB)) ? zbEntryB - mgStopPts : memS.lbP)
                 if not na(sPwB) and not na(ub) and sPwB < close and ub > close
                     float rrUB = f_rr(close, sPwB, ub)
-                    string tipUB = "دخول: " + str.tostring(close, format.mintick) + "\nوقف: " + str.tostring(sPwB, format.mintick) + "\nهدف: " + str.tostring(ub, format.mintick) + "\nR:R = " + (na(rrUB) ? "—" : str.tostring(rrUB, "#.##")) + diagTip
+                    string tipUB = f_t("دخول: ","Entry: ") + str.tostring(close, format.mintick) + f_t("\nوقف: ","\nStop: ") + str.tostring(sPwB, format.mintick) + f_t("\nهدف: ","\nTarget: ") + str.tostring(ub, format.mintick) + "\nR:R = " + (na(rrUB) ? "—" : str.tostring(rrUB, "#.##")) + diagTip
                     if hrBuy
-                        f_tradeSig(bar_index, close, "شراء", true, colHRBuy, rrUB, tipUB)   // عالي المخاطرة شراء (لون مستقلّ)
+                        f_tradeSig(bar_index, close, f_t("شراء","Buy"), true, colHRBuy, rrUB, tipUB)   // عالي المخاطرة شراء (لون مستقلّ)
                     else
-                        label.new(bar_index, close, "شراء؟", yloc = yloc.price, style = label.style_label_up, color = color.new(#1B5E20, 50), textcolor = color.white, size = size.tiny, tooltip = tipUB)
+                        label.new(bar_index, close, f_t("شراء؟","Buy?"), yloc = yloc.price, style = label.style_label_up, color = color.new(#1B5E20, 50), textcolor = color.white, size = size.tiny, tooltip = tipUB)
             if hrSell or waitSell
                 // [V4.60] توحيد منطق HR/الانتظار مع الدرس: الوقف = حدّ المنطقة الحاليّة (بلا هامش)، الهدف = أوّل منطقة مزدوجة قادمة.
                 float us = f_nextZonePaired(inZone ? zbCur : close, false)
                 float sPwS = inZone ? ztCur + mgStopPts : ((not na(ztEntryS)) ? ztEntryS + mgStopPts : memS.ltP)
                 if not na(sPwS) and not na(us) and sPwS > close and us < close
                     float rrUS = f_rr(close, sPwS, us)
-                    string tipUS = "دخول: " + str.tostring(close, format.mintick) + "\nوقف: " + str.tostring(sPwS, format.mintick) + "\nهدف: " + str.tostring(us, format.mintick) + "\nR:R = " + (na(rrUS) ? "—" : str.tostring(rrUS, "#.##")) + diagTip
+                    string tipUS = f_t("دخول: ","Entry: ") + str.tostring(close, format.mintick) + f_t("\nوقف: ","\nStop: ") + str.tostring(sPwS, format.mintick) + f_t("\nهدف: ","\nTarget: ") + str.tostring(us, format.mintick) + "\nR:R = " + (na(rrUS) ? "—" : str.tostring(rrUS, "#.##")) + diagTip
                     if hrSell
-                        f_tradeSig(bar_index, close, "بيع", false, colHRSell, rrUS, tipUS)   // عالي المخاطرة بيع (لون مستقلّ)
+                        f_tradeSig(bar_index, close, f_t("بيع","Sell"), false, colHRSell, rrUS, tipUS)   // عالي المخاطرة بيع (لون مستقلّ)
                     else
-                        label.new(bar_index, close, "بيع؟", yloc = yloc.price, style = label.style_label_down, color = color.new(#C00000, 50), textcolor = color.white, size = size.tiny, tooltip = tipUS)
+                        label.new(bar_index, close, f_t("بيع؟","Sell?"), yloc = yloc.price, style = label.style_label_down, color = color.new(#C00000, 50), textcolor = color.white, size = size.tiny, tooltip = tipUS)
 
 // ===================== حدود الموجة التاريخية ==============================
 // • إذا أدخل المستخدم عدد شموع > 0: تُرسم الحدود على آخر هذا العدد من الشموع.
@@ -2042,9 +2054,9 @@ if showHist and barstate.islast
     if not na(hlbl)
         label.delete(hlbl)
     int   hLeft   = histLeft
-    color hBorder = color.new(color.rgb(184, 134, 11), 0)
-    string hTxt   = useHistN ? "الموجة التاريخية (يدوي)" : "الموجة التاريخية (تلقائي)"
-    hbox := box.new(hLeft, hwHi, bar_index, hwLo, border_color = hBorder, border_width = 2,
+    color hBorder = f_dark(cHist)   // [V4.94] بوردر من لون التعبئة (درجة أغمق) بدل الأصفر؛ عرضه = عرض بورد تاريخ التاريخ (1)
+    string hTxt   = useHistN ? f_t("الموجة التاريخية (يدوي)","Historical Wave (manual)") : f_t("الموجة التاريخية (تلقائي)","Historical Wave (auto)")
+    hbox := box.new(hLeft, hwHi, bar_index, hwLo, border_color = hBorder, border_width = 1,
          bgcolor = cHist)
     hlbl := label.new(hLeft, hwHi, hTxt, xloc = xloc.bar_index, yloc = yloc.price,
          style = label.style_label_lower_right, color = hBorder, textcolor = color.white,
@@ -2067,7 +2079,7 @@ if showHoh and barstate.islast and hohLeft < histLeft
         hohHi := na(hohHi) ? hk : math.max(hohHi, hk)
         hohLo := na(hohLo) ? lk : math.min(hohLo, lk)
     color hohBd    = color.new(color.gray, 0)
-    string hohTxt  = useHohN ? "تاريخ التاريخ (يدوي)" : "تاريخ التاريخ (تلقائي)"
+    string hohTxt  = useHohN ? f_t("تاريخ التاريخ (يدوي)","History-of-History (manual)") : f_t("تاريخ التاريخ (تلقائي)","History-of-History (auto)")
     if not na(hohHi)
         hohBox := box.new(hohLeft, hohHi, hohRight, hohLo, border_color = hohBd, border_width = 1,
              bgcolor = cHoh)
@@ -2543,9 +2555,9 @@ if showBig and barstate.islast
             bigAncLvl := na(array.get(kLvl, qa1i)) ? qv1 : array.get(kLvl, qa1i)
             bigAncDir := bigWaveDir
             if showRenewalEvents   // [V4.68] وسم تجديد مرساة الأزرق (محور أزرق جديد)
-                label.new(bar_index, na, "↻أزرق", yloc = yloc.belowbar, style = label.style_label_up, color = color.new(#2962FF, 25), textcolor = color.white, size = size.tiny, tooltip = "تجديد مرساة الأزرق — محور أزرق جديد بنفس الاتجاه")
+                label.new(bar_index, na, f_t("↻أزرق","↻Blue"), yloc = yloc.belowbar, style = label.style_label_up, color = color.new(#2962FF, 25), textcolor = color.white, size = size.tiny, tooltip = f_t("تجديد مرساة الأزرق — محور أزرق جديد بنفس الاتجاه","Blue anchor renewed — new blue pivot in the same direction"))
         if showRenewalEvents and largeDir != largeDir[1]   // [V4.68] وسم انقلاب اتجاه الكبيرة
-            label.new(bar_index, na, "⟲كبير " + (largeDir == 1 ? "▲" : "▼"), yloc = yloc.abovebar, style = label.style_label_down, color = color.new(#2962FF, 10), textcolor = color.white, size = size.tiny, tooltip = "انقلاب اتجاه الكبيرة — كسر قاع/قمّة الترند الأزرق")
+            label.new(bar_index, na, f_t("⟲كبير ","⟲Big ") + (largeDir == 1 ? "▲" : "▼"), yloc = yloc.abovebar, style = label.style_label_down, color = color.new(#2962FF, 10), textcolor = color.white, size = size.tiny, tooltip = f_t("انقلاب اتجاه الكبيرة — كسر قاع/قمّة الترند الأزرق","Big direction flip — break of the blue trend low/high"))
         // ارسم الخطّين معًا من الزوج المثبَّت (يمتدّان للحافة الحيّة كل بار) — النقل دائمًا للخطّين سويًّا
         if not na(bigAncQa1) and not na(bigAncQa2) and bigAncQa1 != bigAncQa2
             // [V4.72] بعد كسر السيولة الأزرق لا يُعاد رسمها إلّا بمحورين زرقاوين جديدين (الأقدم bigAncQa2 بعد بار الكسر).
@@ -3013,10 +3025,10 @@ if showZones and barstate.islast
 //   • الدخول المتاح = صديق الترند (صاعد⇒شراء فقط / هابط⇒بيع فقط / تعارض⇒الاثنان).
 //   • قوة السيولة = هل دخل آخر قاع منطقة القمة السابقة (متوسطة) ⇒ ضعيفة.
 //   • الحالة لكل درجة = صاعدة (مشاركة عامة) / هابطة (تصريف/هبوط).
-f_dir(int d) => d == 1 ? "صاعد ▲" : d == -1 ? "هابط ▼" : "—"
-f_state(int d) => d == 1 ? "مشاركة صاعدة" : d == -1 ? "تصريف/هبوط" : "—"
+f_dir(int d) => d == 1 ? f_t("صاعد ▲","Up ▲") : d == -1 ? f_t("هابط ▼","Down ▼") : "—"
+f_state(int d) => d == 1 ? f_t("مشاركة صاعدة","Markup") : d == -1 ? f_t("تصريف/هبوط","Markdown") : "—"
 // تحويل اختيار الموضع النصّي إلى ثابت position (لتغيير مكان اللوحات بحرية)
-f_pos(string s) => s == "أعلى يسار" ? position.top_left : s == "أعلى وسط" ? position.top_center : s == "أعلى يمين" ? position.top_right : s == "وسط يسار" ? position.middle_left : s == "وسط" ? position.middle_center : s == "وسط يمين" ? position.middle_right : s == "أسفل يسار" ? position.bottom_left : s == "أسفل وسط" ? position.bottom_center : position.bottom_right
+f_pos(string s) => s == "Top L" ? position.top_left : s == "Top C" ? position.top_center : s == "Top R" ? position.top_right : s == "Mid L" ? position.middle_left : s == "Center" ? position.middle_center : s == "Mid R" ? position.middle_right : s == "Bot L" ? position.bottom_left : s == "Bot C" ? position.bottom_center : position.bottom_right
 
 // ===== اختبار الموجة (الدرس 03): وسيط زمن الموجة الدافعة المتوسطة ⇒ نوع العمل =====
 // مضاربة/سوينغ/استثمار من وسيط زمن السيقان الدافعة (الأطول إجمالاً) بالأيام، ضمن نطاق الدرس (2–10، غير إلزاميّ).
@@ -3047,42 +3059,42 @@ if showFrameHelper and barstate.islast
     int   numImp  = array.size(impDur)
     // التصنيف بالوسيط (median) لا المتوسط: متين ضدّ شذوذ موجة (تساهل الدرس: موجة أو اثنتان خارج النطاق قليلاً مقبول).
     float medDays = numImp > 0 ? array.median(impDur) : na
-    string timeTxt = na(medDays) ? "—" : medDays >= 1 ? str.tostring(medDays, "#.0") + " يوم" : medDays >= 0.0417 ? str.tostring(medDays * 24, "#.0") + " ساعة" : str.tostring(medDays * 1440, "#.0") + " دق"
+    string timeTxt = na(medDays) ? "—" : medDays >= 1 ? str.tostring(medDays, "#.0") + f_t(" يوم"," d") : medDays >= 0.0417 ? str.tostring(medDays * 24, "#.0") + f_t(" ساعة"," h") : str.tostring(medDays * 1440, "#.0") + f_t(" دق"," m")
     int   nLh = array.size(bluePivotBars)
     int   degCount = (nLh >= 2 ? 1 : 0) + (numImp >= 1 ? 1 : 0) + (not na(memS.lbBar) ? 1 : 0)
     // الهدف: معرفة نوع التداول المناسب للفريم الحالي — بلا توجيه لأسلوب بعينه (أُزيل انحياز السوينغ).
     //   النوع من وسيط زمن الموجة الدافعة ضمن نطاق الدرس [swingMinDays, swingMaxDays] (2–10، غير إلزاميّ).
     //   (الدرس القادم سيضيف عدد درجات الموجة إلى معيار النوع — يُدمج لاحقاً.)
-    string waveType = na(medDays) ? "—" : medDays < swingMinDays ? "مضاربة" : medDays <= swingMaxDays ? "سوينغ" : "استثمار"
+    string waveType = na(medDays) ? "—" : medDays < swingMinDays ? f_t("مضاربة","Scalp") : medDays <= swingMaxDays ? f_t("سوينغ","Swing") : f_t("استثمار","Invest")
     color  wtBg = na(medDays) ? color.new(#787B86, 0) : medDays < swingMinDays ? color.new(#FF9800, 0) : medDays <= swingMaxDays ? color.new(#089981, 0) : color.new(#2962FF, 0)
     // نمط الصفقة (محايد): يصف مدّة الصفقة لهذا النوع على الفريم الحالي، لا يوجّه لفريم بعينه.
-    string tradeNature = na(medDays) ? "بيانات غير كافية" : medDays < swingMinDays ? "صفقات دقائق–يوم" : medDays <= swingMaxDays ? "صفقات يومين–10 أيام" : "صفقات أسابيع–شهور"
-    string typeTip = "نوع التداول المناسب للفريم الحالي.\nالحدود (أيام/موجة دافعة):\n• مضاربة: < " + str.tostring(swingMinDays, "#.#") + "\n• سوينغ: " + str.tostring(swingMinDays, "#.#") + "–" + str.tostring(swingMaxDays, "#.#") + "\n• استثمار: > " + str.tostring(swingMaxDays, "#.#") + "\nلتغيير النوع غيّر فريم الشارت (أصغر=مضاربة، أكبر=استثمار).\nاللوحة لا تُسحب بالماوس (قيد Pine) — استعمل «موضع لوحة اختبار الموجة»."
+    string tradeNature = na(medDays) ? f_t("بيانات غير كافية","Insufficient data") : medDays < swingMinDays ? f_t("صفقات دقائق–يوم","Minutes–day trades") : medDays <= swingMaxDays ? f_t("صفقات يومين–10 أيام","2–10 day trades") : f_t("صفقات أسابيع–شهور","Weeks–months trades")
+    string typeTip = f_t("نوع التداول المناسب للفريم الحالي.\nالحدود (أيام/موجة دافعة):\n• مضاربة: < ","Trading type suited to the current timeframe.\nThresholds (days/impulse wave):\n• Scalp: < ") + str.tostring(swingMinDays, "#.#") + f_t("\n• سوينغ: ","\n• Swing: ") + str.tostring(swingMinDays, "#.#") + "–" + str.tostring(swingMaxDays, "#.#") + f_t("\n• استثمار: > ","\n• Invest: > ") + str.tostring(swingMaxDays, "#.#") + f_t("\nلتغيير النوع غيّر فريم الشارت (أصغر=مضاربة، أكبر=استثمار).\nاللوحة لا تُسحب بالماوس (قيد Pine) — استعمل «موضع لوحة اختبار الموجة».","\nTo change the type, change the chart timeframe (smaller=Scalp, larger=Invest).\nThe panel cannot be dragged by mouse (Pine limit) — use the wave-test panel position.")
     // ===== هويّة TradingView الداكنة (الخلفية وشفافيتها من الإعدادات) =====
     color tvBg   = fhBg     // خلفية النافذة (مع شفافيتها من منتقي اللون)
     color tvHdr  = color.new(color.rgb(color.r(fhBg) * 0.72, color.g(fhBg) * 0.72, color.b(fhBg) * 0.72), color.t(fhBg))   // رأس أغمق بنفس شفافية اللون
     color tvMain = #D1D4DC     // نصّ رئيسيّ فاتح
     color tvMute = #787B86     // تسمية مكتومة
-    table.cell(fht, 0, 0, "لوحة اختبار الموجة", text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
-    table.cell(fht, 1, 0, "الدرس 03", text_color = tvMute, bgcolor = tvHdr, text_size = size.small)
-    table.cell(fht, 0, 1, "درجات ظاهرة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 0, f_t("لوحة اختبار الموجة","Wave Test"), text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(fht, 1, 0, "", text_color = tvMute, bgcolor = tvHdr, text_size = size.small)
+    table.cell(fht, 0, 1, f_t("درجات ظاهرة","Visible degrees"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 1, str.tostring(degCount) + " / 3", text_color = degCount == 3 ? #089981 : #FF9800, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 2, "موجات دافعة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 2, f_t("موجات دافعة","Impulse waves"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 2, str.tostring(numImp), text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 3, "وسيط زمن الموجة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 3, f_t("وسيط زمن الموجة","Median wave time"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 3, timeTxt, text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 4, "نوع التداول", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right, tooltip = typeTip)
+    table.cell(fht, 0, 4, f_t("نوع التداول","Trading type"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right, tooltip = typeTip)
     table.cell(fht, 1, 4, waveType, text_color = color.white, bgcolor = wtBg, text_size = size.small, tooltip = typeTip)
-    table.cell(fht, 0, 5, "نمط الصفقة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 5, f_t("نمط الصفقة","Trade nature"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 5, tradeNature, text_color = tvMain, bgcolor = tvBg, text_size = size.small)
     // الفريم مناسب؟ — توجيه اتجاهيّ (الدرس 08 التحقّق التمهيدي + الدرس 04):
     //   لا درجة متوسطة (numImp==0، كلها صغيرة بلا كسر) ⇒ فريم كبير ⇒ انزل لأصغر.
     //   3 درجات ⇒ مناسب. غير ذلك ⇒ راجع (درجات ناقصة). (تعذّر كشف درجة رابعة ⇒ لا اقتراح «اصعد» تلقائيّ.)
     bool frameOK3 = degCount == 3
-    string frameTxt = numImp == 0 ? "انزل لفريم أصغر" : frameOK3 ? "مناسب ✓" : "راجع الفريم (درجات ناقصة)"
+    string frameTxt = numImp == 0 ? f_t("انزل لفريم أصغر","Drop to a smaller TF") : frameOK3 ? f_t("مناسب ✓","Suitable ✓") : f_t("راجع الفريم (درجات ناقصة)","Review TF (missing degrees)")
     color  frameBg = frameOK3 and numImp > 0 ? color.new(#089981, 0) : color.new(#FF9800, 0)
-    string frameTip = "مناسبة الفريم بحكم الأغلبية (مع تسامح):\n• ظهور 3 درجات عالمياً ⇒ مناسب.\n• لا درجة متوسطة (numImp=0) ⇒ فريم كبير ⇒ انزل لأصغر.\nظهور درجة رابعة في موجة أو اثنتين (أو نقص درجة) طبيعيّ ولا يقلب الحكم — العبرة بأغلبية الموجات لا بالشواذّ. (ونوع التداول بالوسيط = متسامح كذلك.)"
-    table.cell(fht, 0, 6, "الفريم مناسب؟", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right, tooltip = frameTip)
+    string frameTip = f_t("مناسبة الفريم بحكم الأغلبية (مع تسامح):\n• ظهور 3 درجات عالمياً ⇒ مناسب.\n• لا درجة متوسطة (numImp=0) ⇒ فريم كبير ⇒ انزل لأصغر.\nظهور درجة رابعة في موجة أو اثنتين (أو نقص درجة) طبيعيّ ولا يقلب الحكم — العبرة بأغلبية الموجات لا بالشواذّ. (ونوع التداول بالوسيط = متسامح كذلك.)","Timeframe suitability by majority (with tolerance):\n• 3 degrees visible globally ⇒ suitable.\n• No medium degree (numImp=0) ⇒ large TF ⇒ drop to a smaller one.\nA fourth degree in a wave or two (or a missing degree) is normal and does not flip the verdict — what matters is the majority of waves, not outliers. (And the trading type by median is tolerant too.)")
+    table.cell(fht, 0, 6, f_t("الفريم مناسب؟","TF suitable?"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right, tooltip = frameTip)
     table.cell(fht, 1, 6, frameTxt, text_color = color.white, bgcolor = frameBg, text_size = size.small, tooltip = frameTip)
 
 var table tbl = table.new(f_pos(panelPos), 2, 12, bgcolor = panelBg, border_width = 1,
@@ -3120,34 +3132,34 @@ if showPanel and barstate.islast
     entryRange   := entryDefined and pMedLvlDir != pBigLvlDir
     concEntry    := (not entryDefined) ? 0 : entryRange ? 0 : pMedLvlDir
     // ===== الاستنتاجات الثلاثة (تُقرأ من الحالة global — أُعيد حسابها أعلاه بعد الرسم) =====
-    string histDir = histWaveDir == 1 ? "صاعدة ▲" : histWaveDir == -1 ? "هابطة ▼" : "—"   // [V4.14] يتبع الموجة المتوسطة العاملة
+    string histDir = histWaveDir == 1 ? f_t("صاعدة ▲","Up ▲") : histWaveDir == -1 ? f_t("هابطة ▼","Down ▼") : "—"
     color  histCol = histWaveDir == 1 ? cUp : histWaveDir == -1 ? cDn : pMute
     // الحالات الأربع: غير محدَّد (بيانات غير كافية) · عرضيّ/Range · صاعدة · هابطة.
     bool   concDir = concDefined and not concRange
-    string liqTxt  = not concDefined ? "غير محدّد (بيانات غير كافية)" : concRange ? "عرضيّ (Range)" : concLiqDir == 1 ? "صاعدة" : "هابطة"
+    string liqTxt  = not concDefined ? f_t("غير محدّد (بيانات غير كافية)","Undefined (insufficient data)") : concRange ? f_t("عرضيّ (Range)","Range") : concLiqDir == 1 ? f_t("صاعدة","Up") : f_t("هابطة","Down")
     color  liqCol  = not concDefined ? pMute : concRange ? cRng : concLiqDir == 1 ? cUp : cDn
-    string entryTxt = not entryDefined ? "بيانات غير كافية" : entryRange ? "شراء وبيع" : concEntry == 1 ? "شراء فقط" : "بيع فقط"
+    string entryTxt = not entryDefined ? f_t("بيانات غير كافية","Insufficient data") : entryRange ? f_t("شراء وبيع","Buy & Sell") : concEntry == 1 ? f_t("شراء فقط","Buy only") : f_t("بيع فقط","Sell only")
     color  entryCol = not entryDefined ? pMute : entryRange ? cRng : concEntry == 1 ? cUp : cDn
-    string strTxt  = not concDir ? "—" : concStrong ? "قويّة" : "ضعيفة"
+    string strTxt  = not concDir ? "—" : concStrong ? f_t("قويّة","Strong") : f_t("ضعيفة","Weak")
     color  strCol  = not concDir ? pMute : concStrong ? cUp : cDn
-    table.cell(tbl, 0, 0, "لوحة الاستنتاجات", text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
-    table.cell(tbl, 1, 0, "الدرس 10", text_color = pMute, bgcolor = pHdr, text_size = size.small)
-    table.cell(tbl, 0, 1, "اتجاه الموجة التاريخية", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 0, f_t("لوحة الاستنتاجات","Conclusions"), text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(tbl, 1, 0, "", text_color = pMute, bgcolor = pHdr, text_size = size.small)
+    table.cell(tbl, 0, 1, f_t("اتجاه الموجة التاريخية","Historical wave"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 1, histDir, text_color = color.white, bgcolor = histCol, text_size = size.small)
-    table.cell(tbl, 0, 2, "اتجاه السيولة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 2, f_t("اتجاه السيولة","Liquidity direction"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
-    table.cell(tbl, 0, 3, "قوة السيولة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 3, f_t("قوة السيولة","Liquidity strength"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 3, strTxt, text_color = color.white, bgcolor = strCol, text_size = size.small)
-    table.cell(tbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 4, f_t("الدخول المتاح","Available entry"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 4, entryTxt, text_color = color.white, bgcolor = entryCol, text_size = size.small)
     color smCol = smlEff == 1 ? cUp : smlEff == -1 ? cDn : pHdr
     color mdCol = medEff == 1 ? cUp : medEff == -1 ? cDn : pHdr
     color bgCol = pBigDir == 1 ? cUp : pBigDir == -1 ? cDn : pHdr
-    table.cell(tbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 5, f_t("الصغيرة","Small"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 5, f_dir(smlEff) + " | " + smallPhase, text_color = color.white, bgcolor = smCol, text_size = size.small)
-    table.cell(tbl, 0, 6, "المتوسطة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 6, f_t("المتوسطة","Medium"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 6, f_dir(medEff) + " | " + medPhase, text_color = color.white, bgcolor = mdCol, text_size = size.small)
-    table.cell(tbl, 0, 7, "الكبيرة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 7, f_t("الكبيرة","Big"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 7, f_dir(pBigDir) + " | " + bigPhase + (bigCtxReview ? " ⚠" : ""), text_color = color.white, bgcolor = bgCol, text_size = size.small)
     // لون الفرصة يتدرّج حسب القرب والقوّة: دخول مؤكّد ⇒ أخضر صريح؛ أساسية مُسلّحة قريبة ⇒ أخضر أفتح؛
     //   عالية مخاطر/غير أساسية متوقّعة ⇒ تحذير (كهرماني)؛ داخل منطقة بلا مرحلة ⇒ محايد باهت؛ وإلا الخلفية.
@@ -3156,21 +3168,21 @@ if showPanel and barstate.islast
     bool oppHR        = oppHRBuy or oppHRSell
     color oppBg = oppConfirmed ? #089981 : oppBasic ? #26A69A : oppHR ? #FF9800 : diagInZone ? color.new(#5C6BC0, 25) : pBg
     color oppTx = (oppConfirmed or oppBasic or oppHR or diagInZone) ? color.white : pMain
-    table.cell(tbl, 0, 8, "الفرصة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 8, f_t("الفرصة","Opportunity"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 8, oppText, text_color = oppTx, bgcolor = oppBg, text_size = size.small)
     // ملخّص الحالة (الاستنتاج الرابع/الربط): تصحيح متوقّع عند 3 درجات مشاركة + ضعف + ذروة سعر.
-    string noteTxt = concCorrectionLikely ? "تصحيح متوسط متوقّع ⚠" : "—"
+    string noteTxt = concCorrectionLikely ? f_t("تصحيح متوسط متوقّع ⚠","Medium correction likely ⚠") : "—"
     color  noteBg  = concCorrectionLikely ? #FF9800 : pBg
     color  noteTx  = concCorrectionLikely ? color.white : pMute
-    table.cell(tbl, 0, 9, "ملخّص الحالة", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(tbl, 0, 9, f_t("ملخّص الحالة","Status"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 9, noteTxt, text_color = noteTx, bgcolor = noteBg, text_size = size.small)
     // [V4.46] صفّ الصفقة المفتوحة: الاتجاه + الدخول + الوقف المتحرّك (التأمين) + الهدف القادم
     if enableManage
         float trRR = f_rr(tradeEntry, tradeStop, tradeTgt)
         bool tSecured = tradeDir != 0 and not na(tradeStop) and not na(tradeEntry) and ((tradeDir == 1 and tradeStop >= tradeEntry) or (tradeDir == -1 and tradeStop <= tradeEntry))   // [V4.87] الوقف مؤمَّن (≥ تعادُل)؟
-        string trTxt = tradeDir == 0 ? "—" : (tradeDir == 1 ? "شراء ▲" : "بيع ▼") + "  دخول " + (na(tradeEntry) ? "—" : str.tostring(tradeEntry, format.mintick)) + "  وقف " + (na(tradeStop) ? "—" : str.tostring(tradeStop, format.mintick)) + "  هدف " + (na(tradeTgt) ? "—" : str.tostring(tradeTgt, format.mintick)) + "  RR " + (na(trRR) ? "—" : str.tostring(trRR, "#.##")) + (tSecured ? "  · 🔒 مؤمَّن" : "")
+        string trTxt = tradeDir == 0 ? "—" : (tradeDir == 1 ? f_t("شراء ▲","Buy ▲") : f_t("بيع ▼","Sell ▼")) + f_t("  دخول ","  Entry ") + (na(tradeEntry) ? "—" : str.tostring(tradeEntry, format.mintick)) + f_t("  وقف ","  Stop ") + (na(tradeStop) ? "—" : str.tostring(tradeStop, format.mintick)) + f_t("  هدف ","  Target ") + (na(tradeTgt) ? "—" : str.tostring(tradeTgt, format.mintick)) + "  RR " + (na(trRR) ? "—" : str.tostring(trRR, "#.##")) + (tSecured ? f_t("  · 🔒 مؤمَّن","  · 🔒 Secured") : "")
         color  trBg  = tradeDir == 1 ? cUp : tradeDir == -1 ? cDn : pBg
-        table.cell(tbl, 0, 10, "الصفقة + التأمين", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
+        table.cell(tbl, 0, 10, f_t("الصفقة + التأمين","Trade + Stop"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
         table.cell(tbl, 1, 10, trTxt, text_color = tradeDir == 0 ? pMute : color.white, bgcolor = trBg, text_size = size.small)
     // [V4.18] صفّ تشخيص بحث الزوج الأزرق — يظهر فقط مع «تشخيص مؤقّت» (showDiag)
     if showDiag
