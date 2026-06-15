@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.33", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.38", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ الإعدادات ====================================
 grpEng  = "⚙️ محرّك الدرجات"
@@ -94,6 +94,8 @@ showHist  = input.bool(true,  "إظهار حدود الموجة التاريخي
 useHistN  = input.bool(false, "تحديد الموجة بعدد الشموع (بدل التلقائي)", group = grpHist,
      tooltip = "مفعّل: تُرسم الحدود على آخر «عدد الشموع». مطفأ: تُحدَّد تلقائياً من الدرجة الكبيرة.")
 histBars  = input.int(100, "عدد شموع الموجة التاريخية", minval = 1, group = grpHist)
+histAnchorBig = input.bool(false, "إرساء تلقائيّ على التطرّف الكبير (أوسع — الدرس 03)", group = grpHist,
+     tooltip = "مطفأ (افتراضيّ): إرساء تلقائيّ على الانقلاب المتوسط (الدرس 09 — أضيق، يتجدّد سريعًا). مفعّل: إرساء على آخر قاع كبير (صعودًا) / قمّة كبيرة (هبوطًا) = أصل الموجة الكبيرة ⇒ موجة أوسع أقرب للدرس 03. قارن الاثنين.")
 cHist     = input.color(color.new(#607D8B, 82), "لون الموجة التاريخية", group = grpHist)   // [V4.62] أزرق-رماديّ هادئ، قريب من رماديّ تاريخ التاريخ مع تمييز
 showHoh   = input.bool(true,  "إظهار حدود تاريخ التاريخ", group = grpHist)
 useHohN   = input.bool(false, "تحديد تاريخ التاريخ بعدد الشموع (بدل التلقائي)", group = grpHist,
@@ -1040,9 +1042,12 @@ storeSArrow(bool isTop, float px, int bar, color colA, int lastType) =>
 //   احتياطيّ عند غياب نقاط كبيرة بعد: آخر 7 تأرجحات متوسطة.
 int autoLen = 150
 int bigAnchor = na
-// الدرس 09 (قرار المستخدم): الموجة التاريخية = الموجة العاملة، تُرسى على medWaveStart (قمة/قاع الانعكاس)
-//   وتقلب فوراً عند كسر المستوى المتوسط. احتياطيّ قبل أوّل انقلاب = آخر نقطة كبيرة (memBph) ثم 7 تأرجحات.
-if medActiveDir != 0 and not na(medWaveStart)
+int bigDirA = medActiveDir != 0 ? medActiveDir : largeDir   // [V4.91] اتجاه تقريبيّ للإرساء الكبير (متوسط ثمّ كبير سابق)
+// [V4.91] الدرس 03 (histAnchorBig): إرساء على آخر **تطرّف كبير** باتجاه الموجة (قاع صعوداً / قمّة هبوطاً) = أصل الموجة الكبيرة (أوسع).
+//   الافتراضيّ (مطفأ): الدرس 09 — على medWaveStart (الموجة المتوسطة العاملة، أضيق). احتياطيّ قبل أوّل انقلاب = نقطة كبيرة.
+if histAnchorBig and ((bigDirA == 1 and not na(memBph.lbBar)) or (bigDirA == -1 and not na(memBph.ltBar)))
+    bigAnchor := bigDirA == 1 ? memBph.lbBar : memBph.ltBar
+else if medActiveDir != 0 and not na(medWaveStart)
     bigAnchor := medWaveStart
 else if not na(memBph.lbBar) and not na(memBph.ltBar)
     bigAnchor := memBph.lbBar > memBph.ltBar ? memBph.lbBar : memBph.ltBar   // الأحدث = أصل الساق الجارية
@@ -1074,11 +1079,11 @@ float hohThr   = hohMinRatio * ampHist
 int   hohLeftV  = na
 int   hohRightV = histLeft - 1
 bool  medAnchored = medActiveDir != 0 and not na(medWaveStart)
-if not useHohN and medAnchored and not na(medWavePrevStart) and medWavePrevStart < histLeft
+if not useHohN and not histAnchorBig and medAnchored and not na(medWavePrevStart) and medWavePrevStart < histLeft
     // الإرساء المتوسط: تاريخ التاريخ = الموجة المتوسطة السابقة [medWavePrevStart → histLeft)
     hohLeftV := medWavePrevStart
     hohRightV := histLeft - 1
-else if not useHohN and not medAnchored and ampHist > 0 and not na(memBph.lbBar) and not na(memBph.ltBar)
+else if not useHohN and (not medAnchored or histAnchorBig) and ampHist > 0 and not na(memBph.lbBar) and not na(memBph.ltBar)
     bool upLeg = memBph.lbBar > memBph.ltBar   // الأحدث قاع ⇒ ساق صاعدة جارية
     if upLeg
         // المرشّحات (الأقرب للمرساة أولاً): A: ltBar→lbBar · B: pbBar→ltBar · C: ptBar→pbBar
@@ -1600,7 +1605,7 @@ if barstate.isconfirmed
     //   وقد يختلف عن نقاط المرحلة (الكسر) — مقبول وموثّق: المرحلة هي المرجع البنيوي، والرسم عرضٌ فقط.
     //   (افتراضياً useBigBreak مفعّل ⇒ الجانبان متّسقان.)
     //   bigLiqLvl قيمة منطقية فقط من memBph (آخر قاعين صعوداً / قمتين هبوطاً) — لا line.new.
-    int   bDirPh = largeDir != 0 ? largeDir : bigDir
+    int   bDirPh = (not na(bigAncQa1) and bigAncDir != 0) ? bigAncDir : (largeDir != 0 ? largeDir : bigDir)   // [V4.90] توحيد: مرحلة الكبيرة تتبع اتجاه المرساة (bigAncDir) كاللوحة/الإشارات
     float bigLiqLvl = na
     if bDirPh == 1 and not na(memBph.lbP) and not na(memBph.pbP) and memBph.lbBar != memBph.pbBar
         float slopeBp = (memBph.lbP - memBph.pbP) / (memBph.lbBar - memBph.pbBar)
@@ -1612,8 +1617,9 @@ if barstate.isconfirmed
     bigPhase := phaseText(bigPh, bDirPh)
     // [V4.72] كسر خطّ السيولة الأزرق البنيويّ (شمعتان على **الخطّ المرسوم** bigLiqLine) ⇒ مسح فوريّ +
     //   لا يُعاد رسمه إلّا بمحورين زرقاوين جديدين (كما المتوسط v4.64/v4.67). الكبيرة ثابتة لكنّ سيولتها تُمسَح عند كسرها.
+    int bigLqDirB = (not na(bigAncQa1) and bigAncDir != 0) ? bigAncDir : largeDir   // [V4.89] اتجاه الخطّ المرسوم (المرساة) لا largeDir — اتّساقًا مع كسر المستوى (v4.77)
     if useRenewal and not na(bigLiqLine)
-        if structuralBreak(bigLB, largeDir, line.get_price(bigLiqLine, bar_index), close, open)
+        if structuralBreak(bigLB, bigLqDirB, line.get_price(bigLiqLine, bar_index), close, open)
             line.delete(bigLiqLine)
             bigLiqLine := na
             bigLiqBrkBar := bar_index
@@ -1674,7 +1680,9 @@ if barstate.isconfirmed
     // ===== طبقة الفرص (المرحلة 2): داخل منطقة + AllowedSide + المرحلة المناسبة =====
     // داخل منطقة = عضوية في قائمة المناطق المُصانة (تُبنى عند الانبعاث بخوارزمية islast الكاملة:
     //   greedy الأقرب عالمياً + استهلاك + منع احتواء). فحص رخيص O(Z)، non-repainting.
-    int   bEff = largeDir != 0 ? largeDir : bigDir
+    // [V4.88] النقطة 4: الإشارات تتبع **نفس اتجاه الاستنتاجات/اللوحة** = اتجاه السيولة الأزرق المرسوم (bigAncDir)
+    //   لا largeDir البنيويّ — وإلّا قد تخالف الإشارةُ «الدخول المتاح» في اللوحة. احتياطيّ largeDir/bigDir عند غياب المرساة.
+    int   bEff = (not na(bigAncQa1) and bigAncDir != 0) ? bigAncDir : (largeDir != 0 ? largeDir : bigDir)
     int   mEff = medActiveDir != 0 ? medActiveDir : bEff
     bool  buyOK  = (bEff == 1 and mEff == 1) or (bEff != mEff)   // اتفاق صاعد ⇒ شراء؛ تعارض ⇒ الاثنان
     bool  sellOK = (bEff == -1 and mEff == -1) or (bEff != mEff)
@@ -1948,6 +1956,15 @@ if barstate.isconfirmed
                 tradeStop := ns
         if (not na(tradeStop) and high >= tradeStop) or (not na(tradeTgt) and low <= tradeTgt)
             tradeDir := 0
+    // [V4.90] تنبيه صوتيّ على الدخول المؤكَّد: أنشئ في TradingView تنبيهًا على «Any alert() function call» واختر الصوت ⇒ يُطلَق تلقائيًّا عند كلّ دخول.
+    if entryBuy
+        alert("M-Waves: دخول شراء مؤكّد @ " + str.tostring(entryP, format.mintick) + "  ·  وقف " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "  ·  هدف " + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
+    if entrySell
+        alert("M-Waves: دخول بيع مؤكّد @ " + str.tostring(entryP, format.mintick) + "  ·  وقف " + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + "  ·  هدف " + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
+    if oppHRBuy and not oppHRBuy[1]   // [V4.92] تنبيه فرصة عالية المخاطر (تظهر أكثر من المؤكّدة)
+        alert("M-Waves: فرصة شراء عالية المخاطر داخل منطقة (تصحيح بعد الذعر)", alert.freq_once_per_bar)
+    if oppHRSell and not oppHRSell[1]
+        alert("M-Waves: فرصة بيع عالية المخاطر داخل منطقة (تصحيح بعد الذعر)", alert.freq_once_per_bar)
     // [V4.50] صناديق الصفقة (مودرن، مكافئ TradingView): أخضر عائد (دخول↔هدف) + أحمر مخاطرة (دخول↔وقف) + شارة RR
     if showOpp and barstate.islast
         if not na(rewardBox)
