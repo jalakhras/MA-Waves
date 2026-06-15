@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.43", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.44", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -84,8 +84,8 @@ cPendBordBig = input.color(#2962FF, "Pending big border (blue) / حدّ المع
 // ----- 🌊 Historical Wave -----
 grpHist   = "🌊 Historical Wave / الموجة التاريخية"
 showHist  = input.bool(true,  "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
-histAnchorBig = input.bool(false, "Anchor on big extreme (wider) / إرساء على التطرّف الكبير", group = grpHist,
-     tooltip = "Off: anchor on last medium reversal (narrower, renews fast). On: anchor on last big low (up)/high (down) ⇒ wider wave.\nمطفأ: آخر انقلاب متوسط (أضيق). مفعّل: آخر تطرّف كبير (أوسع).")
+histAnchorBig = input.bool(false, "Widen working analysis to big wave / توسيع التحليل للموجة الكبيرة", group = grpHist,
+     tooltip = "The drawn historical wave is ALWAYS the big wave now (lesson 03). This toggle also widens the WORKING analysis (effectiveness/zones/signals) to it. Off (default): working stays on the medium wave (lesson 09 renewal).\nالموجة المرسومة صارت دائمًا الكبيرة (الدرس 03). هذا المفتاح يوسّع أيضًا التحليل العامل (الفعالية/المناطق/الإشارات) إليها. مطفأ: التحليل يبقى على الموجة المتوسطة (تجدّد الدرس 09).")
 useHistN  = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist,
      tooltip = "On: draw bounds over the last N candles. Off: auto from the big degree.\nمفعّل: آخر N شمعة. مطفأ: تلقائي من الكبيرة.")
 histBars  = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
@@ -1074,7 +1074,28 @@ else if array.size(medBars) > 0
     autoLen := bar_index - array.get(medBars, idxA) + 1
 int wlen    = useHistN ? histBars : autoLen
 wlen := math.min(math.min(math.max(wlen, 1), bar_index + 1), 4500)
-int histLeft = bar_index - wlen + 1   // بداية الموجة الحالية
+int histLeft = bar_index - wlen + 1   // بداية الموجة الحالية (نافذة العمل الضيّقة — الدرس 09)
+// [V3.44] الدرس 03 — نافذة «السياق» الواسعة، منفصلة عن نافذة «العمل» الضيّقة (الدرس 09):
+//   مرساة دائمًا على آخر تطرّف كبير باتجاه الموجة (أصل الموجة الكبيرة) ⇒ تقود الصندوق المرسوم + تاريخ التاريخ + لوحة الفريم فقط.
+//   الفعالية/المناطق/الإشارات تبقى على histLeft الضيّق (قرار v2.14 سليم) ⇒ لا انحدار في طبقة التحليل.
+int ctxAnchor = na
+if (bigDirA == 1 and not na(memBph.lbBar)) or (bigDirA == -1 and not na(memBph.ltBar))
+    ctxAnchor := bigDirA == 1 ? memBph.lbBar : memBph.ltBar
+else if not na(memBph.lbBar) and not na(memBph.ltBar)
+    ctxAnchor := memBph.lbBar > memBph.ltBar ? memBph.lbBar : memBph.ltBar
+else if not na(memBph.lbBar)
+    ctxAnchor := memBph.lbBar
+else if not na(memBph.ltBar)
+    ctxAnchor := memBph.ltBar
+int ctxLen = na(ctxAnchor) ? wlen : (bar_index - ctxAnchor + 1)
+ctxLen := math.min(math.min(math.max(ctxLen, 1), bar_index + 1), 4500)
+int ctxLeft  = bar_index - ctxLen + 1
+float ctxHiE = ta.highest(high, ctxLen)
+float ctxLoE = ta.lowest(low, ctxLen)
+int ctxHohRight = ctxLeft - 1                         // تاريخ التاريخ للسياق = نافذة بطول الموجة قبلها مباشرةً (احتياطيّ بسيط؛ مطابقة السعة لاحقًا)
+int ctxHohLen   = useHohN ? hohBars : ctxLen
+ctxHohLen := math.min(math.min(math.max(ctxHohLen, 1), math.max(ctxLeft, 1)), math.max(4900 - ctxLen, 1))
+int ctxHohLeft  = math.max(0, ctxLeft - ctxHohLen)
 // نطاق الموجة الحالية (يُحسب مبكراً) — يُستخدم لرسم الصندوق
 float hwHiE = ta.highest(high, wlen)
 float hwLoE = ta.lowest(low, wlen)
@@ -2046,14 +2067,14 @@ if barstate.isconfirmed
 // • إذا تركه 0: تُحدَّد تلقائياً من الدرجة الكبيرة (من آخر موجة كبيرة حتى الآن).
 var box   hbox = na
 var label hlbl = na
-float hwHi = hwHiE
-float hwLo = hwLoE
+float hwHi = ctxHiE   // [V3.44] الصندوق المرسوم = نافذة السياق الواسعة (الدرس 03)
+float hwLo = ctxLoE
 if showHist and barstate.islast
     if not na(hbox)
         box.delete(hbox)
     if not na(hlbl)
         label.delete(hlbl)
-    int   hLeft   = histLeft
+    int   hLeft   = ctxLeft
     color hBorder = f_dark(cHist)   // [V4.94] بوردر من لون التعبئة (درجة أغمق) بدل الأصفر؛ عرضه = عرض بورد تاريخ التاريخ (1)
     string hTxt   = useHistN ? f_t("الموجة التاريخية (يدوي)","Historical Wave (manual)") : f_t("الموجة التاريخية (تلقائي)","Historical Wave (auto)")
     hbox := box.new(hLeft, hwHi, bar_index, hwLo, border_color = hBorder, border_width = 1,
@@ -2065,15 +2086,15 @@ if showHist and barstate.islast
 // حدود تاريخ التاريخ (الموجة الكبيرة السابقة مباشرةً)
 var box   hohBox = na
 var label hohLb  = na
-if showHoh and barstate.islast and hohLeft < histLeft
+if showHoh and barstate.islast and ctxHohLeft < ctxLeft
     if not na(hohBox)
         box.delete(hohBox)
     if not na(hohLb)
         label.delete(hohLb)
-    int   hohRight = math.max(math.min(hohRightV, histLeft - 1), hohLeft)
+    int   hohRight = math.max(math.min(ctxHohRight, ctxLeft - 1), ctxHohLeft)
     float hohHi    = na
     float hohLo    = na
-    for k = (bar_index - hohRight) to (bar_index - hohLeft)
+    for k = (bar_index - hohRight) to (bar_index - ctxHohLeft)
         float hk = high[k]
         float lk = low[k]
         hohHi := na(hohHi) ? hk : math.max(hohHi, hk)
@@ -2081,9 +2102,9 @@ if showHoh and barstate.islast and hohLeft < histLeft
     color hohBd    = color.new(color.gray, 0)
     string hohTxt  = useHohN ? f_t("تاريخ التاريخ (يدوي)","History-of-History (manual)") : f_t("تاريخ التاريخ (تلقائي)","History-of-History (auto)")
     if not na(hohHi)
-        hohBox := box.new(hohLeft, hohHi, hohRight, hohLo, border_color = hohBd, border_width = 1,
+        hohBox := box.new(ctxHohLeft, hohHi, hohRight, hohLo, border_color = hohBd, border_width = 1,
              bgcolor = cHoh)
-        hohLb := label.new(hohLeft, hohLo, hohTxt, xloc = xloc.bar_index, yloc = yloc.price,
+        hohLb := label.new(ctxHohLeft, hohLo, hohTxt, xloc = xloc.bar_index, yloc = yloc.price,
              style = label.style_label_upper_right, color = hohBd, textcolor = color.white,
              size = size.tiny)
 
@@ -3045,7 +3066,7 @@ if showFrameHelper and barstate.islast
     array<float> dnDur = array.new<float>()
     if nmF > 1
         for i = 0 to nmF - 2
-            if array.get(mcBar, i) >= histLeft and array.get(mcBar, i + 1) >= histLeft
+            if array.get(mcBar, i) >= ctxLeft and array.get(mcBar, i + 1) >= ctxLeft
                 float durDays = (array.get(mcTm, i + 1) - array.get(mcTm, i)) / 86400000.0   // ms ⇒ أيام
                 bool ti  = array.get(mcTop, i)
                 bool ti1 = array.get(mcTop, i + 1)
