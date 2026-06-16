@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.77", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.80", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -385,6 +385,13 @@ type Phase
 
 // تحديث المرحلة لكل بار: كسر السيولة (نصف الجسم) ⇒ ذعر؛ كسر امتداد اليأس/التجميع ⇒ مشاركة جديدة
 phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
+    // [V3.80] الفجوة 3 (تماسك المرحلة ↔ الاتجاه): **انقلاب اتجاه الدرجة** ⇒ بداية مشاركة عامّة جديدة ⇒ أعِد المرحلة لـ0 (markup صعودًا / markdown هبوطًا)، لئلّا تبقى مرحلة تصحيح قديمة معاكسة للاتجاه («هابط | يأس» أو «صاعد | تجميع»). الدرس 11: بعد قلب الموجة تبدأ المشاركة الجديدة. يطبَّق على الدرجات الثلاث (نفس الدالّة).
+    if dir != 0 and p.trendDir != 0 and dir != p.trendDir
+        p.code := 0
+        p.brkDir := 0
+        p.despairExt := na
+        p.partExt := na
+        p.despDeep := na
     p.trendDir := dir
     float body = math.abs(c - o)
     if not na(liqLvl) and body > 0
@@ -402,6 +409,20 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
             p.despairExt := na
             p.partExt := na
             p.despDeep := na
+    // [V3.79] اليأس per-bar (الدرس 11: «الذعر عند كسر السيولة وبعده اليأس»): بعد الذعر، تجاوز قاع/قمّة الذعر (despDeep) بنصف جسم ⇒ يأس فورًا (لا ننتظر النقطة المتأخّرة). يعمل في الموجتين: brkDir=-1 قيعان صعودًا · brkDir=1 قمم هبوطًا.
+    if p.code == 1 and not na(p.despDeep) and body > 0
+        if p.brkDir == -1 and c < p.despDeep and (p.despDeep - c) > 0.5 * body
+            p.code := 2
+            p.despDeep := c
+        if p.brkDir == 1 and c > p.despDeep and (c - p.despDeep) > 0.5 * body
+            p.code := 2
+            p.despDeep := c
+    // [V3.79] التصريف(قمة، صعود)/التجميع(قاع، هبوط) قبيل كسر السيولة per-bar (الدرس 11: «تجمّع علويّ/سفليّ قبيل كسر السيولة»): أثناء المشاركة، تراجع السعر من ذروة المشاركة (partExt) إلى النصف الأقرب للسيولة قبل كسرها ⇒ يظهر **قبل** الذعر (كان يُحجَب لأنّ القمّة المتأخّرة تُعالَج بعد ضبط الذعر code=1). يَرجع للمشاركة عند قمّة/قاع جديد (phaseOnPivot س435/438)، وللذعر عند الكسر (أعلاه).
+    if p.code == 0 and not na(liqLvl) and not na(p.partExt)
+        if dir == 1 and p.partExt > liqLvl and c > liqLvl and c < (liqLvl + p.partExt) * 0.5
+            p.code := 4
+        if dir == -1 and p.partExt < liqLvl and c < liqLvl and c > (liqLvl + p.partExt) * 0.5
+            p.code := 3
     // [V4.28] استئناف المشاركة = كسر آخر قمّة/قاع تصحيح **بنصف الجسم** (الدرس 11: «يقفل شمعة أكثر من نص جسمها فوق/تحت»)
     if (p.code == 2 or p.code == 3 or p.code == 4) and not na(p.despairExt)
         if p.brkDir == -1 and c > p.despairExt and (c - p.despairExt) > 0.5 * body
@@ -1500,8 +1521,12 @@ if barstate.isconfirmed
             if medActiveDir == 0
                 if eTopM and not na(memM.ltP) and ePM > memM.ltP
                     medActiveDir := 1
+                    if na(medWaveStart)   // [V3.78] مرساة الموجة الأولى = آخر قاع (بداية الصعود)؛ كانت تُضبط عند الانقلاب فقط ⇒ v3.77 (الإرساء على التطرّف) معطَّل قبل أوّل انقلاب
+                        medWaveStart := na(memM.lbBar) ? eBM : memM.lbBar
                 if (not eTopM) and not na(memM.lbP) and ePM < memM.lbP
                     medActiveDir := -1
+                    if na(medWaveStart)   // [V3.78] مرساة الموجة الأولى = آخر قمّة (بداية الهبوط)
+                        medWaveStart := na(memM.ltBar) ? eBM : memM.ltBar
             int mActive = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
             // سيولة ومستوى الدرجة المتوسطة
             updateDeg(memM, eTopM, ePM, levelM, eBM, mActive, cLiqM, cLvlM, false, false, medGate, liqExtBars, lvlExtBars, hwHiBand, hwLoBand, wMed, wMed)   // [V3.6] السيولة/المستوى المتوسط تُحسب فعّالةً عند islast/emittedMedBar (لا عند الانبعاث)
@@ -1760,22 +1785,9 @@ if barstate.isconfirmed
     int   mEff = medActiveDir != 0 ? medActiveDir : bEff
     bool  buyOK  = (bEff == 1 and mEff == 1) or (bEff != mEff)   // اتفاق صاعد ⇒ شراء؛ تعارض ⇒ الاثنان
     bool  sellOK = (bEff == -1 and mEff == -1) or (bEff != mEff)
-    // ===== الاستنتاجات (الدرس 10) — حصر كل الحالات بلا تلفيق =====
-    // (1)+(3) اتجاه السيولة + الدخول = توافق سيولة المتوسطة (خطّها المرسوم فعلاً) + اتجاه الكبيرة البنيويّ.
-    //   الحالات الأربع: غير محدَّد (إحداهما=0) · عرضيّ/Range (متعارضان) · صاعدة · هابطة. per-bar ⇒ يتفاعل
-    //   فوراً مع تكوّن/حذف/كسر خط السيولة (medLiqDir مربوط بوجود memM.liq).
-    int  medLiqDir = (not na(memM.liq)) ? medActiveDir : 0    // 0 إن لم يُرسم خط سيولة المتوسطة (محذوف/لم يتكوّن)
-    int  bigLiqDir = (not na(bigAncQa1) and bigAncDir != 0) ? bigAncDir : 0  // [V4.18] اتجاه الخطّ الأزرق المرسوم فعلاً (المثبَّت) — قد يخالف الأصفر أثناء الانتظار
-    concDefined := medLiqDir != 0 and bigLiqDir != 0          // كلا خطّي السيولة (متوسط + كبير) موجودان
-    concRange   := concDefined and medLiqDir != bigLiqDir     // موجودان متعارضان ⇒ عرضيّ (Range)
-    concLiqDir  := (concDefined and not concRange) ? medLiqDir : 0
-    // (3) الدخول المتاح = توافق **مستويي تحديد الاتجاه** المتوسط + الكبير (لا خطوط السيولة — الدرس 10).
-    //   المستوى على قاع (السعر فوقه) ⇒ شراء؛ على قمّة (السعر تحته) ⇒ بيع = اتجاه الموجة. متوفّر بنقطة واحدة (لا زوج).
-    int  medLvlDir = mEff   // [V3.57] الدخول المتاح = نفس اتجاه الإشارة (mEff) ⇒ توحيد تامّ اللوحة↔الإشارة؛ يحفظ القلب الفوريّ v3.54 (medActiveDir حين محدّد)
-    int  bigLvlDir = bEff   // [V3.57] = اتجاه الإشارة الكبير (بنيويّ largeDir احتياطًا عند غياب المرساة — اتجاه حقيقيّ لا تلفيق، الدرس 10 «مستوى الاتجاه الكبير»)
-    entryDefined := medLvlDir != 0 and bigLvlDir != 0
-    entryRange   := entryDefined and medLvlDir != bigLvlDir
-    concEntry    := (not entryDefined) ? 0 : entryRange ? 0 : medLvlDir   // غير محدَّد/عرضيّ يُميَّزان باللوحة
+    // ===== الاستنتاجات (الدرس 10) — تُحسب الآن **داخل f_drawConclusionsPanel** (v3.76) بعد رسم الخطوط لتعكس الحالة الفعليّة =====
+    // [V3.78] حُذفت من هنا حسابات concDefined/concRange/concLiqDir/entryDefined/entryRange/concEntry (+ aliases medLiqDir/bigLiqDir/medLvlDir/bigLvlDir):
+    //   صارت **كتابات ميتة** بعد لفّ اللوحة (لا قارئ خارج اللوحة، واللوحة تعيد حسابها محلّيًّا بعد الرسم) ⇒ تنظيف + توفير حساب per-bar + تقليص الجسم الرئيسيّ. (concStrong/concCorrectionLikely أدناه تبقى — تُقرأ في اللوحة.)
     // (4) ربط حالات السوق (الدرس 11): الدرجات الثلاث «مشاركة عامة» + سيولة ضعيفة + سعر قرب ذروة الموجة
     //   ⇒ تصحيح متوسط متوقّع (قد يصل لخط السيولة الأكبر). مراحل الدرجات per-bar (medPh/bigPh/smallPh).
     bool allMarkup = bigPh.code == 0 and medPh.code == 0 and smallPh.code == 0
@@ -1834,7 +1846,7 @@ if barstate.isconfirmed
     //   دخل السعر المنطقةَ من فوق ⇒ دعم(+1)؛ من تحت ⇒ مقاومة(-1)؛ غموض (تكوّنت حول السعر) ⇒ 0 ⇒ يرجع للاتجاه (قرار المستخدم: الاحتياطيّ بالاتجاه).
     var bool inZonePrev = false
     var int  zoneSide   = 0
-    if inZone and not inZonePrev
+    if inZone   // [V3.78] إعادة تقييم **كلّ بار** (لا عند الدخول فقط): بعد إعادة بناء المنطقة (emittedMedBar) يتحدّث التصنيف من موضع close[1] مقابل حدّ المنطقة الحاليّ ⇒ لا يبقى «دعم/+1» على منطقة صارت مقاومة ⇒ يمنع شراء عند مقاومة
         zoneSide := close[1] > ztCur ? 1 : close[1] < zbCur ? -1 : zoneSide
     if not inZone
         zoneSide := 0
@@ -2899,11 +2911,11 @@ if barstate.islast or emittedMedBar
             if close <= projNow
                 memM.liq := line.new(lt2, ltp2, rbM, ltp1 + slM * (rbM - lt1), xloc = xloc.bar_index, color = cLiqM, width = wMed)
         // [V3.75] fallback السيولة: لا قمّتان/قاعان فعّالان في النافذة ⇒ آخر تطرّفين خام (memM) بشرط التصاعد/التنازل (الدرس 08) + غير مكسور. (أثر مقصود: الاستنتاجات تعرّف اتجاه السيولة حين يتوفّر زوج خام صالح — اتجاه حقيقيّ لا تلفيق.)
-        if showLiq and na(memM.liq) and medActiveDir == 1 and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar != memM.pbBar and memM.lbP > memM.pbP
+        if showLiq and na(memM.liq) and medActiveDir == 1 and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar != memM.pbBar and memM.lbP > memM.pbP and (na(medLiqBrkBar) or memM.pbBar > medLiqBrkBar)   // [V3.78] تبويب ببار الكسر: لا يُعاد رسم السيولة إلّا بقاعين **جديدين** بعد الكسر البنيويّ (مرآة الزوج الفعّال س2880، الدرس 09 ب-2)
             float slFbU = (memM.lbP - memM.pbP) / (memM.lbBar - memM.pbBar)
             if close >= memM.lbP + slFbU * (bar_index - memM.lbBar)
                 memM.liq := line.new(memM.pbBar, memM.pbP, rbM, memM.lbP + slFbU * (rbM - memM.lbBar), xloc = xloc.bar_index, color = cLiqM, width = wMed)
-        if showLiq and na(memM.liq) and medActiveDir == -1 and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar != memM.ptBar and memM.ltP < memM.ptP
+        if showLiq and na(memM.liq) and medActiveDir == -1 and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar != memM.ptBar and memM.ltP < memM.ptP and (na(medLiqBrkBar) or memM.ptBar > medLiqBrkBar)   // [V3.78] تبويب ببار الكسر (مرآة س2891، الدرس 09 ب-2)
             float slFbD = (memM.ltP - memM.ptP) / (memM.ltBar - memM.ptBar)
             if close <= memM.ltP + slFbD * (bar_index - memM.ltBar)
                 memM.liq := line.new(memM.ptBar, memM.ptP, rbM, memM.ltP + slFbD * (rbM - memM.ltBar), xloc = xloc.bar_index, color = cLiqM, width = wMed)
