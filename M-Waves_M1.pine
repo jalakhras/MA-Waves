@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.72", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.73", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -1833,13 +1833,16 @@ if barstate.isconfirmed
     //   في **العرضيّ** (بينهما) ⇒ جهة المنطقة **صارمة** (شراء عند دعم صريح فقط، بيع عند مقاومة صريحة)؛ في الاتجاه الواضح ⇒ احتياطيّ الاتجاه (الغموض يمرّ). يمنع شراءً عرضيًّا عند مقاومة (إشارتك الكاذبة).
     bool  buyZoneOK  = (zoneSide ==  1) or (zoneSide == 0 and bEff ==  1 and mEff ==  1)
     bool  sellZoneOK = (zoneSide == -1) or (zoneSide == 0 and bEff == -1 and mEff == -1)
-    oppBasicBuy  := inZone and buyOK  and (basBuyS or basBuyM)  and buyZoneOK   // [V3.72] العرضيّ ⇒ دعم صريح فقط
-    oppBasicSell := inZone and sellOK and (basSellS or basSellM) and sellZoneOK   // [V3.72] العرضيّ ⇒ مقاومة صريحة فقط
+    // [V3.73] الفجوة 2: لا شراء والمتوسط في **مشاركة هابطة نشطة** (mc2==0 وهابط = هبوط فاعل لا تصحيح)؛ يجب أن يكون صاعدًا أو في تصحيح(ذعر/يأس)/تجميع. مرآته للبيع. (التصحيح mc2==1/2 يمرّ — هو غرض المخاطرة.)
+    bool  medActiveDown = mc2 == 0 and medActiveDir == -1
+    bool  medActiveUp   = mc2 == 0 and medActiveDir ==  1
+    oppBasicBuy  := inZone and buyOK  and (basBuyS or basBuyM)  and buyZoneOK  and not medActiveDown   // [V3.72/3.73]
+    oppBasicSell := inZone and sellOK and (basSellS or basSellM) and sellZoneOK and not medActiveUp     // [V3.72/3.73]
     oppBasicBuyDeg  := oppBasicBuy  ? (basBuyS  ? 3 : 2) : 0   // الصغيرة أولًا (القريبة) وإلا المتوسطة
     oppBasicSellDeg := oppBasicSell ? (basSellS ? 3 : 2) : 0
     // عالية المخاطر: تصحيح بعد الذعر (ذعر/يأس) في الصغيرة أو المتوسطة مع الاتجاه — قبل اكتمال التجميع/التصريف.
-    oppHRBuy  := inZone and bEff == 1  and (sc2 == 1 or sc2 == 2 or mc2 == 1 or mc2 == 2) and not oppBasicBuy  and buyZoneOK   // [V3.72] العرضيّ ⇒ دعم صريح فقط
-    oppHRSell := inZone and bEff == -1 and (sc2 == 1 or sc2 == 2 or mc2 == 1 or mc2 == 2) and not oppBasicSell and sellZoneOK
+    oppHRBuy  := inZone and bEff == 1  and (sc2 == 1 or sc2 == 2 or mc2 == 1 or mc2 == 2) and not oppBasicBuy  and buyZoneOK  and not medActiveDown   // [V3.72/3.73]
+    oppHRSell := inZone and bEff == -1 and (sc2 == 1 or sc2 == 2 or mc2 == 1 or mc2 == 2) and not oppBasicSell and sellZoneOK and not medActiveUp
     oppText := f_t("لا فرصة","No opportunity")
     if inZone
         oppText := f_t("داخل منطقة — لا مرحلة مناسبة","In zone — no suitable phase")
