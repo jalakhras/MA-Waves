@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.80", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.81", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -382,6 +382,7 @@ type Phase
     int   trendDir   = 0    // اتجاه الترند الحالي (لكشف التصريف داخل المشاركة)
     float partExt    = na   // ذروة المشاركة (أعلى قمة صعوداً / أدنى قاع هبوطاً)
     float despDeep   = na   // عمق اليأس (أدنى قاع صعوداً / أعلى قمة هبوطاً) — لبداية التجميع
+    bool  passedDespair = false   // [V3.81] هل مرّ التصحيح الحاليّ باليأس(2)؟ ⇒ شرط الشراء/البيع الأساسيّ (الدورة كاملة: الذعر واليأس ثمّ التجميع)
 
 // تحديث المرحلة لكل بار: كسر السيولة (نصف الجسم) ⇒ ذعر؛ كسر امتداد اليأس/التجميع ⇒ مشاركة جديدة
 phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
@@ -437,6 +438,11 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
             p.despairExt := na
             p.despDeep := na
             p.partExt := na
+    // [V3.81] تتبّع «مرّ التصحيح الحاليّ باليأس» (شرط الأساسيّ — الدرس: «الذعر واليأس ثمّ التجميع»). يُضبط بعد كلّ تحديثات المرحلة هذا البار (phaseOnBar يُنادى **بعد** phaseOnPivot ⇒ يرى code النهائيّ؛ انعكاس V يمرّ 1→2→3 في نداء phaseOnPivot واحد فيبقى code=3 ⇒ لا يُضبط).
+    if p.code == 2
+        p.passedDespair := true
+    if p.code == 0 or p.code == 1
+        p.passedDespair := false
 
 // تحديث المرحلة عند انبثاق نقطة من نفس الدرجة
 phaseOnPivot(Phase p, bool isTop, float pivP, int pivBar) =>
@@ -1859,10 +1865,10 @@ if barstate.isconfirmed
     int   sc2 = smallPh.code
     int   mc2 = medPh.code
     // أساسيّة: تجميع (دعم) للشراء / تصريف (مقاومة) للبيع — مكتملًا في الصغيرة أو المتوسطة داخل المنطقة.
-    bool  basBuyS  = sc2 == 3
-    bool  basBuyM  = mc2 == 3
-    bool  basSellS = sc2 == 4
-    bool  basSellM = mc2 == 4
+    bool  basBuyS  = sc2 == 3 and smallPh.passedDespair   // [V3.81] الدورة كاملة: تجميع **بعد يأس** (الدرس س128: «الذعر واليأس ثمّ التجميع») ⇒ يمنع الأساسيّ في انعكاس V بلا يأس (تبقى HR للسريع)
+    bool  basBuyM  = mc2 == 3 and medPh.passedDespair
+    bool  basSellS = sc2 == 4 and smallPh.passedDespair
+    bool  basSellM = mc2 == 4 and medPh.passedDespair
     // [V3.72] الفجوة 1 + الدخول المتاح: «فوق المستويين (الكبير+المتوسط)=شراء · تحتهما=بيع · بينهما=عرضيّ» (bEff/mEff).
     //   في **العرضيّ** (بينهما) ⇒ جهة المنطقة **صارمة** (شراء عند دعم صريح فقط، بيع عند مقاومة صريحة)؛ في الاتجاه الواضح ⇒ احتياطيّ الاتجاه (الغموض يمرّ). يمنع شراءً عرضيًّا عند مقاومة (إشارتك الكاذبة).
     bool  buyZoneOK  = (zoneSide ==  1) or (zoneSide == 0 and bEff ==  1 and mEff ==  1)
