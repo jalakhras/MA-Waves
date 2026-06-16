@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.73", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.74", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -2113,6 +2113,19 @@ if showHist and barstate.islast
         box.delete(hbox)
     if not na(hlbl)
         label.delete(hlbl)
+    // [V3.74] الصندوق على **تطرّفات متوسطة مؤكَّدة** (mcP) في النافذة، لا ذيل سعر خام (الدرس 03: «من البداية لأعلى قمّة» = تطرّف، لا ذيل) ⇒ لا يتوسّع بلا قمّة/قاع. islast فقط ⇒ صفر كلفة per-bar. احتياطيّ: الخام (hwHi/Lo = ctxHiE/LoE) عند غياب نقاط متوسطة بالنافذة.
+    int nmCtx = array.size(mcP)
+    if nmCtx > 0
+        float pvHi = na
+        float pvLo = na
+        for ic = 0 to nmCtx - 1
+            if array.get(mcBar, ic) >= ctxLeft
+                float pc = array.get(mcP, ic)
+                pvHi := na(pvHi) or pc > pvHi ? pc : pvHi
+                pvLo := na(pvLo) or pc < pvLo ? pc : pvLo
+        if not na(pvHi)
+            hwHi := pvHi
+            hwLo := pvLo
     int   hLeft   = ctxLeft
     color hBorder = f_dark(cHist)   // [V4.94] بوردر من لون التعبئة (درجة أغمق) بدل الأصفر؛ عرضه = عرض بورد تاريخ التاريخ (1)
     string hTxt   = useHistN ? f_t("الموجة التاريخية (يدوي)","Historical Wave (manual)") : f_t("الموجة التاريخية (تلقائي)","Historical Wave (auto)")
@@ -2591,7 +2604,7 @@ if showBig and barstate.islast
         bool  wantTopL  = bigLvlDrawDir == -1
         if bigLvlDrawDir != 0 and nb > 0
             for ii = nb - 1 to 0
-                bool nonCovL = array.get(bigEff, ii) or (array.size(bigPend) > ii and array.get(bigPend, ii))
+                bool nonCovL = array.get(bigEff, ii)   // [V3.74] الفعّال فقط (أُزيل bigPend) ⇒ المستوى الأزرق يرسي على تطرّف له دائرة زرقاء **مصمتة** لا معلّقة رماديّة (الدرس 09: المستوى على تطرّف مؤكَّد)
                 if na(bigLvlBar) and nonCovL and (na(bigLvlBrkBar) or array.get(kB, ii) > bigLvlBrkBar) and array.get(kT, ii) == wantTopL and (wantTopL ? array.get(kP, ii) > close : array.get(kP, ii) < close)
                     bigLvlBar := array.get(kB, ii)   // [V4.75] محور أزرق **بعد** إعادة البناء فقط (القاعدة 2)
                     bigLvlVv  := na(array.get(kLvl, ii)) ? array.get(kP, ii) : array.get(kLvl, ii)
