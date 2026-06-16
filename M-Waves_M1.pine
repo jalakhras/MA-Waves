@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.74", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.77", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -1541,7 +1541,18 @@ if barstate.isconfirmed
             if medTLcnt >= 2
                 medActiveDir := -1            // انتهت الصاعدة ⇒ نبدأ هابطة من البداية
                 medWavePrevStart := medWaveStart                          // الموجة المنتهية ⇒ تاريخ التاريخ
-                medWaveStart := na(memM.ltBar) ? bar_index : memM.ltBar  // قمة الانعكاس = بداية الموجة
+                // [V3.77] الموجة الهابطة تبدأ من **أعلى قمّة** في الموجة الصاعدة قبل الكسر — لا آخر قمّة (قد تكون قمّة أدنى عند التباعُد). الدرس 03 «من البداية إلى أعلى نقطة» + الدرس 05 «بداية التصحيح = القمّة/أعلى نقطة».
+                float hiPf   = memM.ltP
+                int   hiBarf = memM.ltBar
+                int   nmcF   = array.size(mcP)
+                if nmcF > 0
+                    for imf = 0 to nmcF - 1
+                        if array.get(mcTop, imf) and array.get(mcBar, imf) >= medWaveStart and array.get(mcBar, imf) <= bar_index
+                            float pimf = array.get(mcP, imf)
+                            if na(hiPf) or pimf > hiPf
+                                hiPf   := pimf
+                                hiBarf := array.get(mcBar, imf)
+                medWaveStart := na(hiBarf) ? bar_index : hiBarf  // قمة الانعكاس = **أعلى** قمّة في الموجة (لا آخر قمّة)
                 smallActiveDir := medActiveDir   // الصغيرة تبدأ مع الموجة المعاكسة الجديدة (من البداية)
                 smallWaveStart := medWaveStart
                 smallWaveStartTime := time   // [V3.66] زمن بدء الموجة (للحصر الزمنيّ ب)
@@ -1561,7 +1572,18 @@ if barstate.isconfirmed
             if medTLcnt >= 2
                 medActiveDir := 1             // انتهت الهابطة ⇒ نبدأ صاعدة من البداية
                 medWavePrevStart := medWaveStart                          // الموجة المنتهية ⇒ تاريخ التاريخ
-                medWaveStart := na(memM.lbBar) ? bar_index : memM.lbBar  // قاع الانعكاس = بداية الموجة
+                // [V3.77] الموجة الصاعدة تبدأ من **أدنى قاع** في الموجة الهابطة قبل الكسر — لا آخر قاع (قد يكون قاعًا أعلى عند التباعُد). الدرس 03 + الدرس 05 (مرآةً).
+                float loPf   = memM.lbP
+                int   loBarf = memM.lbBar
+                int   nmcG   = array.size(mcP)
+                if nmcG > 0
+                    for img = 0 to nmcG - 1
+                        if (not array.get(mcTop, img)) and array.get(mcBar, img) >= medWaveStart and array.get(mcBar, img) <= bar_index
+                            float pimg = array.get(mcP, img)
+                            if na(loPf) or pimg < loPf
+                                loPf   := pimg
+                                loBarf := array.get(mcBar, img)
+                medWaveStart := na(loBarf) ? bar_index : loBarf  // قاع الانعكاس = **أدنى** قاع في الموجة (لا آخر قاع)
                 smallActiveDir := medActiveDir   // الصغيرة تبدأ مع الموجة المعاكسة الجديدة (من البداية)
                 smallWaveStart := medWaveStart
                 smallWaveStartTime := time   // [V3.66] زمن بدء الموجة (للحصر الزمنيّ ب)
@@ -2113,19 +2135,7 @@ if showHist and barstate.islast
         box.delete(hbox)
     if not na(hlbl)
         label.delete(hlbl)
-    // [V3.74] الصندوق على **تطرّفات متوسطة مؤكَّدة** (mcP) في النافذة، لا ذيل سعر خام (الدرس 03: «من البداية لأعلى قمّة» = تطرّف، لا ذيل) ⇒ لا يتوسّع بلا قمّة/قاع. islast فقط ⇒ صفر كلفة per-bar. احتياطيّ: الخام (hwHi/Lo = ctxHiE/LoE) عند غياب نقاط متوسطة بالنافذة.
-    int nmCtx = array.size(mcP)
-    if nmCtx > 0
-        float pvHi = na
-        float pvLo = na
-        for ic = 0 to nmCtx - 1
-            if array.get(mcBar, ic) >= ctxLeft
-                float pc = array.get(mcP, ic)
-                pvHi := na(pvHi) or pc > pvHi ? pc : pvHi
-                pvLo := na(pvLo) or pc < pvLo ? pc : pvLo
-        if not na(pvHi)
-            hwHi := pvHi
-            hwLo := pvLo
+    // [V3.75] أُرجِع تجريب v3.74 (الصندوق من التطرّفات المؤكَّدة): كان يُخرج السعرَ خارج الصندوق عند تكوّن قمّة جديدة أعلى من آخر تطرّف. الصندوق = نافذة السياق الخام (hwHi/Lo = ctxHiE/LoE = ta.highest/lowest) ⇒ يحتوي السعر دائمًا (الدرس 03: «من البداية إلى أعلى نقطة وصلها» = حدّ الموجة الحيّ).
     int   hLeft   = ctxLeft
     color hBorder = f_dark(cHist)   // [V4.94] بوردر من لون التعبئة (درجة أغمق) بدل الأصفر؛ عرضه = عرض بورد تاريخ التاريخ (1)
     string hTxt   = useHistN ? f_t("الموجة التاريخية (يدوي)","Historical Wave (manual)") : f_t("الموجة التاريخية (تلقائي)","Historical Wave (auto)")
@@ -2888,12 +2898,26 @@ if barstate.islast or emittedMedBar
             float projNow = ltp1 + slM * (bar_index - lt1)
             if close <= projNow
                 memM.liq := line.new(lt2, ltp2, rbM, ltp1 + slM * (rbM - lt1), xloc = xloc.bar_index, color = cLiqM, width = wMed)
+        // [V3.75] fallback السيولة: لا قمّتان/قاعان فعّالان في النافذة ⇒ آخر تطرّفين خام (memM) بشرط التصاعد/التنازل (الدرس 08) + غير مكسور. (أثر مقصود: الاستنتاجات تعرّف اتجاه السيولة حين يتوفّر زوج خام صالح — اتجاه حقيقيّ لا تلفيق.)
+        if showLiq and na(memM.liq) and medActiveDir == 1 and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar != memM.pbBar and memM.lbP > memM.pbP
+            float slFbU = (memM.lbP - memM.pbP) / (memM.lbBar - memM.pbBar)
+            if close >= memM.lbP + slFbU * (bar_index - memM.lbBar)
+                memM.liq := line.new(memM.pbBar, memM.pbP, rbM, memM.lbP + slFbU * (rbM - memM.lbBar), xloc = xloc.bar_index, color = cLiqM, width = wMed)
+        if showLiq and na(memM.liq) and medActiveDir == -1 and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar != memM.ptBar and memM.ltP < memM.ptP
+            float slFbD = (memM.ltP - memM.ptP) / (memM.ltBar - memM.ptBar)
+            if close <= memM.ltP + slFbD * (bar_index - memM.ltBar)
+                memM.liq := line.new(memM.ptBar, memM.ptP, rbM, memM.ltP + slFbD * (rbM - memM.ltBar), xloc = xloc.bar_index, color = cLiqM, width = wMed)
         if medActiveDir == 1 and showLvl and not na(mb1)
             float lvlMU = array.get(mcLvl, mb1)
             memM.lvl := line.new(array.get(mcBar, mb1), lvlMU, last_bar_index + lvlExtBars, lvlMU, xloc = xloc.bar_index, color = cLvlM, width = wMed, style = line.style_solid)
         if medActiveDir == -1 and showLvl and not na(mt1)
             float lvlMD = array.get(mcLvl, mt1)
             memM.lvl := line.new(array.get(mcBar, mt1), lvlMD, last_bar_index + lvlExtBars, lvlMD, xloc = xloc.bar_index, color = cLvlM, width = wMed, style = line.style_solid)
+        // [V3.75] fallback المستوى: لا تطرّف فعّال في النافذة (mt1/mb1=na، مثل قمّة الانقلاب الخام بعد التحوّل للهبوط) ⇒ آخر تطرّف خام (memM.body) ⇒ المستوى يُرسم دائمًا على المقاومة/الدعم (الدرس 09: المستوى على آخر تطرّف). بصريّ فقط (mEff من medActiveDir لا memM.lvl).
+        if showLvl and na(memM.lvl) and medActiveDir == 1 and not na(memM.lbBody)
+            memM.lvl := line.new(memM.lbBar, memM.lbBody, last_bar_index + lvlExtBars, memM.lbBody, xloc = xloc.bar_index, color = cLvlM, width = wMed, style = line.style_solid)
+        if showLvl and na(memM.lvl) and medActiveDir == -1 and not na(memM.ltBody)
+            memM.lvl := line.new(memM.ltBar, memM.ltBody, last_bar_index + lvlExtBars, memM.ltBody, xloc = xloc.bar_index, color = cLvlM, width = wMed, style = line.style_solid)
     array.clear(zTop)
     array.clear(zBot)
     array.clear(zAnchor)
@@ -3139,7 +3163,8 @@ f_pos(string s) => s == "Top L" ? position.top_left : s == "Top C" ? position.to
 //   + «درجات ظاهرة /3» (روح الخطوتين 1–2). الحدّان مدخلان قابلان للضبط لكل أداة.
 var table fht = table.new(f_pos(fhPos), 2, 7, bgcolor = fhBg, border_width = 1,
      border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
-if showFrameHelper and barstate.islast
+// [V3.76] لُفّت كتلة لوحة اختبار الموجة في دالّة لتقليص حجم الجسم الرئيسيّ (إصلاح CE10295). تقرأ globals وتكتب في fht بالمرجع ⇒ صفر تغيير سلوك.
+f_drawFramePanel() =>
     table.set_position(fht, f_pos(fhPos))
     // الدرس 03 — اختبار الموجة: نقيس زمن السيقان الدافعة المتوسطة بالأيام.
     //   الدافعة = مجموعة السيقان الأطول إجمالاً (اتجاه الترند) — تُختار بالقياس لا بـ dirF (أمتن ضدّ قلب الاتجاه،
@@ -3216,10 +3241,14 @@ if showFrameHelper and barstate.islast
     table.cell(fht, 0, 6, f_t("الفريم مناسب؟","TF suitable?"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right, tooltip = frameTip)
     table.cell(fht, 1, 6, frameTxt, text_color = color.white, bgcolor = frameBg, text_size = size.small, tooltip = frameTip)
 
+if showFrameHelper and barstate.islast
+    f_drawFramePanel()
+
 var table tbl = table.new(f_pos(panelPos), 2, 12, bgcolor = panelBg, border_width = 1,
      border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 
-if showPanel and barstate.islast
+// [V3.76] لُفّت كتلة لوحة الاستنتاجات في دالّة (إصلاح CE10295). العوامّ الـ6 (concDefined/...) صارت محلّيّة (تُقرأ داخل اللوحة فقط — الـgrep يؤكّد) ⇒ صفر impact.
+f_drawConclusionsPanel() =>
     table.set_position(tbl, f_pos(panelPos))
     // [V4.21] صفّ «الكبيرة» يتبع **خطّ السيولة الأزرق المرسوم** (bigAncDir) ليتطابق مع «اتجاه السيولة» (الأزرق ضمنيًّا أصفر)؛
     //   احتياطيّ largeDir البنيويّ عند غياب الخطّ (انتظار) حتى لا يفرغ الصفّ.
@@ -3242,23 +3271,23 @@ if showPanel and barstate.islast
     //   (الحساب في الحلقة الرئيسية س1541 يسبق رسم سيولة المتوسطة س2420 والأزرق س2230 ⇒ تأخّر إصدار دائم على آخر بار.)
     int  pMedLiqDir = (not na(memM.liq)) ? medActiveDir : 0
     int  pBigLiqDir = (not na(bigAncQa1) and bigAncDir != 0) ? bigAncDir : 0
-    concDefined := pMedLiqDir != 0 and pBigLiqDir != 0
-    concRange   := concDefined and pMedLiqDir != pBigLiqDir
-    concLiqDir  := (concDefined and not concRange) ? pMedLiqDir : 0
+    bool cDefL = pMedLiqDir != 0 and pBigLiqDir != 0          // [V3.76] محلّيّة (كانت concDefined العامّة؛ تُقرأ داخل اللوحة فقط ⇒ صفر impact)
+    bool cRngL = cDefL and pMedLiqDir != pBigLiqDir
+    int  cLiqL = (cDefL and not cRngL) ? pMedLiqDir : 0
     int  pBigLvlDir = (not na(bigAncQa1) and bigAncDir != 0) ? bigAncDir : (largeDir != 0 ? largeDir : bigDir)   // [V3.57] نفس احتياطيّ الإشارة (bEff) ⇒ توحيد اللوحة↔الإشارة (largeDir اتجاه بنيويّ حقيقيّ عند غياب المرساة، لا «بيانات غير كافية» بينما الإشارة تُطلَق)
     int  pMedLvlDir = medActiveDir != 0 ? medActiveDir : pBigLvlDir   // [V3.57] = mEff: يحفظ القلب الفوريّ v3.54 + احتياطيّ bEff
-    entryDefined := pMedLvlDir != 0 and pBigLvlDir != 0
-    entryRange   := entryDefined and pMedLvlDir != pBigLvlDir
-    concEntry    := (not entryDefined) ? 0 : entryRange ? 0 : pMedLvlDir
+    bool eDefL = pMedLvlDir != 0 and pBigLvlDir != 0
+    bool eRngL = eDefL and pMedLvlDir != pBigLvlDir
+    int  cEntL = (not eDefL) ? 0 : eRngL ? 0 : pMedLvlDir
     // ===== الاستنتاجات الثلاثة (تُقرأ من الحالة global — أُعيد حسابها أعلاه بعد الرسم) =====
     string histDir = histWaveDir == 1 ? f_t("صاعدة ▲","Up ▲") : histWaveDir == -1 ? f_t("هابطة ▼","Down ▼") : "—"
     color  histCol = histWaveDir == 1 ? cUp : histWaveDir == -1 ? cDn : pMute
     // الحالات الأربع: غير محدَّد (بيانات غير كافية) · عرضيّ/Range · صاعدة · هابطة.
-    bool   concDir = concDefined and not concRange
-    string liqTxt  = not concDefined ? f_t("غير محدّد (بيانات غير كافية)","Undefined (insufficient data)") : concRange ? f_t("عرضيّ (Range)","Range") : concLiqDir == 1 ? f_t("صاعدة","Up") : f_t("هابطة","Down")
-    color  liqCol  = not concDefined ? pMute : concRange ? cRng : concLiqDir == 1 ? cUp : cDn
-    string entryTxt = not entryDefined ? f_t("بيانات غير كافية","Insufficient data") : entryRange ? f_t("شراء وبيع","Buy & Sell") : concEntry == 1 ? f_t("شراء فقط","Buy only") : f_t("بيع فقط","Sell only")
-    color  entryCol = not entryDefined ? pMute : entryRange ? cRng : concEntry == 1 ? cUp : cDn
+    bool   concDir = cDefL and not cRngL
+    string liqTxt  = not cDefL ? f_t("غير محدّد (بيانات غير كافية)","Undefined (insufficient data)") : cRngL ? f_t("عرضيّ (Range)","Range") : cLiqL == 1 ? f_t("صاعدة","Up") : f_t("هابطة","Down")
+    color  liqCol  = not cDefL ? pMute : cRngL ? cRng : cLiqL == 1 ? cUp : cDn
+    string entryTxt = not eDefL ? f_t("بيانات غير كافية","Insufficient data") : eRngL ? f_t("شراء وبيع","Buy & Sell") : cEntL == 1 ? f_t("شراء فقط","Buy only") : f_t("بيع فقط","Sell only")
+    color  entryCol = not eDefL ? pMute : eRngL ? cRng : cEntL == 1 ? cUp : cDn
     string strTxt  = not concDir or not concStrongDef ? "—" : concStrong ? f_t("قويّة","Strong") : f_t("ضعيفة","Weak")   // [V3.59] «—» إن لم تُحسب القوة للاتجاه الحاليّ (لا قيمة قديمة)
     color  strCol  = not concDir or not concStrongDef ? pMute : concStrong ? cUp : cDn
     table.cell(tbl, 0, 0, f_t("لوحة الاستنتاجات","Conclusions"), text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
@@ -3308,6 +3337,9 @@ if showPanel and barstate.islast
         string bigDbgTxt = "قِ<س=" + str.tostring(bigDbgBelow) + " قِم>س=" + str.tostring(bigDbgAbove) + " زوج=" + (bigDbgPair ? "✓" : "✗") + " مثبَّت=" + (na(bigAncQa1) ? "—" : (bigAncDir == 1 ? "▲" : "▼")) + " كبير=" + (largeDir == 1 ? "▲" : largeDir == -1 ? "▼" : "—") + " nb=" + str.tostring(bigDbgNb) + "  ||  م.سيو=" + (na(memM.liq) ? "✗" : "✓") + " م.مست=" + (na(memM.lvl) ? "✗" : "✓") + "  ||  مرساةأزرق=" + (na(bigAncLvl) ? "—" : str.tostring(bigAncLvl, format.mintick)) + " خطأزرق=" + (na(bigLvlLine) ? "✗مُختفٍ" : "✓") + " قاعالموجة=" + str.tostring(hwLoE, format.mintick)
         table.cell(tbl, 0, 11, "تشخيص الأزرق", text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
         table.cell(tbl, 1, 11, bigDbgTxt, text_color = #FFD54F, bgcolor = pBg, text_size = size.small)
+
+if showPanel and barstate.islast
+    f_drawConclusionsPanel()
 
 // ============================================================================
 //  القسم الأخير القادم:
