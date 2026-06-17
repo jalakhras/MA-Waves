@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.87.4", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.87.5", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -1422,18 +1422,28 @@ if barstate.isconfirmed
                     pendP := sPx
                     pendBar := sBar
             else
-                color pc = pendType == 1 ? cTop : cBot
-                ldType := storeSArrow(pendType == 1, pendP, pendBar, pc, ldType)
-                if linkSmall and not na(ldAnyBar)
-                    line.new(ldAnyBar, ldAnyP, pendBar, pendP, xloc = xloc.bar_index, color = cLineS, width = 1)
-                ldAnyP := pendP
-                ldAnyBar := pendBar
-                if pendType == 1
-                    ldTopP := pendP
-                    ldTopBar := pendBar
-                else
-                    ldBotP := pendP
-                    ldBotBar := pendBar
+                // [ق3 الفعاليّة، v3.87.5 — الدرس 05] النقطة التصحيحيّة لا تُرسم إلّا إن أُكِّدت بتطرّف معاكس:
+                //   صعودًا (smallActiveDir==1) القاع المعلّق فعّال إن صنعت القمّةُ التاليةُ (sPx) سعرًا أعلى من
+                //   القمّة المرسومة السابقة (ldTopP)؛ هبوطًا القمّة المعلّقة فعّالة بقاعٍ تالٍ (sPx) أدنى من السابق (ldBotP).
+                //   الدافعة (قمّة صعودًا/قاع هبوطًا) تُرسم دائمًا. الحالة تتقدّم سواء رُسمت أم لا (تصويريّ فقط، لا يمسّ تغذية المتوسطة).
+                bool corrEffS = true
+                if smallActiveDir == 1 and pendType == -1
+                    corrEffS := na(ldTopP) or sPx > ldTopP
+                else if smallActiveDir == -1 and pendType == 1
+                    corrEffS := na(ldBotP) or sPx < ldBotP
+                if corrEffS
+                    color pc = pendType == 1 ? cTop : cBot
+                    ldType := storeSArrow(pendType == 1, pendP, pendBar, pc, ldType)
+                    if linkSmall and not na(ldAnyBar)
+                        line.new(ldAnyBar, ldAnyP, pendBar, pendP, xloc = xloc.bar_index, color = cLineS, width = 1)
+                    ldAnyP := pendP
+                    ldAnyBar := pendBar
+                    if pendType == 1
+                        ldTopP := pendP
+                        ldTopBar := pendBar
+                    else
+                        ldBotP := pendP
+                        ldBotBar := pendBar
                 pendP := sPx
                 pendBar := sBar
                 pendType := curType
