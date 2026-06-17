@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.87.10", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.87.11", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -2016,7 +2016,9 @@ if barstate.isconfirmed
         cPendMed  := cPendMed  + (pendBuyMed ? 1 : 0)
         cSmConf   := cSmConf   + (smConfBuy ? 1 : 0)
         cPendSmCf := cPendSmCf + (pendBuyMed and smConfBuy ? 1 : 0)
-    if buyMedConf or buySmConf
+    // [v3.87.11] منع التكديس (L2-04 ن7): لا دخول جديد وصفقة مفتوحة (tradeDir != 0) — يُترَك الانعكاس/الإضافة للدرجة الأصغر.
+    //   تُستثنى حالةُ إطفاء الإدارة (enableManage=false) فتُعرَض كلّ الإشارات (ماسح إشارات بلا تتبّع صفقة).
+    if (buyMedConf or buySmConf) and (tradeDir == 0 or not enableManage)
         bool sm = buySmConf and not buyMedConf
         float eP = close
         // الوقف = تحت قاع التجميع (أعمق قاع يأس) بهامش — مطابقة الدرس 04 «وقف الخسارة تحت القاع».
@@ -2039,7 +2041,7 @@ if barstate.isconfirmed
             tgtP   := tg
         pendBuyMed := false
         pendBuySmall := false
-    if sellMedConf or sellSmConf
+    if (sellMedConf or sellSmConf) and (tradeDir == 0 or not enableManage)   // [v3.87.11] منع التكديس (L2-04 ن7): لا دخول وصفقة مفتوحة
         bool sm = sellSmConf and not sellMedConf
         float eP = close
         // الوقف = خلف قمة التصريف (أعلى قمة يأس) بهامش — مطابقة الدرس 04 «وقف الخسارة خلف القمة».
