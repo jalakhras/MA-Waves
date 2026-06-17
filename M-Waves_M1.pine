@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.81", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.84", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -382,6 +382,7 @@ type Phase
     int   trendDir   = 0    // اتجاه الترند الحالي (لكشف التصريف داخل المشاركة)
     float partExt    = na   // ذروة المشاركة (أعلى قمة صعوداً / أدنى قاع هبوطاً)
     float despDeep   = na   // عمق اليأس (أدنى قاع صعوداً / أعلى قمة هبوطاً) — لبداية التجميع
+    float brkLvl     = na   // [v3.84] مستوى السيولة **المجمَّد لحظة الكسر** — الاستئناف يُقاس عليه لا على الخطّ الحيّ المتحرّك (يقفز مع إعادة الإرساء) ⇒ لا استئناف مبكّر ولا ذعر عالق
     bool  passedDespair = false   // [V3.81] هل مرّ التصحيح الحاليّ باليأس(2)؟ ⇒ شرط الشراء/البيع الأساسيّ (الدورة كاملة: الذعر واليأس ثمّ التجميع)
 
 // تحديث المرحلة لكل بار: كسر السيولة (نصف الجسم) ⇒ ذعر؛ كسر امتداد اليأس/التجميع ⇒ مشاركة جديدة
@@ -393,6 +394,7 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
         p.despairExt := na
         p.partExt := na
         p.despDeep := na
+        p.brkLvl := na   // [v3.84] قلب الاتجاه ⇒ كسر جديد سيضبط مستوًى جديدًا
     p.trendDir := dir
     float body = math.abs(c - o)
     if not na(liqLvl) and body > 0
@@ -403,6 +405,7 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
             p.despairExt := na
             p.partExt := na
             p.despDeep := na
+            p.brkLvl := liqLvl   // [v3.84] جمّد مستوى الكسر (سياق صاعد كُسر هبوطاً)
         if dir == -1 and c > liqLvl and (c - liqLvl) > 0.5 * body and p.brkDir != 1
             p.brkDir := 1
             p.brkBar := bar_index
@@ -410,6 +413,7 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
             p.despairExt := na
             p.partExt := na
             p.despDeep := na
+            p.brkLvl := liqLvl   // [v3.84] جمّد مستوى الكسر (سياق هابط كُسر صعوداً)
     // [V3.79] اليأس per-bar (الدرس 11: «الذعر عند كسر السيولة وبعده اليأس»): بعد الذعر، تجاوز قاع/قمّة الذعر (despDeep) بنصف جسم ⇒ يأس فورًا (لا ننتظر النقطة المتأخّرة). يعمل في الموجتين: brkDir=-1 قيعان صعودًا · brkDir=1 قمم هبوطًا.
     if p.code == 1 and not na(p.despDeep) and body > 0
         if p.brkDir == -1 and c < p.despDeep and (p.despDeep - c) > 0.5 * body
@@ -424,6 +428,14 @@ phaseOnBar(Phase p, int dir, float liqLvl, float c, float o) =>
             p.code := 4
         if dir == -1 and p.partExt < liqLvl and c < liqLvl and c > (liqLvl + p.partExt) * 0.5
             p.code := 3
+    // [V3.82] استئناف المشاركة **من الذعر مباشرةً**: إن عاد السعر عبر خطّ السيولة لجهة الاتجاه (الارتداد التصحيحيّ فشل **بلا يأس**) ⇒ تستأنف المشاركة، لئلّا يبقى «ذعر» عالقًا بينما السعر عاد تحت/فوق السيولة. (الاستئناف أدناه يتطلّب despairExt المضبوط في اليأس فقط ⇒ الذعر بلا يأس كان يَعلَق.)
+    if p.code == 1 and not na(p.brkLvl) and body > 0   // [v3.84] يُقاس على **مستوى الكسر المجمَّد** (p.brkLvl) لا الخطّ الحيّ liqLvl — فلا يقفز مع إعادة إرساء السيولة (يصلح الاستئناف المبكّر عند هبوط الخطّ والذعر العالق عند صعوده)
+        if p.brkDir == -1 and c > p.brkLvl and (c - p.brkLvl) > 0.5 * body
+            p.code := 0
+            p.brkDir := 0
+        if p.brkDir == 1 and c < p.brkLvl and (p.brkLvl - c) > 0.5 * body
+            p.code := 0
+            p.brkDir := 0
     // [V4.28] استئناف المشاركة = كسر آخر قمّة/قاع تصحيح **بنصف الجسم** (الدرس 11: «يقفل شمعة أكثر من نص جسمها فوق/تحت»)
     if (p.code == 2 or p.code == 3 or p.code == 4) and not na(p.despairExt)
         if p.brkDir == -1 and c > p.despairExt and (c - p.despairExt) > 0.5 * body
@@ -3326,7 +3338,10 @@ f_drawConclusionsPanel() =>
     table.cell(tbl, 0, 6, f_t("المتوسطة","Medium"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     table.cell(tbl, 1, 6, f_dir(medEff) + " | " + medPhase, text_color = color.white, bgcolor = mdCol, text_size = size.small)
     table.cell(tbl, 0, 7, f_t("الكبيرة","Big"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(tbl, 1, 7, f_dir(pBigDir) + " | " + bigPhase + (bigCtxReview ? " ⚠" : ""), text_color = color.white, bgcolor = bgCol, text_size = size.small)
+    // [v3.83] نصّ مرحلة الكبيرة يُعاد حسابه هنا بـ pBigDir (اتجاه السهم الطازج، بعد كتلة islast) لا bigPhase
+    //   المحسوب بـ bDirPh المقروء **قبل** كتلة الاتجاه (س1720) ⇒ كان يتأخّر دورة فيُظهر «صاعد ▲ | مشاركة عامة هابطة».
+    //   عرضيّ بحت: الكود bigPh.code كما هو، يتغيّر **لاحقة الاتجاه** لمرحلة المشاركة(0) فقط لتطابق السهم. (الملاحظة 2)
+    table.cell(tbl, 1, 7, f_dir(pBigDir) + " | " + phaseText(bigPh, pBigDir) + (bigCtxReview ? " ⚠" : ""), text_color = color.white, bgcolor = bgCol, text_size = size.small)
     // لون الفرصة يتدرّج حسب القرب والقوّة: دخول مؤكّد ⇒ أخضر صريح؛ أساسية مُسلّحة قريبة ⇒ أخضر أفتح؛
     //   عالية مخاطر/غير أساسية متوقّعة ⇒ تحذير (كهرماني)؛ داخل منطقة بلا مرحلة ⇒ محايد باهت؛ وإلا الخلفية.
     bool oppConfirmed = entryBuy or entrySell

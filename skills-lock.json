@@ -25,6 +25,12 @@
       "skillPath": "skills/context-manager/SKILL.md",
       "computedHash": "e429bfe8f3bb7b43a118b1cde1457a28844bca749f9df75b5bf147c76148980a"
     },
+    "critical-thinking-logical-reasoning": {
+      "source": "sammcj/agentic-coding",
+      "sourceType": "github",
+      "skillPath": "skills/critical-thinking-logical-reasoning/SKILL.md",
+      "computedHash": "f4bea6fc01f51a2605194e39a2d23b8e35e95a0cb3557c465a94518ad97fc244"
+    },
     "development": {
       "source": "adobe/skills",
       "sourceType": "github",
@@ -48,6 +54,18 @@
       "sourceType": "github",
       "skillPath": "skills/memory-systems/SKILL.md",
       "computedHash": "6bce4dfac72694a4c898d12b3e1dc8c8d881f95aa9294511e925a17d2d8999be"
+    },
+    "sequential-thinking": {
+      "source": "mrgoonie/claudekit-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/sequential-thinking/SKILL.md",
+      "computedHash": "c0157274003e83ae248d4621f169136ecbccd0cba7082814208f24631260250e"
+    },
+    "think": {
+      "source": "tw93/waza",
+      "sourceType": "github",
+      "skillPath": "skills/think/SKILL.md",
+      "computedHash": "19df9501693b64dbc381d0c4a7ca040cec905b3aa5bd216944882bd49a7224a0"
     },
     "trading-plan-generator": {
       "source": "jamesrochabrun/skills",
