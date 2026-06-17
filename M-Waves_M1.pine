@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.87.5", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.87.10", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -140,8 +140,8 @@ panelPos  = input.string("Top R", "Panel position / موضع اللوحة", grou
      options = ["Top L","Top C","Top R","Mid L","Center","Mid R","Bot L","Bot C","Bot R"],
      tooltip = "Pick the panel position (Pine has no mouse drag).\nاختر الموضع (Pine لا يدعم السحب).")
 panelBg   = input.color(#1E222D, "Panel background (transparency from picker) / خلفية اللوحة", group = grpConc)
-liqTol    = input.float(0.0, "Liquidity-strength margin (optional visual) / هامش قوة السيولة", minval = 0.0, step = 0.05, group = grpConc,
-     tooltip = "0 = pure comparison (above/inside). Any value here is a visual aid only.\n0 = مقارنة خالصة. أيّ قيمة أداة بصريّة فقط.")
+liqTol    = input.float(0.0, "Liquidity-strength penetration tolerance / سماحيّة اختراق قوّة السيولة", minval = 0.0, step = 0.05, group = grpConc,
+     tooltip = "How far the correction may pierce the prior peak/trough and still count as a 'touch' (Strong). 0 = boundary exactly at the level (any close beyond ⇒ Weak).\nكم يُغتفر للتصحيح أن يخترق القمّة/القاع السابق ويبقى «ملامسة» (قويّة). 0 = الحدّ عند المستوى تمامًا (أيّ تجاوز ⇒ ضعيفة).")
 
 // ----- 🎯 Trade Management -----
 grpManage    = "🎯 Trade Management / إدارة الصفقات"
@@ -1849,9 +1849,11 @@ if barstate.isconfirmed
     bool priceExtreme = histRng > 0 and (bEff == 1 ? close > hwLoBand + 0.8 * histRng : bEff == -1 ? close < hwHiBand - 0.8 * histRng : false)
     concCorrectionLikely := allMarkup and (not concStrong) and priceExtreme
     concStrongDef := false   // [V3.59] يُعاد كل بار؛ يُضبط true فقط إن حُسبت القوة للاتجاه الحاليّ أدناه ⇒ العرض يُظهر «—» لا قيمة قديمة
-    // (2) قوة السيولة: **من الدرجة الصغيرة فقط** (توضيح صاحب الاستراتيجيّة، v4.40 — لا المتوسطة). تُحسب per-bar
-    //   (الصغيرة تتغيّر بسرعة). هل تصحيح الصغيرة يدخل نطاق الدافعة الصغيرة السابقة؟ تباعد ⇒ قويّة؛ تداخل ⇒ ضعيفة.
-    //   صعوداً: آخر قاع صغير فوق المقاومة المكسورة (ثاني قمة صغيرة قبله) بتباعد ⇒ قويّة. هبوطاً: المرآة.
+    // (2) قوة السيولة العامّة: **نقاطُها من الصغيرة** (memS/dsP)، لكنّ **اتجاهَها = الترند الأكبر (المتوسطة medActiveDir)**
+    //   [v3.87.10 — قرار المستخدم «عكس الصغيرة»]: تُقاس صحّة الترند بتصحيحات الصغيرة. حين توافق الصغيرةُ الترندَ ⇒ نفس قوّتها؛
+    //   وحين تنقلب الصغيرة (تصحيح/انعكاس) ⇒ تلقائيًّا **عكسها** (تصحيح قويّ = ترند ضعيف). [رجوعٌ عن v3.87.8 التي جعلتها smallActiveDir
+    //   فأظهرت «قويّة» من صغيرة منقلبة هابطة بجانب ترند صاعد ⇒ تناقُض ظاهريّ]. صفّ «الصغيرة» في اللوحة يبقى يعرض قوّتها الخام (smlEff).
+    //   صعوداً: آخر قاع صغير عند/فوق المقاومة المكسورة (ثاني قمة صغيرة قبله) ⇒ قويّة. هبوطاً: المرآة.
     float liqTolV = liqTol * atrv
     int   nds = array.size(dsP)
     if medActiveDir == -1 and not na(memS.ltP)
@@ -1866,7 +1868,7 @@ if barstate.isconfirmed
                         prevBrokenLow := array.get(dsP, i)
                         break
         if not na(prevBrokenLow)
-            concStrong := (prevBrokenLow - memS.ltP) > liqTolV
+            concStrong := (prevBrokenLow - memS.ltP) >= -liqTolV   // [v3.87.9] قويّة = القمّة التصحيحيّة عند/تحت القاع المرجع (ملامسة أو قبله)؛ ضعيفة = اخترقته فوقه بأكثر من السماحيّة
             concStrongDef := true
     if medActiveDir == 1 and not na(memS.lbP)
         float prevBrokenHigh = na
@@ -1880,7 +1882,7 @@ if barstate.isconfirmed
                         prevBrokenHigh := array.get(dsP, i)
                         break
         if not na(prevBrokenHigh)
-            concStrong := (memS.lbP - prevBrokenHigh) > liqTolV
+            concStrong := (memS.lbP - prevBrokenHigh) >= -liqTolV   // [v3.87.9] قويّة = قاع التصحيح عند/فوق القمّة المرجع (ملامسة أو قبله)؛ ضعيفة = اخترقها تحتها بأكثر من السماحيّة
             concStrongDef := true
     bool  inZone = false
     float zbCur  = na
@@ -3217,10 +3219,21 @@ if showZones and barstate.islast
 // تُقرأ من اتجاهات الدرجات وذاكرة السيولة:
 //   • اتجاه السيولة = توافق الكبيرة + المتوسطة (تعارض ⇒ Range).
 //   • الدخول المتاح = صديق الترند (صاعد⇒شراء فقط / هابط⇒بيع فقط / تعارض⇒الاثنان).
-//   • قوة السيولة = هل دخل آخر قاع منطقة القمة السابقة (متوسطة) ⇒ ضعيفة.
+//   • قوة السيولة (الحالة العامّة) = نقاطُها من الصغيرة لكن باتجاه الترند الأكبر (المتوسطة) ⇒ «عكس الصغيرة» وقت انقلابها (v3.87.10): تصحيح يخترق المرجع ⇒ ضعيفة؛ يلامسه/قبله ⇒ قويّة. [قوّة كلّ درجة منفصلة = للعرض الخام فقط، لا تمسّ الاستنتاج]
 //   • الحالة لكل درجة = صاعدة (مشاركة عامة) / هابطة (تصريف/هبوط).
 f_dir(int d) => d == 1 ? f_t("صاعد ▲","Up ▲") : d == -1 ? f_t("هابط ▼","Down ▼") : "—"
 f_state(int d) => d == 1 ? f_t("مشاركة صاعدة","Markup") : d == -1 ? f_t("تصريف/هبوط","Markdown") : "—"
+// [v3.87.6] قوّة السيولة لكلّ درجة منفصلة — **للعرض فقط** (لا تمسّ concStrong/الاستنتاج/الإشارات).
+//   نفس قاعدة الدرس 10-2 معمّمة على الدرجة [[reusable-degree-functions]]: الموجة تتباعد عن التطرّف المعاكس السابق ⇒ قويّة؛ تتداخل ⇒ ضعيفة.
+//   صعودًا: القاع الحاليّ (lbP) فوق القمّة السابقة (ptP) بهامش tolV ⇒ قويّة. هبوطًا: القمّة السابقة-المعاكسة (pbP) فوق القمّة الحاليّة (ltP) ⇒ قويّة. (مطابق صيغة concStrong س1869/1883)
+//   يعيد "" إن لم تتوفّر التطرّفات (لا قيمة قديمة).
+f_degStrTok(int dir, float ltP, float ptP, float lbP, float pbP, float tolV) =>
+    string tok = ""
+    if dir == 1 and not na(lbP) and not na(ptP)
+        tok := (lbP - ptP) >= -tolV ? f_t(" · قويّة"," · Strong") : f_t(" · ضعيفة"," · Weak")   // [v3.87.9] ملامسة/قبل المرجع ⇒ قويّة؛ اختراق بأكثر من tolV ⇒ ضعيفة
+    else if dir == -1 and not na(ltP) and not na(pbP)
+        tok := (pbP - ltP) >= -tolV ? f_t(" · قويّة"," · Strong") : f_t(" · ضعيفة"," · Weak")   // [v3.87.9] ملامسة/قبل المرجع ⇒ قويّة؛ اختراق بأكثر من tolV ⇒ ضعيفة
+    tok
 // تحويل اختيار الموضع النصّي إلى ثابت position (لتغيير مكان اللوحات بحرية)
 f_pos(string s) => s == "Top L" ? position.top_left : s == "Top C" ? position.top_center : s == "Top R" ? position.top_right : s == "Mid L" ? position.middle_left : s == "Center" ? position.middle_center : s == "Mid R" ? position.middle_right : s == "Bot L" ? position.bottom_left : s == "Bot C" ? position.bottom_center : position.bottom_right
 
@@ -3354,8 +3367,8 @@ f_drawConclusionsPanel() =>
     color  liqCol  = not cDefL ? pMute : cRngL ? cRng : cLiqL == 1 ? cUp : cDn
     string entryTxt = not eDefL ? f_t("بيانات غير كافية","Insufficient data") : eRngL ? f_t("شراء وبيع","Buy & Sell") : cEntL == 1 ? f_t("شراء فقط","Buy only") : f_t("بيع فقط","Sell only")
     color  entryCol = not eDefL ? pMute : eRngL ? cRng : cEntL == 1 ? cUp : cDn
-    string strTxt  = not concDir or not concStrongDef ? "—" : concStrong ? f_t("قويّة","Strong") : f_t("ضعيفة","Weak")   // [V3.59] «—» إن لم تُحسب القوة للاتجاه الحاليّ (لا قيمة قديمة)
-    color  strCol  = not concDir or not concStrongDef ? pMute : concStrong ? cUp : cDn
+    string strTxt  = not concStrongDef ? "—" : concStrong ? f_t("قويّة","Strong") : f_t("ضعيفة","Weak")   // [v3.87.7] قوّة السيولة مقياس مستقلّ من الصغيرة (الدرس 10-2) — لا يلزمه اتجاه سيولة مُعرَّف (أُزيل قيد concDir)؛ يبقى «—» فقط إن لم تُحسب القوّة للاتجاه الحاليّ (concStrongDef=false، لا قيمة قديمة V3.59)
+    color  strCol  = not concStrongDef ? pMute : concStrong ? cUp : cDn
     table.cell(tbl, 0, 0, f_t("لوحة الاستنتاجات","Conclusions"), text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(tbl, 1, 0, "", text_color = pMute, bgcolor = pHdr, text_size = size.small)
     table.cell(tbl, 0, 1, f_t("اتجاه الموجة التاريخية","Historical wave"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
@@ -3369,15 +3382,16 @@ f_drawConclusionsPanel() =>
     color smCol = smlEff == 1 ? cUp : smlEff == -1 ? cDn : pHdr
     color mdCol = medEff == 1 ? cUp : medEff == -1 ? cDn : pHdr
     color bgCol = pBigDir == 1 ? cUp : pBigDir == -1 ? cDn : pHdr
+    float tolVd = liqTol * atrv   // [v3.87.6] هامش قوّة السيولة لكلّ درجة (نفس liqTolV العامّ)
     table.cell(tbl, 0, 5, f_t("الصغيرة","Small"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(tbl, 1, 5, f_dir(smlEff) + " | " + smallPhase, text_color = color.white, bgcolor = smCol, text_size = size.small)
+    table.cell(tbl, 1, 5, f_dir(smlEff) + " | " + smallPhase + f_degStrTok(smlEff, memS.ltP, memS.ptP, memS.lbP, memS.pbP, tolVd), text_color = color.white, bgcolor = smCol, text_size = size.small)
     table.cell(tbl, 0, 6, f_t("المتوسطة","Medium"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(tbl, 1, 6, f_dir(medEff) + " | " + medPhase, text_color = color.white, bgcolor = mdCol, text_size = size.small)
+    table.cell(tbl, 1, 6, f_dir(medEff) + " | " + medPhase + f_degStrTok(medEff, memM.ltP, memM.ptP, memM.lbP, memM.pbP, tolVd), text_color = color.white, bgcolor = mdCol, text_size = size.small)
     table.cell(tbl, 0, 7, f_t("الكبيرة","Big"), text_color = pMute, bgcolor = pBg, text_size = size.small, text_halign = text.align_right)
     // [v3.83] نصّ مرحلة الكبيرة يُعاد حسابه هنا بـ pBigDir (اتجاه السهم الطازج، بعد كتلة islast) لا bigPhase
     //   المحسوب بـ bDirPh المقروء **قبل** كتلة الاتجاه (س1720) ⇒ كان يتأخّر دورة فيُظهر «صاعد ▲ | مشاركة عامة هابطة».
     //   عرضيّ بحت: الكود bigPh.code كما هو، يتغيّر **لاحقة الاتجاه** لمرحلة المشاركة(0) فقط لتطابق السهم. (الملاحظة 2)
-    table.cell(tbl, 1, 7, f_dir(pBigDir) + " | " + phaseText(bigPh, pBigDir) + (bigCtxReview ? " ⚠" : ""), text_color = color.white, bgcolor = bgCol, text_size = size.small)
+    table.cell(tbl, 1, 7, f_dir(pBigDir) + " | " + phaseText(bigPh, pBigDir) + f_degStrTok(pBigDir, memBph.ltP, memBph.ptP, memBph.lbP, memBph.pbP, tolVd) + (bigCtxReview ? " ⚠" : ""), text_color = color.white, bgcolor = bgCol, text_size = size.small)
     // لون الفرصة يتدرّج حسب القرب والقوّة: دخول مؤكّد ⇒ أخضر صريح؛ أساسية مُسلّحة قريبة ⇒ أخضر أفتح؛
     //   عالية مخاطر/غير أساسية متوقّعة ⇒ تحذير (كهرماني)؛ داخل منطقة بلا مرحلة ⇒ محايد باهت؛ وإلا الخلفية.
     bool oppConfirmed = entryBuy or entrySell
