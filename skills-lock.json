@@ -61,6 +61,24 @@
       "skillPath": "skills/memory-systems/SKILL.md",
       "computedHash": "6bce4dfac72694a4c898d12b3e1dc8c8d881f95aa9294511e925a17d2d8999be"
     },
+    "pine-developer": {
+      "source": "traderspost/pinescript-agents",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/pine-developer/SKILL.md",
+      "computedHash": "e520380e5810883d55f3e4ea474a2157b00bd4bb181e0bf6fc8826e01bda446c"
+    },
+    "pine-optimizer": {
+      "source": "traderspost/pinescript-agents",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/pine-optimizer/SKILL.md",
+      "computedHash": "9dc64e97c0a53bb027deca24892deb20c3b55e042ea627736bd3dec5991cc00d"
+    },
+    "pine-visualizer": {
+      "source": "traderspost/pinescript-agents",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/pine-visualizer/SKILL.md",
+      "computedHash": "24e79c8974d34b61cf632dd7312ce269346faa8d4a8ae7e889711c4fbdefe627"
+    },
     "sequential-thinking": {
       "source": "mrgoonie/claudekit-skills",
       "sourceType": "github",
