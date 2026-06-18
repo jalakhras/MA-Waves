@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.87.11", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.87.14", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -339,12 +339,12 @@ updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color 
     // تجدّد: لا تُرسم السيولة إلا إذا كانت نقطتاها ضمن الموجة النشطة الحالية (bar >= waveStart).
     //   صعوداً: آخر قاعين؛ هبوطاً: آخر قمتين. وإلا تبقى ممسوحة حتى تتكوّن نقطتان جديدتان.
     if sLiq
-        if dir == 1 and not na(m.lbP) and not na(m.pbP) and (na(waveStart) or (m.lbBar >= waveStart and m.pbBar >= waveStart)) and m.lbP > m.pbP   // [V3.70] صعودًا: قاعان متصاعدان (الأحدث أعلى) — الدرس 08
+        if dir == 1 and not na(m.lbP) and not na(m.pbP) and (na(waveStart) or (m.lbBar >= waveStart and m.pbBar >= waveStart))   // [v3.87.14] الدرس 08 حرفيًّا: «وصّل آخر قاعين» بلا شرط تصاعد (أُزيل m.lbP>m.pbP)
             float slU = m.lbBar != m.pbBar ? (m.lbP - m.pbP) / (m.lbBar - m.pbBar) : 0.0
             int   rbU = last_bar_index + liqExt
             // الامتداد يتبع liqExt فقط (لا قصّ بالنطاق) — مطابق للدرس؛ التكدّس يُحَلّ بـ Scale price chart only
             m.liq := line.new(m.pbBar, m.pbP, rbU, m.lbP + slU * (rbU - m.lbBar), xloc = xloc.bar_index, color = liqCol, width = liqW)
-        if dir == -1 and not na(m.ltP) and not na(m.ptP) and (na(waveStart) or (m.ltBar >= waveStart and m.ptBar >= waveStart)) and m.ltP < m.ptP   // [V3.70] هبوطًا: قمّتان متنازلتان (الأحدث أدنى) — الدرس 08
+        if dir == -1 and not na(m.ltP) and not na(m.ptP) and (na(waveStart) or (m.ltBar >= waveStart and m.ptBar >= waveStart))   // [v3.87.14] الدرس 08 حرفيًّا: «وصّل آخر قمّتين» بلا شرط تنازل
             float slD = m.ltBar != m.ptBar ? (m.ltP - m.ptP) / (m.ltBar - m.ptBar) : 0.0
             int   rbD = last_bar_index + liqExt
             m.liq := line.new(m.ptBar, m.ptP, rbD, m.ltP + slD * (rbD - m.ltBar), xloc = xloc.bar_index, color = liqCol, width = liqW)
@@ -1577,9 +1577,9 @@ if barstate.isconfirmed
             // (المناطق تُبنى في نهاية الشارت من النقاط المتوسطة الفعّالة فقط — أسفل)
 
 
-            // ملاحظة: الدرجة الكبيرة (الاتجاه) تُؤخذ من bigDir (ترند الموجة).
-            //         بناء قمم/قيعان الكبيرة الصحيح (آخر 7 موجات، §07) يأتي لاحقاً —
-            //         أُزيل اشتقاقها بالكسر لإنهاء التناقض المنهجي.
+            // ملاحظة [صُحّح v3.87.12]: اتجاه الكبيرة من bigDirLvl (حالتان، §07) يُقرأ islast.
+            //         بناء قمم/قيعان الكبيرة (آخر ~7 موجات) يتمّ **لاحقاً** (§07، islast)
+            //         بالاستخراج **بالكسر** من المتوسطة الفعّالة (المسار الافتراضيّ useBigBreak) — لا اشتقاق إنلاين هنا.
 
     // ===== كاشف كسر خط السيولة المتوسط (نصف الجسم) — أساس المراحل الخمس =====
     // الكسر = إغلاق شمعة خلف خط السيولة بأكثر من نصف جسمها.
@@ -1944,8 +1944,8 @@ if barstate.isconfirmed
         oppText := f_t("شراء أساسي (","Basic Buy (") + (oppBasicBuyDeg == 3 ? f_t("صغيرة","Small") : f_t("متوسطة","Medium")) + f_t("): انتظار تأكيد تجميع","): awaiting accumulation")
     if oppBasicSell
         oppText := f_t("بيع أساسي (","Basic Sell (") + (oppBasicSellDeg == 3 ? f_t("صغيرة","Small") : f_t("متوسطة","Medium")) + f_t("): انتظار تأكيد تصريف","): awaiting distribution")
-    // [V4.43] الهدف = المنطقة/المستوى التالي نحو الاتجاه عبر `f_nextZoneEdge` (نفس هدف الدخول المؤكّد tgtP — موحّد).
-    //   شراء ⇒ أقرب حافّة سفلى (zb) فوق السعر؛ بيع ⇒ أقرب حافّة عليا (zt) تحت السعر. المنفردة (zt==zb) محتسَبة.
+    // [v3.87.13 — قرار المستخدم] الهدف (معاينةً ومؤكّدًا) = أقرب **حافّة** تالية عبر `f_nextZoneEdge` — **المنفرد (m.A، zt==zb) يُحتسَب هدفًا** (لا منطقة دخول).
+    //   شراء ⇒ أقرب حافّة سفلى (zb) فوق السعر؛ بيع ⇒ أقرب حافّة عليا (zt) تحت السعر. الدخول يبقى في منطقة **مزدوجة** فقط (inZone: zt>zb).
     oppTarget := na
     if oppBasicBuy or oppHRBuy
         oppTarget := f_nextZoneEdge(close, true)
@@ -2031,7 +2031,7 @@ if barstate.isconfirmed
         // [V4.59] الهدف = أوّل **منطقة مزدوجة** فوق حدّ منطقة الدخول (الدرس: «المنطقة القادمة»)؛ المنفرد المتروك
         //   عند الحدّ يُتجاوز بنيويًّا (لا بمسافة رقميّة). المرجع = ztEntryB (حدّ المنطقة العلويّ، يستبعد المنطقة نفسها).
         float tgRefB = na(ztEntryB) ? eP : ztEntryB
-        float tg0 = f_nextZonePaired(tgRefB, true)
+        float tg0 = f_nextZoneEdge(tgRefB, true)    // [v3.87.13] المنفرد يُحتسَب هدفًا (أقرب حافّة، مزدوجة أو منفردة)
         float tg  = (mgTgtPts > 0 and not na(tg0)) ? tg0 - mgTgtPts : tg0   // [V4.44] جني قبل المنطقة بالنقاط
         if not na(sP) and not na(tg) and sP < eP and tg > eP   // شبكة أمان: الوقف تحت الدخول والهدف فوقه
             entryBuy := true
@@ -2054,7 +2054,7 @@ if barstate.isconfirmed
         // [V4.59] الهدف = أوّل **منطقة مزدوجة** تحت حدّ منطقة الدخول (الدرس: «المنطقة القادمة»)؛ المنفرد المتروك
         //   عند الحدّ يُتجاوز بنيويًّا. المرجع = zbEntryS (حدّ المنطقة السفليّ، يستبعد المنطقة نفسها).
         float tgRefS = na(zbEntryS) ? eP : zbEntryS
-        float tg0 = f_nextZonePaired(tgRefS, false)
+        float tg0 = f_nextZoneEdge(tgRefS, false)   // [v3.87.13] المنفرد يُحتسَب هدفًا (أقرب حافّة، مزدوجة أو منفردة)
         float tg  = (mgTgtPts > 0 and not na(tg0)) ? tg0 + mgTgtPts : tg0   // [V4.44] جني قبل المنطقة بالنقاط
         if not na(sP) and not na(tg) and sP > eP and tg < eP   // شبكة أمان: الوقف فوق الدخول والهدف تحته
             entrySell := true
@@ -2110,7 +2110,10 @@ if barstate.isconfirmed
             float ns = na(tradeEntry) ? memS.lbP - trailBuf : math.max(memS.lbP - trailBuf, tradeEntry)
             if na(tradeStop) or ns > tradeStop   // يرتفع فقط (لا تضييق عكسيّ)
                 tradeStop := ns
-        if (not na(tradeStop) and low <= tradeStop) or (not na(tradeTgt) and high >= tradeTgt)
+        bool buyHitS = not na(tradeStop) and low <= tradeStop
+        bool buyHitT = not na(tradeTgt) and high >= tradeTgt
+        if buyHitS or buyHitT                          // [v3.87.12] إشعار إغلاق الصفقة (وقف/هدف)
+            alert("M-Waves: " + (buyHitS ? f_t("وقف الشراء مضروب @ ","Buy stop hit @ ") : f_t("هدف الشراء محقّق @ ","Buy target reached @ ")) + str.tostring(buyHitS ? tradeStop : tradeTgt, format.mintick), alert.freq_once_per_bar)
             tradeDir := 0                              // أُغلِقت (وقف أو هدف)
     if tradeDir == -1 and not entrySell
         if smConfSell and not na(memS.ltP)
@@ -2118,9 +2121,14 @@ if barstate.isconfirmed
             float ns = na(tradeEntry) ? memS.ltP + trailBuf : math.min(memS.ltP + trailBuf, tradeEntry)
             if na(tradeStop) or ns < tradeStop   // ينخفض فقط (لا تضييق عكسيّ)
                 tradeStop := ns
-        if (not na(tradeStop) and high >= tradeStop) or (not na(tradeTgt) and low <= tradeTgt)
+        bool sellHitS = not na(tradeStop) and high >= tradeStop
+        bool sellHitT = not na(tradeTgt) and low <= tradeTgt
+        if sellHitS or sellHitT                        // [v3.87.12] إشعار إغلاق الصفقة (وقف/هدف)
+            alert("M-Waves: " + (sellHitS ? f_t("وقف البيع مضروب @ ","Sell stop hit @ ") : f_t("هدف البيع محقّق @ ","Sell target reached @ ")) + str.tostring(sellHitS ? tradeStop : tradeTgt, format.mintick), alert.freq_once_per_bar)
             tradeDir := 0
-    // [V4.90] تنبيه صوتيّ على الدخول المؤكَّد: أنشئ في TradingView تنبيهًا على «Any alert() function call» واختر الصوت ⇒ يُطلَق تلقائيًّا عند كلّ دخول.
+    // [v3.87.12] التنبيهات: alert() واحد يغطّي **كلّ** الإشارات (فرصة أساسيّة + عالية مخاطرة + دخول مؤكّد + إغلاق بوقف/هدف).
+    //   في TradingView: أنشئ تنبيهًا على «Any alert() function call» وفعّل الصوت (Notifications → Play sound) ⇒ صوت تلقائيّ عند كلّ إشارة.
+    //   (بديل: alertcondition باسمها أدناه = تنبيه/صوت منفصل لكلّ نوع. Pine لا يضبط الصوت برمجيًّا — يُختار في نافذة التنبيه.)
     if entryBuy
         alert("M-Waves: " + f_t("دخول شراء مؤكّد @ ","Confirmed Buy entry @ ") + str.tostring(entryP, format.mintick) + f_t("  ·  وقف ","  ·  Stop ") + (na(stopP) ? "—" : str.tostring(stopP, format.mintick)) + f_t("  ·  هدف ","  ·  Target ") + (na(tgtP) ? "—" : str.tostring(tgtP, format.mintick)), alert.freq_once_per_bar)
     if entrySell
@@ -2129,6 +2137,10 @@ if barstate.isconfirmed
         alert("M-Waves: " + f_t("فرصة شراء عالية المخاطر داخل منطقة (تصحيح بعد الذعر)","High-risk Buy opportunity inside a zone (correction after panic)"), alert.freq_once_per_bar)
     if oppHRSell and not oppHRSell[1]
         alert("M-Waves: " + f_t("فرصة بيع عالية المخاطر داخل منطقة (تصحيح بعد الذعر)","High-risk Sell opportunity inside a zone (correction after panic)"), alert.freq_once_per_bar)
+    if oppBasicBuy and not oppBasicBuy[1]     // [v3.87.12] إشعار الفرصة الأساسيّة (كان alertcondition فقط، لا alert ديناميكيّ)
+        alert("M-Waves: " + f_t("فرصة شراء أساسيّة داخل منطقة دعم — انتظار تأكيد التجميع","Basic Buy opportunity in a support zone — awaiting accumulation"), alert.freq_once_per_bar)
+    if oppBasicSell and not oppBasicSell[1]
+        alert("M-Waves: " + f_t("فرصة بيع أساسيّة داخل منطقة مقاومة — انتظار تأكيد التصريف","Basic Sell opportunity in a resistance zone — awaiting distribution"), alert.freq_once_per_bar)
     // [V4.50] صناديق الصفقة (مودرن، مكافئ TradingView): أخضر عائد (دخول↔هدف) + أحمر مخاطرة (دخول↔وقف) + شارة RR
     if showOpp and barstate.islast
         if not na(rewardBox)
@@ -2172,7 +2184,7 @@ if barstate.isconfirmed
             bool waitSell = smConfSell and pendSellSmall and not pendSellMed and not d4Dn and not entrySell
             if hrBuy or waitBuy
                 // [V4.60] توحيد منطق HR/الانتظار مع الدرس: الوقف = حدّ المنطقة الحاليّة (بلا هامش)، الهدف = أوّل منطقة مزدوجة قادمة.
-                float ub = f_nextZonePaired(inZone ? ztCur : close, true)
+                float ub = f_nextZoneEdge(inZone ? ztCur : close, true)    // [v3.87.13] المنفرد هدف
                 float sPwB = inZone ? zbCur - mgStopPts : ((not na(zbEntryB)) ? zbEntryB - mgStopPts : memS.lbP)
                 if not na(sPwB) and not na(ub) and sPwB < close and ub > close
                     float rrUB = f_rr(close, sPwB, ub)
@@ -2183,7 +2195,7 @@ if barstate.isconfirmed
                         label.new(bar_index, close, f_t("شراء؟","Buy?"), yloc = yloc.price, style = label.style_label_up, color = color.new(#1B5E20, 50), textcolor = color.white, size = size.tiny, tooltip = tipUB)
             if hrSell or waitSell
                 // [V4.60] توحيد منطق HR/الانتظار مع الدرس: الوقف = حدّ المنطقة الحاليّة (بلا هامش)، الهدف = أوّل منطقة مزدوجة قادمة.
-                float us = f_nextZonePaired(inZone ? zbCur : close, false)
+                float us = f_nextZoneEdge(inZone ? zbCur : close, false)   // [v3.87.13] المنفرد هدف
                 float sPwS = inZone ? ztCur + mgStopPts : ((not na(ztEntryS)) ? ztEntryS + mgStopPts : memS.ltP)
                 if not na(sPwS) and not na(us) and sPwS > close and us < close
                     float rrUS = f_rr(close, sPwS, us)
@@ -2723,7 +2735,7 @@ if showBig and barstate.islast
                 int   rbB = last_bar_index + liqExtBars
                 // [V4.25] الأزرق (درجة أكبر) أعرض من الأصفر بمقدارين فيظهر كحاشية حوله حين تتطابق نقاطهما (الأزرق ضمنيًّا أصفر)
                 float projB = bigAncQv1 + slB * (bar_index - bigAncQa1)
-                if bigAncDir == 1 ? (close >= projB and bigAncQv1 > bigAncQv2) : (close <= projB and bigAncQv1 < bigAncQv2)   // [V4.72/3.70] لا يُرسم مكسورًا (close مقابل الإسقاط) + الزوج **متّجه صحيحاً** (صعودًا الأحدث أعلى، هبوطًا أدنى — الدرس 08)
+                if bigAncDir == 1 ? close >= projB : close <= projB   // [v3.87.14] الدرس 08 حرفيًّا: آخر زوج أزرق بلا شرط اتجاه؛ حارس «لا يُرسم مكسورًا» (close مقابل الإسقاط) يبقى
                     bigLiqLine := line.new(bigAncQa2, bigAncQv2, rbB, bigAncQv1 + slB * (rbB - bigAncQa1),
                          xloc = xloc.bar_index, color = cLiqB, width = wBig)
         // [V4.73] المستوى الأزرق **مستقلّ** عن الزوج: على آخر تطرّف أزرق غير مُغطّى (يتحرّك مع التطرّف الجديد، لا يبقى على غير الفعّال).
@@ -2947,7 +2959,7 @@ if barstate.islast or emittedMedBar
                         mb2 := i
         int rbM = last_bar_index + liqExtBars
         // [V4.64] بعد الكسر البنيويّ: لا يُعاد رسم السيولة إلّا بظهور **قاعين جديدين** (الدرس 09) ⇒ حتى الأقدم (mb2) بعد بار الكسر.
-        if medActiveDir == 1 and showLiq and not na(mb1) and not na(mb2) and (na(medLiqBrkBar) or array.get(mcBar, mb2) > medLiqBrkBar) and array.get(mcP, mb1) > array.get(mcP, mb2)   // [V3.69] صعودًا: قاعان **متصاعدان** (الأحدث أعلى) — الدرس 08؛ وإلّا لا خطّ سيولة صاعد (مكسور)
+        if medActiveDir == 1 and showLiq and not na(mb1) and not na(mb2) and (na(medLiqBrkBar) or array.get(mcBar, mb2) > medLiqBrkBar)   // [v3.87.14] الدرس 08 حرفيًّا: آخر قاعين بلا شرط تصاعد (حارس «غير مكسور» close>=projNow أدناه يبقى)
             int   lb1 = array.get(mcBar, mb1)
             int   lb2 = array.get(mcBar, mb2)
             float lp1 = array.get(mcP, mb1)
@@ -2958,7 +2970,7 @@ if barstate.islast or emittedMedBar
             if close >= projNow
                 memM.liq := line.new(lb2, lp2, rbM, lp1 + slM * (rbM - lb1), xloc = xloc.bar_index, color = cLiqM, width = wMed)
         // [V4.64] مكسور ⇒ لا يُعاد رسمه إلّا بـ**قمّتين جديدتين** (الأقدم mt2) بعد بار الكسر.
-        if medActiveDir == -1 and showLiq and not na(mt1) and not na(mt2) and (na(medLiqBrkBar) or array.get(mcBar, mt2) > medLiqBrkBar) and array.get(mcP, mt1) < array.get(mcP, mt2)   // [V3.69] هبوطًا: قمّتان **متنازلتان** (الأحدث أدنى) — الدرس 08؛ وإلّا لا خطّ سيولة هابط
+        if medActiveDir == -1 and showLiq and not na(mt1) and not na(mt2) and (na(medLiqBrkBar) or array.get(mcBar, mt2) > medLiqBrkBar)   // [v3.87.14] الدرس 08 حرفيًّا: آخر قمّتين بلا شرط تنازل (حارس «غير مكسور» close<=projNow أدناه يبقى)
             int   lt1 = array.get(mcBar, mt1)
             int   lt2 = array.get(mcBar, mt2)
             float ltp1 = array.get(mcP, mt1)
@@ -2968,12 +2980,12 @@ if barstate.islast or emittedMedBar
             float projNow = ltp1 + slM * (bar_index - lt1)
             if close <= projNow
                 memM.liq := line.new(lt2, ltp2, rbM, ltp1 + slM * (rbM - lt1), xloc = xloc.bar_index, color = cLiqM, width = wMed)
-        // [V3.75] fallback السيولة: لا قمّتان/قاعان فعّالان في النافذة ⇒ آخر تطرّفين خام (memM) بشرط التصاعد/التنازل (الدرس 08) + غير مكسور. (أثر مقصود: الاستنتاجات تعرّف اتجاه السيولة حين يتوفّر زوج خام صالح — اتجاه حقيقيّ لا تلفيق.)
-        if showLiq and na(memM.liq) and medActiveDir == 1 and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar != memM.pbBar and memM.lbP > memM.pbP and (na(medLiqBrkBar) or memM.pbBar > medLiqBrkBar)   // [V3.78] تبويب ببار الكسر: لا يُعاد رسم السيولة إلّا بقاعين **جديدين** بعد الكسر البنيويّ (مرآة الزوج الفعّال س2880، الدرس 09 ب-2)
+        // [V3.75 · v3.87.14] fallback السيولة: لا قمّتان/قاعان فعّالان في النافذة ⇒ آخر تطرّفين خام (memM)، بلا شرط تصاعد (الدرس 08 حرفيًّا) + حارس «غير مكسور». (أثر مقصود: الاستنتاجات تعرّف اتجاه السيولة حين يتوفّر زوج خام — اتجاه حقيقيّ لا تلفيق.)
+        if showLiq and na(memM.liq) and medActiveDir == 1 and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar != memM.pbBar and (na(medLiqBrkBar) or memM.pbBar > medLiqBrkBar)   // [v3.87.14] احتياطيّ: آخر قاعين خام بلا شرط تصاعد (الدرس 08)؛ التبويب ببار الكسر يبقى (الدرس 09)
             float slFbU = (memM.lbP - memM.pbP) / (memM.lbBar - memM.pbBar)
             if close >= memM.lbP + slFbU * (bar_index - memM.lbBar)
                 memM.liq := line.new(memM.pbBar, memM.pbP, rbM, memM.lbP + slFbU * (rbM - memM.lbBar), xloc = xloc.bar_index, color = cLiqM, width = wMed)
-        if showLiq and na(memM.liq) and medActiveDir == -1 and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar != memM.ptBar and memM.ltP < memM.ptP and (na(medLiqBrkBar) or memM.ptBar > medLiqBrkBar)   // [V3.78] تبويب ببار الكسر (مرآة س2891، الدرس 09 ب-2)
+        if showLiq and na(memM.liq) and medActiveDir == -1 and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar != memM.ptBar and (na(medLiqBrkBar) or memM.ptBar > medLiqBrkBar)   // [v3.87.14] احتياطيّ: آخر قمّتين خام بلا شرط تنازل (الدرس 08)؛ التبويب ببار الكسر يبقى (الدرس 09)
             float slFbD = (memM.ltP - memM.ptP) / (memM.ltBar - memM.ptBar)
             if close <= memM.ltP + slFbD * (bar_index - memM.ltBar)
                 memM.liq := line.new(memM.ptBar, memM.ptP, rbM, memM.ltP + slFbD * (rbM - memM.ltBar), xloc = xloc.bar_index, color = cLiqM, width = wMed)
