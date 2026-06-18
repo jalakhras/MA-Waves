@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.87.14", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.88.6", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -187,6 +187,18 @@ enableD4   = input.bool(true, "Enable fourth-degree confirmation (smaller TF) / 
      tooltip = "Confirms small trades only via a last-pivot break on a smaller timeframe. No liquidity/zones/phases.\nيؤكّد الصغيرة فقط عبر كسر على فريم أصغر.")
 d4Auto     = input.bool(true, "Auto 4th-degree TF (from chart ≈ ÷12) / فريم الرابعة تلقائيّ", group = grpD4, tooltip = "ON: auto-pick the smaller TF from the chart TF (≈ chart÷12 ⇒ ~5m for 1H), no manual input. OFF: use the manual TF below.\nمفعّل: يختار الفريم الأصغر تلقائيًّا من فريم الشارت (≈ الشارت÷12 ⇒ ~5د للساعة) بلا تدخّل. مطفأ: استعمل الفريم اليدويّ أدناه.")
 d4tf       = input.timeframe("5", "Manual 4th-degree TF (when Auto off) / فريم الرابعة اليدويّ", group = grpD4)
+
+// ----- 🔢 Wave Count (Elliott/Dow overlay — descriptive only) -----
+grpWave    = "🔢 Wave Count / ترقيم الموجات"
+showWaveCount      = input.bool(false, "Wave-count labels (Elliott/Dow) / ترقيم الموجات", group = grpWave, tooltip = "Descriptive overlay derived from existing effective pivots + phase. Does NOT affect signals/strategy.\nطبقة وصفيّة مشتقّة من نقاطك الفعّالة + المرحلة. لا تمسّ الإشارات/الاستراتيجية.")
+showWaveCountSmall = input.bool(false, "  • Small / الصغيرة", group = grpWave)
+showWaveCountMed   = input.bool(true,  "  • Medium / المتوسطة", group = grpWave)
+showWaveCountBig   = input.bool(false, "  • Big / الكبيرة", group = grpWave)
+waveLblColMed      = input.color(#C55A11, "Label color: Medium / لون المتوسطة", group = grpWave)
+waveLblColSmall    = input.color(#F23645, "Label color: Small / لون الصغيرة", group = grpWave)
+waveLblColBig      = input.color(#1F3A5F, "Label color: Big / لون الكبيرة", group = grpWave)
+waveLblSize        = input.string("Small", "Label size / حجم الوسم", options = ["Tiny","Small","Normal"], group = grpWave)
+useWaveValidation  = input.bool(false, "Elliott validation rules (! + tooltip) / قواعد التحقّق", group = grpWave, tooltip = "Reserved for step A2.\nمحجوز للخطوة A2.")
 
 // ----- 🛠️ Diagnostics (temporary) -----
 grpDiag    = "🛠️ Diagnostics / تشخيص (مؤقّت)"
@@ -3138,6 +3150,51 @@ if barstate.islast or emittedMedBar
                     array.push(zSrcA, ia3)
                     array.push(zSrcB, ia3)
                     array.push(zIsHist, false)
+
+// ===== [v3.88.0 · A1] ترقيم الموجات (إليوت/داو) — طبقة وصفيّة، شارت فقط، لا تمسّ أيّ منطق =====
+//   قاعدة الاشتقاق: كلّ ساق دافعة فعّالة ⇒ الرقم التالي (1→2→3→4→5)؛ بعد 5: مشاركة مستمرّة (امتداد) ⇒ يبقى «5»،
+//   تصحيح (ذعر/يأس، phCode≠0) ⇒ a·b·c. الوسم على منتصف كلّ ساق بلون الدرجة. الرسم islast (غير مُعيد للرسم).
+//   معمّمة على الدرجة؛ A1 يصل المتوسطة فقط (الصغيرة/الكبيرة مطفأتان افتراضيًّا — تُوصَلان لاحقًا).
+var array<label> wcLbls = array.new<label>()
+f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, array<int> bigBars, color col, string sz, float off) =>
+    int n  = array.size(pP)
+    int nb = array.size(bigBars)
+    if n >= 1
+        int wn = 0   // 1·2·3·4·5 ثمّ a·b·c — يُعاد من (1) عند كلّ حدّ موجة كبيرة (نقطة زرقاء)
+        int bi = 0   // مؤشّر حدود الكبيرة (تصاعديّ بالبار)
+        for k = 0 to n - 1
+            int   mb    = array.get(pBar, k)
+            bool  isTop = array.get(pTop, k)
+            float p     = array.get(pP, k)
+            bool crossed = false   // عبرنا حدّ موجة كبيرة قبل هذه النقطة؟
+            while bi < nb and array.get(bigBars, bi) < mb
+                crossed := true
+                bi := bi + 1
+            wn := crossed ? 1 : (wn >= 8 ? 1 : wn + 1)
+            string core = wn <= 5 ? str.tostring(wn) : (wn == 6 ? "a" : wn == 7 ? "b" : "c")
+            float  py   = p + (isTop ? off : -off)   // فوق القمّة (+) / تحت القاع (−) — بعيدًا عن الدائرة
+            label lb = label.new(mb, py, "(" + core + ")", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz)
+            array.push(wcLbls, lb)
+if barstate.islast
+    if array.size(wcLbls) > 0
+        for li = 0 to array.size(wcLbls) - 1
+            label.delete(array.get(wcLbls, li))
+    array.clear(wcLbls)
+    if showWaveCount
+        string wsz = waveLblSize == "Tiny" ? size.tiny : waveLblSize == "Normal" ? size.normal : size.small
+        if showWaveCountMed
+            array<float> cpP   = array.new<float>()
+            array<int>   cpBar = array.new<int>()
+            array<bool>  cpTop = array.new<bool>()
+            int mmw = array.size(mcP)
+            if mmw > 0
+                for i = 0 to mmw - 1
+                    bool pnd = array.size(dgPend) > i and array.get(dgPend, i)
+                    if not pnd   // [v3.88.4] كلّ القمم/القيعان المتوسطة المرسومة (أُزيل حدّ drawLeft الذي أخفى القديمة) — تطابق الدوائر/خطّ الوصل
+                        array.push(cpP, array.get(mcP, i))
+                        array.push(cpBar, array.get(mcBar, i))
+                        array.push(cpTop, array.get(mcTop, i))
+            f_drawWaveCount(cpP, cpBar, cpTop, bluePivotBars, waveLblColMed, wsz, atrv * 1.2)
 
 // ===================== المناطق (مستقلّة عن إظهار الكبيرة) =====================
 // مطابق للدرس: ارسم مستوى أفقياً على جسم كل قمة/قاع متوسط فعّال (أصفر).
