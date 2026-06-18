@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.88.10", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.88.11", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -3168,66 +3168,55 @@ if barstate.islast or emittedMedBar
 //   تصحيح (ذعر/يأس، phCode≠0) ⇒ a·b·c. الوسم على منتصف كلّ ساق بلون الدرجة. الرسم islast (غير مُعيد للرسم).
 //   معمّمة على الدرجة؛ A1 يصل المتوسطة فقط (الصغيرة/الكبيرة مطفأتان افتراضيًّا — تُوصَلان لاحقًا).
 var array<label> wcLbls = array.new<label>()
-f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, int dir, bool useVal, color col, string sz, float offUp, float offDn) =>
+// [v3.88.11 — منطق LuxAlgo المُكيَّف] نمرّر نافذة 6 نقاط على نقاط الدرجة الفعّالة، ونُرقّم الدفعة 1-5
+//   **فقط إن حقّقت قواعد إليوت** (مدفوع بالقواعد، لا ترقيم أعمى). الشروط تنقلب حسب اتجاه الدفعة:
+//   صاعدة (تنتهي بقمّة): ق1 _3>_1 · ق3 _5>_2 · ق2 _W3≠الأصغر · قمّة جديدة _6>_4. هابطة: المرآة.
+//   _1 = أصل الموجة (بلا وسم)؛ الوسوم (1)(2)(3)(4)(5) على _2.._6. الدفعات غير متداخلة (lastEnd).
+f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, color col, string sz, float offUp, float offDn) =>
     int n = array.size(pP)
-    if n >= 2 and dir != 0
-        // أصل الموجة = أكثر نقطة تطرّفًا عكس الترند (أدنى قاع صعودًا / أعلى قمّة هبوطًا) = بداية العدّ
-        int   s0  = -1
-        float ext = na
-        for k = 0 to n - 1
-            bool  isTr = not array.get(pTop, k)
-            float pk   = array.get(pP, k)
-            if dir == 1 and isTr and (na(ext) or pk < ext)
-                ext := pk
-                s0  := k
-            if dir == -1 and (not isTr) and (na(ext) or pk > ext)
-                ext := pk
-                s0  := k
-        if s0 < 0
-            s0 := 0
-        float originP = array.get(pP, s0)   // بداية الموجة 1 (للقاعدة 1)
-        float w1p = na   // قمّة الموجة 1 (للقاعدة 3)
-        float w2p = na
-        float w3p = na
-        float w4p = na
-        label w3lbl = na
-        for k = s0 + 1 to n - 1
-            int    wn    = k - s0                       // s0+1 = الموجة 1، s0+2 = 2 ...
-            bool   isTop = array.get(pTop, k)
-            float  p     = array.get(pP, k)
-            int    mi    = (wn - 1) % 8                 // دافعة 1-5 ثمّ تصحيح a·b·c (يُعاد عند 8) — يتفادى تكرار الأحرف
-            string core  = mi <= 4 ? str.tostring(mi + 1) : (mi == 5 ? "a" : mi == 6 ? "b" : "c")
-            if wn == 1
-                w1p := p
-            if wn == 2
-                w2p := p
-            if wn == 3
-                w3p := p
-            if wn == 4
-                w4p := p
-            // قواعد إليوت الثلاث (مبوَّبة useVal): الخرق ⇒ ! + Tooltip
-            string mark = ""
-            string tip  = ""
-            if useVal
-                if wn == 2 and (dir == 1 ? p < originP : p > originP)
-                    mark := " !"
-                    tip  := "خرق قاعدة 1: الموجة 2 تجاوزت بداية الموجة 1"
-                if wn == 4 and not na(w1p) and (dir == 1 ? p < w1p : p > w1p)
-                    mark := " !"
-                    tip  := "خرق قاعدة 3: الموجة 4 دخلت نطاق قمّة الموجة 1"
-                if wn == 5 and not na(w1p) and not na(w2p) and not na(w3p) and not na(w4p)
-                    float l1 = math.abs(w1p - originP)
-                    float l3 = math.abs(w3p - w2p)
-                    float l5 = math.abs(p - w4p)
-                    if l3 < l1 and l3 < l5 and not na(w3lbl)
-                        label.set_text(w3lbl, label.get_text(w3lbl) + " !")
-                        label.set_tooltip(w3lbl, "خرق قاعدة 2: الموجة 3 هي الأقصر بين 1·3·5")
-            float py = p + (isTop ? offUp : -offDn)   // رفع فوق القمّة / خفض تحت القاع (مدخلان لكلّ درجة)
-            if bar_index - array.get(pBar, k) < 4900   // حدّ أمان: تجنّب تجاوز الـ buffer التاريخيّ على النقاط القديمة جدًّا
-                label lb = label.new(array.get(pBar, k), py, "(" + core + ")" + mark, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz, tooltip = tip)
-                array.push(wcLbls, lb)
-                if wn == 3
-                    w3lbl := lb
+    if n >= 6
+        int lastEnd = -1
+        for e = 5 to n - 1
+            int i1 = e - 5
+            int i2 = e - 4
+            int i3 = e - 3
+            int i4 = e - 2
+            int i5 = e - 1
+            int i6 = e
+            if i1 >= lastEnd
+                bool t6 = array.get(pTop, i6)   // نوع آخر نقطة: قمّة ⇒ دفعة صاعدة، قاع ⇒ هابطة
+                // تناوب صحيح: _2/_4/_6 من نوع واحد، _1/_3/_5 من النوع الآخر
+                bool altOk = array.get(pTop, i2) == t6 and array.get(pTop, i4) == t6 and array.get(pTop, i1) != t6 and array.get(pTop, i3) != t6 and array.get(pTop, i5) != t6
+                if altOk
+                    float p1 = array.get(pP, i1)
+                    float p2 = array.get(pP, i2)
+                    float p3 = array.get(pP, i3)
+                    float p4 = array.get(pP, i4)
+                    float p5 = array.get(pP, i5)
+                    float p6 = array.get(pP, i6)
+                    bool isWave = false
+                    if t6   // دفعة صاعدة
+                        float w1 = p2 - p1
+                        float w3 = p4 - p3
+                        float w5 = p6 - p5
+                        float mn = math.min(w1, math.min(w3, w5))
+                        isWave := w3 != mn and p6 > p4 and p3 > p1 and p5 > p2
+                    else    // دفعة هابطة (المرآة)
+                        float w1 = p1 - p2
+                        float w3 = p3 - p4
+                        float w5 = p5 - p6
+                        float mn = math.min(w1, math.min(w3, w5))
+                        isWave := w3 != mn and p4 > p6 and p1 > p3 and p2 > p5
+                    if isWave
+                        array<int> idxs = array.from(i2, i3, i4, i5, i6)   // (1)..(5)
+                        for w = 0 to 4
+                            int   idx   = array.get(idxs, w)
+                            bool  isTop = array.get(pTop, idx)
+                            float py    = array.get(pP, idx) + (isTop ? offUp : -offDn)
+                            if bar_index - array.get(pBar, idx) < 4900   // حدّ أمان للـ buffer التاريخيّ
+                                label lb = label.new(array.get(pBar, idx), py, "(" + str.tostring(w + 1) + ")", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz)
+                                array.push(wcLbls, lb)
+                        lastEnd := e
 if barstate.islast
     if array.size(wcLbls) > 0
         for li = 0 to array.size(wcLbls) - 1
@@ -3236,7 +3225,7 @@ if barstate.islast
     if showWaveCount
         string wsz  = waveLblSize == "Tiny" ? size.tiny : waveLblSize == "Normal" ? size.normal : size.small
         if showWaveCountBig   // [v3.88.9] الكبيرة أوّلًا (البنية الأنظف): نقاط زرقاء فعّالة + اتجاه largeDir
-            f_drawWaveCount(bluePivotP, bluePivotBars, bluePivotT, largeDir, useWaveValidation, waveLblColBig, wsz, waveUpBig * atrv, waveDnBig * atrv)
+            f_drawWaveCount(bluePivotP, bluePivotBars, bluePivotT, waveLblColBig, wsz, waveUpBig * atrv, waveDnBig * atrv)
         if showWaveCountMed
             array<float> cpP   = array.new<float>()
             array<int>   cpBar = array.new<int>()
@@ -3249,7 +3238,7 @@ if barstate.islast
                         array.push(cpP, array.get(mcP, i))
                         array.push(cpBar, array.get(mcBar, i))
                         array.push(cpTop, array.get(mcTop, i))
-            f_drawWaveCount(cpP, cpBar, cpTop, medActiveDir, useWaveValidation, waveLblColMed, wsz, waveUpMed * atrv, waveDnMed * atrv)
+            f_drawWaveCount(cpP, cpBar, cpTop, waveLblColMed, wsz, waveUpMed * atrv, waveDnMed * atrv)
 
 // ===================== المناطق (مستقلّة عن إظهار الكبيرة) =====================
 // مطابق للدرس: ارسم مستوى أفقياً على جسم كل قمة/قاع متوسط فعّال (أصفر).
