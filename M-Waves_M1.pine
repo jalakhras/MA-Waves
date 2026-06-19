@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.88.41", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.88.42", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -3297,14 +3297,32 @@ f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, color col, s
         if total > 0
             for s = fromI to total - 1
                 int e = array.get(ends, s)
+                // [v3.88.42 · A2] تحقّق قواعد إليوت الثلاث لهذه الدفعة ⇒ tooltip على (5) + علامة ! إن خُولفت (مبوَّب useWaveValidation)
+                string vtip = ""
+                bool   anyViol = false
+                if useWaveValidation
+                    bool  t6 = array.get(pTop, e)
+                    float p1 = array.get(pP, e-5)
+                    float p2 = array.get(pP, e-4)
+                    float p3 = array.get(pP, e-3)
+                    float p4 = array.get(pP, e-2)
+                    float p5 = array.get(pP, e-1)
+                    float p6 = array.get(pP, e)
+                    bool  r1 = t6 ? (p3 > p1) : (p1 > p3)   // ق1: الموجة2 لا تتجاوز بداية الموجة1
+                    bool  r2 = math.abs(p4 - p3) != math.min(math.abs(p2 - p1), math.min(math.abs(p4 - p3), math.abs(p6 - p5)))   // ق2: الموجة3 ليست الأقصر
+                    bool  r3 = t6 ? (p5 > p2) : (p2 > p5)   // ق3: الموجة4 لا تدخل أرض الموجة1
+                    anyViol := not (r1 and r2 and r3)
+                    vtip := f_t("قواعد إليوت — هذه الدفعة:","Elliott rules — this set:") + f_t("\nق1 الموجة2 فوق بداية1: ","\nR1 wave2 vs wave1 start: ") + (r1 ? "✓" : "✗ !") + f_t("\nق2 الموجة3 ليست الأقصر: ","\nR2 wave3 not shortest: ") + (r2 ? "✓" : "✗ !") + f_t("\nق3 الموجة4 خارج أرض1: ","\nR3 wave4 clear of wave1: ") + (r3 ? "✓" : "✗ !")
                 for w = 0 to 7   // 0-4 ⇒ (1)-(5)، 5-7 ⇒ (a)(b)(c) [التصحيح بعد الموجة 5]
                     int idx = e - 4 + w
                     if idx < n
                         string lbl  = w <= 4 ? "(" + str.tostring(w + 1) + ")" : (w == 5 ? "(a)" : w == 6 ? "(b)" : "(c)")
+                        if useWaveValidation and w == 4 and anyViol   // ! على (5) عند مخالفة (لا يحدث مع الكشف الصارم — احتياط مستقبليّ)
+                            lbl := lbl + " !"
                         bool   isTop = array.get(pTop, idx)
                         float  py    = array.get(pP, idx) + (isTop ? offUp : -offDn)
                         if bar_index - array.get(pBar, idx) < 4900
-                            label lb = label.new(array.get(pBar, idx), py, lbl, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz)
+                            label lb = label.new(array.get(pBar, idx), py, lbl, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz, tooltip = (useWaveValidation and w == 4) ? vtip : "")
                             array.push(wcLbls, lb)
 // ===== [v3.88.23 · B1/B2] فيبوناتشي — على آخر ساق دافعة فعّالة بالاتجاه (ارتداد=دخول · امتداد=هدف أماميّ) =====
 var array<line>  fibLines   = array.new<line>()
