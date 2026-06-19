@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.88.14", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.88.24", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -205,7 +205,22 @@ waveDnMed    = input.float(1.6, "Medium: lower / المتوسطة: خفض",  min
 waveUpSmall  = input.float(1.0, "Small: raise / الصغيرة: رفع",    minval = 0.0, step = 0.1, group = grpWave)
 waveDnSmall  = input.float(1.3, "Small: lower / الصغيرة: خفض",    minval = 0.0, step = 0.1, group = grpWave)
 maxWaveSets  = input.int(2, "Max wave-sets per degree (0=all) / أقصى دفعات لكلّ درجة (0=الكلّ)", minval = 0, group = grpWave, tooltip = "Show only the latest N impulse+abc sets per degree (reduces clutter, esp. small).\nيعرض آخر N دفعة فقط لكلّ درجة (يقلّل الزحام، خاصّةً الصغيرة).")
+wcMaxPivots  = input.int(60, "Scan only last N pivots (perf) / امسح آخر N نقطة فقط (أداء)", minval = 12, maxval = 500, group = grpWave, tooltip = "Wave-count & Fibonacci scan only the most recent N pivots per degree instead of all history — fixes CPU-time errors. Lower = faster.\nالترقيم والفيبو يمسحان آخر N نقطة فقط لكلّ درجة بدل كلّ التاريخ — يحلّ خطأ CPU. الأقلّ = أسرع.")
 useWaveValidation  = input.bool(false, "Elliott validation rules (! + tooltip) / قواعد التحقّق إليوت", group = grpWave, tooltip = "Wave 2/3/4 rules ⇒ ! mark + reason in tooltip.\nقواعد الموجة 2/3/4 ⇒ علامة ! + السبب في Tooltip.")
+
+// ----- 📐 Fibonacci (on Elliott impulse) -----
+grpFib       = "📐 Fibonacci / فيبوناتشي"
+showFib        = input.bool(false, "Fibonacci levels (on last impulse) / فيبوناتشي (على آخر دفعة)", group = grpFib, tooltip = "Retracement of wave 1 ⇒ wave-2 entry zone (0.5/0.618). Drawn on the last detected impulse.\nارتداد الموجة 1 ⇒ منطقة دخول الموجة 2. على آخر دفعة مكتشَفة.")
+// تحكّم مستقلّ لكلّ (درجة × نوع): الارتداد (منقّط) والامتداد (متقطّع) لكلّ درجة على حدة
+fibRetrBig   = input.bool(false, "Retracement • Big / ارتداد • الكبيرة",     group = grpFib)
+fibRetrMed   = input.bool(true,  "Retracement • Medium / ارتداد • المتوسطة", group = grpFib)
+fibRetrSmall = input.bool(false, "Retracement • Small / ارتداد • الصغيرة",   group = grpFib)
+fibExtBig    = input.bool(false, "Extension • Big / امتداد • الكبيرة",       group = grpFib)
+fibExtMed    = input.bool(false, "Extension • Medium / امتداد • المتوسطة",   group = grpFib)
+fibExtSmall  = input.bool(false, "Extension • Small / امتداد • الصغيرة",     group = grpFib)
+fibColBig      = input.color(#2962FF, "Fib color: Big / لون الكبيرة", group = grpFib)
+fibColMed      = input.color(#C55A11, "Fib color: Medium / لون المتوسطة", group = grpFib)
+fibColSmall    = input.color(#F23645, "Fib color: Small / لون الصغيرة", group = grpFib)
 
 // ----- 🛠️ Diagnostics (temporary) -----
 grpDiag    = "🛠️ Diagnostics / تشخيص (مؤقّت)"
@@ -2300,7 +2315,7 @@ if barstate.islast
 //   • المسار 1 (useBigBreak=true، افتراضيّ): استخراج بالكسر من كل النقاط المتوسطة — يطابق قواعد المتوسطة تماماً.
 //   • المسار 2 (useBigBreak=false): تجميع legs تلقائيّ بفلاتر (swings/ATR/زمن) — مساعد، لا يُعدَّل (تحقّق فقط).
 //   كلاهما يُنتج نقاطاً زرقاء candidate تُنظَّف بالقوانين الثلاثة (تغطية f_coveredIn + تتابُع f_seqEff + فعالية f_activated) — نفس قوانين الدرجات الأدنى.
-if (showBig or showWaveCountBig) and barstate.islast   // [v3.88.10] يعمل أيضًا للترقيم وحده (تُملأ النقاط الزرقاء)؛ رسم الدوائر يبقى على showBig أدناه
+if (showBig or showWaveCountBig or (showFib and (fibRetrBig or fibExtBig))) and barstate.islast   // [v3.88.24] يعمل أيضًا للترقيم/فيبو الكبيرة وحدهما (تُملأ النقاط الزرقاء)؛ رسم الدوائر يبقى على showBig أدناه
     // امسح كائنات الكبيرة السابقة
     if array.size(bigLbls) > 0
         for i = 0 to array.size(bigLbls) - 1
@@ -3215,39 +3230,144 @@ f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, color col, s
                         if bar_index - array.get(pBar, idx) < 4900
                             label lb = label.new(array.get(pBar, idx), py, lbl, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz)
                             array.push(wcLbls, lb)
+// ===== [v3.88.23 · B1/B2] فيبوناتشي — على آخر ساق دافعة فعّالة بالاتجاه (ارتداد=دخول · امتداد=هدف أماميّ) =====
+var array<line>  fibLines = array.new<line>()
+var array<label> fibLbls  = array.new<label>()
+f_lastImpulse(array<float> pP, array<bool> pTop, int dir) =>   // [v3.88.22] فهرس آخر دفعة خماسيّة **تطابق اتجاه الدرجة** — مسح خلفيّ + خروج مبكّر
+    int n = array.size(pP)
+    int last = -1
+    if n >= 6
+        for e = n - 1 to 5
+            if last == -1   // توقّف عند أوّل دفعة صحيحة من اليمين (الأحدث)
+                bool t6 = array.get(pTop, e)
+                // فلتر الاتجاه: صعودًا (dir=1) دفعة صاعدة تنتهي بقمّة (t6)، هبوطًا (dir=-1) دفعة هابطة تنتهي بقاع. dir=0 ⇒ أيّ اتجاه
+                bool dirOk = dir == 0 or (dir == 1 and t6) or (dir == -1 and not t6)
+                bool altOk = dirOk and array.get(pTop, e-4) == t6 and array.get(pTop, e-2) == t6 and array.get(pTop, e-5) != t6 and array.get(pTop, e-3) != t6 and array.get(pTop, e-1) != t6
+                if altOk
+                    float p1 = array.get(pP, e-5)
+                    float p2 = array.get(pP, e-4)
+                    float p3 = array.get(pP, e-3)
+                    float p4 = array.get(pP, e-2)
+                    float p5 = array.get(pP, e-1)
+                    float p6 = array.get(pP, e)
+                    bool isWave = t6 ? ((p4-p3) != math.min(p2-p1, math.min(p4-p3, p6-p5)) and p6 > p4 and p3 > p1 and p5 > p2) : ((p3-p4) != math.min(p1-p2, math.min(p3-p4, p5-p6)) and p4 > p6 and p1 > p3 and p2 > p5)
+                    if isWave
+                        last := e
+    last
+f_lastLeg(array<float> pP, array<bool> pTop, int dir) =>   // [v3.88.23] فهرس نهاية آخر ساق دافعة فعّالة بالاتجاه (قمّة صعودًا / قاع هبوطًا) — قرب السعر
+    int n = array.size(pP)
+    int idx = -1
+    if n >= 2 and dir != 0
+        bool wantTop = dir == 1   // صعودًا نهاية الساق قمّة، هبوطًا قاع
+        for i = n - 1 to 1
+            if idx == -1 and array.get(pTop, i) == wantTop and array.get(pTop, i - 1) != wantTop
+                idx := i   // الساق = (i-1 المعاكسة → i)
+    idx
+f_drawFibRetrace(array<float> pP, array<int> pBar, array<bool> pTop, color col, int dir) =>
+    int idx = f_lastLeg(pP, pTop, dir)
+    if idx >= 1
+        float legS = array.get(pP, idx - 1)   // بداية الساق (القاع صعودًا)
+        float legE = array.get(pP, idx)       // نهاية الساق (القمّة صعودًا)
+        int   xb   = array.get(pBar, idx - 1)
+        if bar_index - xb < 4900
+            int   rb  = last_bar_index + 10
+            float rng = legE - legS   // طول الساق (موجَّب صعودًا / سالب هبوطًا)
+            array<float> lvls = array.from(0.382, 0.5, 0.618, 0.786)
+            for li = 0 to 3
+                float lv = array.get(lvls, li)
+                float yp = legE - lv * rng   // ارتداد من نهاية الساق نحو بدايتها = منطقة التصحيح/الدخول
+                line ln = line.new(xb, yp, rb, yp, xloc = xloc.bar_index, color = color.new(col, 25), style = line.style_dotted, width = 1)
+                array.push(fibLines, ln)
+                label lb = label.new(rb, yp, str.tostring(lv, "0.000"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = size.small)
+                array.push(fibLbls, lb)
+f_drawFibExtension(array<float> pP, array<int> pBar, array<bool> pTop, color col, int dir) =>   // [v3.88.23 · B2] امتداد الساق = هدف أماميّ
+    int idx = f_lastLeg(pP, pTop, dir)
+    if idx >= 1
+        float legS = array.get(pP, idx - 1)   // بداية الساق
+        float legE = array.get(pP, idx)       // نهاية الساق
+        int   xb   = array.get(pBar, idx - 1)
+        if bar_index - xb < 4900
+            int   rb  = last_bar_index + 10
+            float rng = legE - legS   // طول الساق (موجَّب صعودًا / سالب هبوطًا)
+            array<float> lvls = array.from(1.272, 1.618, 2.618)
+            for li = 0 to 2
+                float lv = array.get(lvls, li)
+                float yp = legS + lv * rng   // إسقاط الساق من بدايتها = هدف أبعد من نهايتها (فوق صعودًا)
+                line ln = line.new(xb, yp, rb, yp, xloc = xloc.bar_index, color = color.new(col, 25), style = line.style_dashed, width = 1)
+                array.push(fibLines, ln)
+                label lb = label.new(rb, yp, "ext " + str.tostring(lv, "0.000"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = size.small)
+                array.push(fibLbls, lb)
 if barstate.islast
     if array.size(wcLbls) > 0
         for li = 0 to array.size(wcLbls) - 1
             label.delete(array.get(wcLbls, li))
     array.clear(wcLbls)
-    if showWaveCount
+    // [v3.88.17 أداء] مسح الفيبو + بناء مصفوفات المتوسطة/الصغيرة **مرّة واحدة** (تُستعمل للترقيم وللفيبو معًا، بدل مرّتين)
+    if array.size(fibLines) > 0
+        for li = 0 to array.size(fibLines) - 1
+            line.delete(array.get(fibLines, li))
+    if array.size(fibLbls) > 0
+        for li = 0 to array.size(fibLbls) - 1
+            label.delete(array.get(fibLbls, li))
+    array.clear(fibLines)
+    array.clear(fibLbls)
+    // [v3.88.18 أداء] بناء آخر wcMaxPivots نقطة فقط لكلّ درجة (لا كلّ التاريخ) — يحلّ خطأ CPU
+    bool needBig   = (showWaveCount and showWaveCountBig)   or (showFib and (fibRetrBig   or fibExtBig))
+    bool needMed   = (showWaveCount and showWaveCountMed)   or (showFib and (fibRetrMed   or fibExtMed))
+    bool needSmall = (showWaveCount and showWaveCountSmall) or (showFib and (fibRetrSmall or fibExtSmall))
+    array<float> bpP   = array.new<float>()
+    array<int>   bpBar = array.new<int>()
+    array<bool>  bpTop = array.new<bool>()
+    if needBig
+        int nbg = array.size(bluePivotP)
+        if nbg > 0
+            for i = math.max(0, nbg - wcMaxPivots) to nbg - 1
+                array.push(bpP, array.get(bluePivotP, i))
+                array.push(bpBar, array.get(bluePivotBars, i))
+                array.push(bpTop, array.get(bluePivotT, i))
+    array<float> cpP   = array.new<float>()
+    array<int>   cpBar = array.new<int>()
+    array<bool>  cpTop = array.new<bool>()
+    if needMed
+        int mmw = array.size(mcP)
+        if mmw > 0
+            for i = math.max(0, mmw - wcMaxPivots) to mmw - 1
+                bool pnd = array.size(dgPend) > i and array.get(dgPend, i)
+                if not pnd   // كلّ القمم/القيعان المتوسطة المرسومة (تطابق الدوائر/خطّ الوصل)
+                    array.push(cpP, array.get(mcP, i))
+                    array.push(cpBar, array.get(mcBar, i))
+                    array.push(cpTop, array.get(mcTop, i))
+    array<float> spP   = array.new<float>()
+    array<int>   spBar = array.new<int>()
+    array<bool>  spTop = array.new<bool>()
+    if needSmall
+        int nds = array.size(dsP)
+        if nds > 0
+            for i = math.max(0, nds - wcMaxPivots) to nds - 1
+                array.push(spP, array.get(dsP, i))
+                array.push(spBar, array.get(dsBar, i))
+                array.push(spTop, array.get(dsTop, i))
+    if showWaveCount   // ===== الترقيم (الكبيرة أوّلًا، ثمّ المتوسطة، ثمّ الصغيرة) =====
         string wsz  = waveLblSize == "Tiny" ? size.tiny : waveLblSize == "Normal" ? size.normal : size.small
-        if showWaveCountBig   // [v3.88.9] الكبيرة أوّلًا (البنية الأنظف): نقاط زرقاء فعّالة + اتجاه largeDir
-            f_drawWaveCount(bluePivotP, bluePivotBars, bluePivotT, waveLblColBig, wsz, waveUpBig * atrv, waveDnBig * atrv, maxWaveSets)
+        if showWaveCountBig
+            f_drawWaveCount(bpP, bpBar, bpTop, waveLblColBig, wsz, waveUpBig * atrv, waveDnBig * atrv, maxWaveSets)
         if showWaveCountMed
-            array<float> cpP   = array.new<float>()
-            array<int>   cpBar = array.new<int>()
-            array<bool>  cpTop = array.new<bool>()
-            int mmw = array.size(mcP)
-            if mmw > 0
-                for i = 0 to mmw - 1
-                    bool pnd = array.size(dgPend) > i and array.get(dgPend, i)
-                    if not pnd   // كلّ القمم/القيعان المتوسطة المرسومة (تطابق الدوائر/خطّ الوصل)
-                        array.push(cpP, array.get(mcP, i))
-                        array.push(cpBar, array.get(mcBar, i))
-                        array.push(cpTop, array.get(mcTop, i))
             f_drawWaveCount(cpP, cpBar, cpTop, waveLblColMed, wsz, waveUpMed * atrv, waveDnMed * atrv, maxWaveSets)
-        if showWaveCountSmall   // [v3.88.12] الصغيرة: نقاط الاشتقاق الصغيرة (نفس المنطق المعمّم)
-            array<float> spP   = array.new<float>()
-            array<int>   spBar = array.new<int>()
-            array<bool>  spTop = array.new<bool>()
-            int nds = array.size(dsP)
-            if nds > 0
-                for i = 0 to nds - 1
-                    array.push(spP, array.get(dsP, i))
-                    array.push(spBar, array.get(dsBar, i))
-                    array.push(spTop, array.get(dsTop, i))
+        if showWaveCountSmall
             f_drawWaveCount(spP, spBar, spTop, waveLblColSmall, wsz, waveUpSmall * atrv, waveDnSmall * atrv, maxWaveSets)
+    if showFib   // ===== [B1 ارتداد منقّط · B2 امتداد متقطّع] — تحكّم مستقلّ لكلّ (درجة × نوع)، كلّ درجة باتجاهها =====
+        if fibRetrBig
+            f_drawFibRetrace(bpP, bpBar, bpTop, fibColBig, largeDir)
+        if fibRetrMed
+            f_drawFibRetrace(cpP, cpBar, cpTop, fibColMed, medActiveDir)
+        if fibRetrSmall
+            f_drawFibRetrace(spP, spBar, spTop, fibColSmall, smallActiveDir)
+        if fibExtBig
+            f_drawFibExtension(bpP, bpBar, bpTop, fibColBig, largeDir)
+        if fibExtMed
+            f_drawFibExtension(cpP, cpBar, cpTop, fibColMed, medActiveDir)
+        if fibExtSmall
+            f_drawFibExtension(spP, spBar, spTop, fibColSmall, smallActiveDir)
 
 // ===================== المناطق (مستقلّة عن إظهار الكبيرة) =====================
 // مطابق للدرس: ارسم مستوى أفقياً على جسم كل قمة/قاع متوسط فعّال (أصفر).
