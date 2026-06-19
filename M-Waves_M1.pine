@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.88.48", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.88.49", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -236,11 +236,18 @@ fibSigMinRR    = input.float(1.0, "Min R:R for ✦ signals / أدنى R:R للإ
 fibSigKeepOld  = input.bool(false, "Keep old ✦ signals / الاحتفاظ بالإشارات القديمة", group = grpFibSig, tooltip = "Off ⇒ keep only the latest 6 signals. On ⇒ keep all.\nمطفأ ⇒ آخر 6 فقط. مفعّل ⇒ الكلّ.")
 fibSigColBuy   = input.color(#7E57C2, "Fib signal Buy color / لون شراء فيبو", group = grpFibSig)
 fibSigColSell  = input.color(#AB47BC, "Fib signal Sell color / لون بيع فيبو", group = grpFibSig)
-// ----- محرّك ZigZag مستقلّ (للترقيم/الفيبو بدقّة إليوت، منفصل عن M-Waves) -----
-grpZZ        = "🌊 إليوت/فيبو · ④ محرّك ZigZag"
-showZigzag   = input.bool(false, "ZigZag engine (independent) / محرّك ZigZag مستقلّ", group = grpZZ, tooltip = "Independent ZigZag swing detector (separate from M-Waves degrees). Will feed wave-count/fib for cleaner Elliott. Off by default.\nكاشف تأرجحات ZigZag مستقلّ (منفصل عن درجات M-Waves). سيغذّي الترقيم/الفيبو بدقّة إليوت أعلى. مطفأ افتراضيًّا.")
-zzDepth      = input.int(8, "ZigZag sensitivity (pivot depth) / حساسيّة ZigZag (عمق المحور)", minval = 2, maxval = 100, group = grpZZ, tooltip = "Higher = bigger swings only (fewer pivots). Lower = more sensitive (more pivots).\nأكبر = تأرجحات أكبر فقط (نقاط أقلّ). أقلّ = أكثر حساسيّة (نقاط أكثر).")
-zzCol        = input.color(#B0BEC5, "ZigZag line color / لون خطّ ZigZag", group = grpZZ)
+// ----- محرّك ZigZag مستقلّ بـ3 درجات (4/8/16) — اقتباس قوّة LuxAlgo، منفصل عن M-Waves -----
+grpZZ        = "🌊 إليوت/فيبو · ④ محرّك ZigZag (3 درجات)"
+showZigzag   = input.bool(false, "ZigZag engine (independent) / محرّك ZigZag مستقلّ", group = grpZZ, tooltip = "Independent multi-degree ZigZag (3 lengths 4/8/16, like LuxAlgo). Separate from M-Waves. Feeds wave-count when source=ZigZag.\nمحرّك ZigZag متعدّد الدرجات (3 أطوال 4/8/16، كـLuxAlgo). منفصل عن M-Waves. يغذّي الترقيم عند مصدر=ZigZag.")
+zzS1         = input.bool(true,  "", group = grpZZ, inline = "z1")
+zzLen1       = input.int(4,  "Degree 1 length / طول الدرجة 1", minval = 1, group = grpZZ, inline = "z1")
+zzCol1       = input.color(#EF5350, "", group = grpZZ, inline = "z1")
+zzS2         = input.bool(true,  "", group = grpZZ, inline = "z2")
+zzLen2       = input.int(8,  "Degree 2 length / طول الدرجة 2", minval = 1, group = grpZZ, inline = "z2")
+zzCol2       = input.color(#42A5F5, "", group = grpZZ, inline = "z2")
+zzS3         = input.bool(true,  "", group = grpZZ, inline = "z3")
+zzLen3       = input.int(16, "Degree 3 length / طول الدرجة 3", minval = 1, group = grpZZ, inline = "z3")
+zzCol3       = input.color(#ECEFF1, "", group = grpZZ, inline = "z3")
 zzWidth      = input.int(1, "ZigZag line width / سمك خطّ ZigZag", minval = 1, maxval = 5, group = grpZZ)
 
 // ----- 🛠️ Diagnostics (temporary) -----
@@ -3268,10 +3275,16 @@ if barstate.islast or emittedMedBar
 //   تصحيح (ذعر/يأس، phCode≠0) ⇒ a·b·c. الوسم على منتصف كلّ ساق بلون الدرجة. الرسم islast (غير مُعيد للرسم).
 //   معمّمة على الدرجة؛ A1 يصل المتوسطة فقط (الصغيرة/الكبيرة مطفأتان افتراضيًّا — تُوصَلان لاحقًا).
 var array<label> wcLbls = array.new<label>()
-// [v3.88.45 · ب-2] مصفوفات محرّك ZigZag — مُعلَنة هنا (قبل الترقيم) ليستعملها كمصدر؛ بناؤها/رسمها أسفل
-var array<float> zzP   = array.new<float>()
-var array<int>   zzBar = array.new<int>()
-var array<bool>  zzTop = array.new<bool>()
+// [v3.88.49 · أ] مصفوفات محرّك ZigZag بـ3 درجات — مُعلَنة هنا (قبل الترقيم) ليستعملها كمصدر؛ بناؤها/رسمها أسفل
+var array<float> zzP1 = array.new<float>()
+var array<int>   zzB1 = array.new<int>()
+var array<bool>  zzT1 = array.new<bool>()
+var array<float> zzP2 = array.new<float>()
+var array<int>   zzB2 = array.new<int>()
+var array<bool>  zzT2 = array.new<bool>()
+var array<float> zzP3 = array.new<float>()
+var array<int>   zzB3 = array.new<int>()
+var array<bool>  zzT3 = array.new<bool>()
 // [v3.88.11 — منطق LuxAlgo المُكيَّف] نمرّر نافذة 6 نقاط على نقاط الدرجة الفعّالة، ونُرقّم الدفعة 1-5
 //   **فقط إن حقّقت قواعد إليوت** (مدفوع بالقواعد، لا ترقيم أعمى). الشروط تنقلب حسب اتجاه الدفعة:
 //   صاعدة (تنتهي بقمّة): ق1 _3>_1 · ق3 _5>_2 · ق2 _W3≠الأصغر · قمّة جديدة _6>_4. هابطة: المرآة.
@@ -3510,8 +3523,13 @@ if barstate.islast
                 array.push(spTop, array.get(dsTop, i))
     if showWaveCount   // ===== الترقيم: من درجات M-Waves أو من محرّك ZigZag (ب-2) =====
         string wsz  = waveLblSize == "Tiny" ? size.tiny : waveLblSize == "Normal" ? size.normal : size.small
-        if wcSource == "ZigZag"   // مصدر واحد (المحاور النظيفة) — يلتقط ما تفوّته الدرجات
-            f_drawWaveCount(zzP, zzBar, zzTop, waveLblColMed, wsz, waveUpMed * atrv, waveDnMed * atrv, maxWaveSets)
+        if wcSource == "ZigZag"   // 3 درجات ZigZag (4/8/16) كلٌّ بلونه، مزاحة عموديًّا (الأنعم إزاحة أصغر)
+            if zzS1
+                f_drawWaveCount(zzP1, zzB1, zzT1, zzCol1, wsz, waveUpSmall * atrv, waveDnSmall * atrv, maxWaveSets)
+            if zzS2
+                f_drawWaveCount(zzP2, zzB2, zzT2, zzCol2, wsz, waveUpMed * atrv, waveDnMed * atrv, maxWaveSets)
+            if zzS3
+                f_drawWaveCount(zzP3, zzB3, zzT3, zzCol3, wsz, waveUpBig * atrv, waveDnBig * atrv, maxWaveSets)
         else
             if showWaveCountBig
                 f_drawWaveCount(bpP, bpBar, bpTop, waveLblColBig, wsz, waveUpBig * atrv, waveDnBig * atrv, maxWaveSets)
@@ -3533,49 +3551,70 @@ if barstate.islast
         if fibExtSmall
             f_drawFibExtension(spP, spBar, spTop, fibColSmall, smallActiveDir)
 
-// ===================== [v3.88.43 · ب-1] محرّك ZigZag مستقلّ — البناء (المصفوفات مُعلَنة أعلى قبل الترقيم) =====================
-// كاشف تأرجحات (ta.pivothigh/low بعمق zzDepth) ⇒ مصفوفات zzP/zzBar/zzTop متناوبة نظيفة. مستقلّ تمامًا عن M-Waves.
-f_zzAdd(bool isTop, float price, int bar) =>
-    int n = array.size(zzP)
+// ===================== [v3.88.49 · أ] محرّك ZigZag بـ3 درجات (4/8/16) — البناء =====================
+// f_zzAdd معمّمة (تأخذ مصفوفات الدرجة). سرّ LuxAlgo: ta.pivothigh(hi, len, 1) باليمين=1 ⇒ استجابة فوريّة.
+f_zzAdd(array<float> P, array<int> B, array<bool> T, bool isTop, float price, int bar) =>
+    int n = array.size(P)
     if n == 0
-        array.push(zzP, price)
-        array.push(zzBar, bar)
-        array.push(zzTop, isTop)
-    else if array.get(zzTop, n - 1) == isTop   // نفس النوع ⇒ أبقِ الأكثر تطرّفًا (تحديث المحور)
-        float lastP = array.get(zzP, n - 1)
+        array.push(P, price)
+        array.push(B, bar)
+        array.push(T, isTop)
+    else if array.get(T, n - 1) == isTop   // نفس النوع ⇒ أبقِ الأكثر تطرّفًا (تحديث المحور)
+        float lastP = array.get(P, n - 1)
         if (isTop and price > lastP) or (not isTop and price < lastP)
-            array.set(zzP, n - 1, price)
-            array.set(zzBar, n - 1, bar)
-    else                                        // تناوب ⇒ محور جديد
-        array.push(zzP, price)
-        array.push(zzBar, bar)
-        array.push(zzTop, isTop)
-    if array.size(zzP) > 250                     // سقف ذاكرة
-        array.shift(zzP)
-        array.shift(zzBar)
-        array.shift(zzTop)
-// [v3.88.48] سرّ LuxAlgo: اليمين = 1 (لا zzDepth) ⇒ تأكيد المحور بعد شمعة واحدة ⇒ استجابة فوريّة يلتقط الموجة الجارية
-float zzPh = ta.pivothigh(high, zzDepth, 1)
-float zzPl = ta.pivotlow(low, zzDepth, 1)
+            array.set(P, n - 1, price)
+            array.set(B, n - 1, bar)
+    else                                    // تناوب ⇒ محور جديد
+        array.push(P, price)
+        array.push(B, bar)
+        array.push(T, isTop)
+    if array.size(P) > 250                   // سقف ذاكرة
+        array.shift(P)
+        array.shift(B)
+        array.shift(T)
+float ph1 = ta.pivothigh(high, zzLen1, 1)
+float pl1 = ta.pivotlow(low,  zzLen1, 1)
+float ph2 = ta.pivothigh(high, zzLen2, 1)
+float pl2 = ta.pivotlow(low,  zzLen2, 1)
+float ph3 = ta.pivothigh(high, zzLen3, 1)
+float pl3 = ta.pivotlow(low,  zzLen3, 1)
 bool zzNeed = showZigzag or wcSource == "ZigZag"   // ابنِ المحاور إن عُرض الخطّ أو استُعمل مصدرًا للترقيم
 if zzNeed
-    if not na(zzPh)
-        f_zzAdd(true,  zzPh, bar_index - 1)
-    if not na(zzPl)
-        f_zzAdd(false, zzPl, bar_index - 1)
-var array<line>  zzLines = array.new<line>()
+    if zzS1
+        if not na(ph1)
+            f_zzAdd(zzP1, zzB1, zzT1, true,  ph1, bar_index - 1)
+        if not na(pl1)
+            f_zzAdd(zzP1, zzB1, zzT1, false, pl1, bar_index - 1)
+    if zzS2
+        if not na(ph2)
+            f_zzAdd(zzP2, zzB2, zzT2, true,  ph2, bar_index - 1)
+        if not na(pl2)
+            f_zzAdd(zzP2, zzB2, zzT2, false, pl2, bar_index - 1)
+    if zzS3
+        if not na(ph3)
+            f_zzAdd(zzP3, zzB3, zzT3, true,  ph3, bar_index - 1)
+        if not na(pl3)
+            f_zzAdd(zzP3, zzB3, zzT3, false, pl3, bar_index - 1)
+var array<line> zzLines = array.new<line>()
+f_zzDrawLine(array<float> P, array<int> B, color col) =>
+    int nz = array.size(P)
+    int zf = math.max(0, nz - wcMaxPivots)
+    if nz >= 2
+        for i = zf to nz - 2
+            if bar_index - array.get(B, i) < 4900
+                line ln = line.new(array.get(B, i), array.get(P, i), array.get(B, i + 1), array.get(P, i + 1), xloc = xloc.bar_index, color = col, width = zzWidth)
+                array.push(zzLines, ln)
 if showZigzag and barstate.islast
     if array.size(zzLines) > 0
         for i = 0 to array.size(zzLines) - 1
             line.delete(array.get(zzLines, i))
         array.clear(zzLines)
-    int nz = array.size(zzP)
-    int zf = math.max(0, nz - wcMaxPivots)
-    if nz >= 2
-        for i = zf to nz - 2
-            if bar_index - array.get(zzBar, i) < 4900
-                line ln = line.new(array.get(zzBar, i), array.get(zzP, i), array.get(zzBar, i + 1), array.get(zzP, i + 1), xloc = xloc.bar_index, color = zzCol, width = zzWidth)
-                array.push(zzLines, ln)
+    if zzS1
+        f_zzDrawLine(zzP1, zzB1, zzCol1)
+    if zzS2
+        f_zzDrawLine(zzP2, zzB2, zzCol2)
+    if zzS3
+        f_zzDrawLine(zzP3, zzB3, zzCol3)
 
 // ===================== المناطق (مستقلّة عن إظهار الكبيرة) =====================
 // مطابق للدرس: ارسم مستوى أفقياً على جسم كل قمة/قاع متوسط فعّال (أصفر).
