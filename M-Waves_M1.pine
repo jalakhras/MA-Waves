@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.88.32", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.88.38", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -224,6 +224,11 @@ fibColSmall    = input.color(#F23645, "Fib color: Small / لون الصغيرة"
 showFibConfluence = input.bool(true, "Confluence ☆ with next zone / تقاطُع ☆ مع المنطقة", group = grpFib, tooltip = "Marks a fib level that coincides (within tolerance) with an effective M-Waves zone level ⇒ ☆ + brighter/thicker line. Strengthens the existing M-Waves signal (no new trade).\nيميّز مستوى فيبو يتطابق (ضمن هامش) مع مستوى منطقة M-Waves فعّال ⇒ ☆ + خطّ أوضح/أسمك. يقوّي إشارة M-Waves القائمة (لا صفقة جديدة).")
 fibConflTol    = input.float(0.30, "Confluence tolerance (×ATR) / هامش التقاطُع", minval = 0.05, maxval = 2.0, step = 0.05, group = grpFib)
 fibStandaloneSignals = input.bool(false, "Standalone fib signals ✦ (isolated) / إشارات فيبو مستقلّة ✦", group = grpFib, tooltip = "Independent fib-based entry signals (✦), separate from M-Waves trades. Model B (breakout): close breaks wave-1 peak/trough ⇒ entry, target = extension 1.618. Off by default.\nإشارات دخول مستقلّة مبنيّة على الفيبو (✦)، منفصلة عن صفقات M-Waves. النموذج ب (الكسر): إغلاق يكسر قمّة/قاع الموجة 1 ⇒ دخول، الهدف = امتداد 1.618. مطفأ افتراضيًّا.")
+fibSigBig      = input.bool(false, "  ✦ signals • Big / إشارات • الكبيرة",     group = grpFib)
+fibSigMed      = input.bool(true,  "  ✦ signals • Medium / إشارات • المتوسطة", group = grpFib)
+fibSigSmall    = input.bool(false, "  ✦ signals • Small / إشارات • الصغيرة",   group = grpFib)
+fibSigKeepOld  = input.bool(false, "Keep old ✦ signals / الاحتفاظ بالإشارات القديمة", group = grpFib, tooltip = "Off ⇒ keep only the latest 6 signals (declutter). On ⇒ keep all history.\nمطفأ ⇒ يُبقي آخر 6 إشارات فقط. مفعّل ⇒ يُبقي الكلّ.")
+fibSigMinRR    = input.float(1.0, "Min R:R for ✦ signals / أدنى R:R للإشارة", minval = 0.0, step = 0.1, group = grpFib, tooltip = "Hide signals whose reward:risk is below this (cuts choppy/range noise). 1.0 = reward ≥ risk.\nيُخفي الإشارات التي عائدها/مخاطرتها أقلّ من هذا (يقصّ ضجيج العرضيّ). 1.0 = العائد ≥ المخاطرة.")
 fibSigColBuy   = input.color(#7E57C2, "Fib signal Buy color / لون شراء فيبو", group = grpFib)
 fibSigColSell  = input.color(#AB47BC, "Fib signal Sell color / لون بيع فيبو", group = grpFib)
 
@@ -1291,16 +1296,93 @@ f_tradeSig(int x, float y, string txt, bool up, color col, float rr, string tip)
         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
         label.new(x, y, "RR " + str.tostring(rr, "#.##"), yloc = yloc.price, style = up ? label.style_label_down : label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tip)
 // [v3.88.31 · B4] إشارة فيبو (إليوت) — دالّة **منفصلة تمامًا** عن f_tradeSig (M-Waves): لا تشارك شيئًا، وسم خاصّ ✦ + شارة RR
-f_fibSig(int x, float y, string txt, bool up, color col, float rr, string tip) =>
-    label.new(x, y, txt, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = col, textcolor = color.white, size = size.small, tooltip = tip)
-    if not na(rr)
-        color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
-        label.new(x, y, "RR " + str.tostring(rr, "#.##"), yloc = yloc.price, style = up ? label.style_label_down : label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tip)
 // [V4.48] نسبة المخاطرة/العائد RR = (المسافة للهدف) ÷ (المسافة للوقف). na إن الوقف عند الدخول. (المستخدم يحكم: ≥2 جيّدة)
 f_rr(float entry, float stop, float tgt) =>
     float risk = math.abs(entry - stop)
     float rew  = math.abs(tgt - entry)
     (not na(risk) and not na(rew) and risk > 0) ? rew / risk : na
+// ===== [v3.88.36 · B4] إشارات فيبو/إليوت معمّمة لكلّ درجة — حالة منع التكرار لكلّ درجة [0=كبيرة,1=متوسطة,2=صغيرة] =====
+var array<int>   fibPeakArr   = array.from(-1, -1, -1)     // قمّة الارتداد المتتبَّعة
+var array<bool>  fibArmArr    = array.from(false, false, false)
+var array<bool>  fibFiredArr  = array.from(false, false, false)
+var array<int>   fibTroughArr = array.from(-1, -1, -1)
+var array<bool>  fibArmDArr   = array.from(false, false, false)
+var array<bool>  fibFiredDArr = array.from(false, false, false)
+var array<label> fibSigLbls   = array.new<label>()        // للاحتفاظ/الحذف
+// رسم إشارة واحدة: وسم شراء/بيع + tooltip (الدرجة بالاسم، الترتيب حسب الجهة) + احتفاظ/حذف + تنبيه
+f_emitFibSig(bool up, string degName, float entry, float stop, float tgt) =>
+    float rrF = f_rr(entry, stop, tgt)
+    if na(rrF) or rrF >= fibSigMinRR   // [v3.88.37] فلتر أدنى RR — يقصّ ضجيج العرضيّ
+        string e = str.tostring(entry, format.mintick)
+        string s = str.tostring(stop, format.mintick)
+        string t = str.tostring(tgt, format.mintick)
+        string body = up ? (f_t("الهدف: ","Target: ") + t + f_t("\nالدخول: ","\nEntry: ") + e + f_t("\nالوقف: ","\nStop: ") + s) : (f_t("الوقف: ","Stop: ") + s + f_t("\nالدخول: ","\nEntry: ") + e + f_t("\nالهدف: ","\nTarget: ") + t)
+        string tip = "✦ " + f_t("فيبو ","Fib ") + degName + "\n" + body + "\nR:R = " + (na(rrF) ? "—" : str.tostring(rrF, "#.##"))
+        label lb = label.new(bar_index, entry, "✦" + (up ? f_t("شراء","Buy") : f_t("بيع","Sell")), yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = up ? fibSigColBuy : fibSigColSell, textcolor = color.white, size = size.small, tooltip = tip)
+        array.push(fibSigLbls, lb)
+        if not fibSigKeepOld
+            while array.size(fibSigLbls) > 6
+                label.delete(array.shift(fibSigLbls))
+        alert("M-Waves ✦Fib " + degName + ": " + (up ? f_t("شراء @ ","Buy @ ") : f_t("بيع @ ","Sell @ ")) + e + f_t(" · هدف ","· tgt ") + t, alert.freq_once_per_bar)
+// منطق الإشارة لدرجة واحدة (كسر + ارتداد، شراء + بيع). di فهرس حالة الدرجة؛ dir اتجاه الدرجة (للارتداد)
+f_fibDegSig(DegMem m, int di, int dir, string degName) =>
+    float fbuf = mgStopPts > 0 ? mgStopPts : 0.25 * atrv
+    // كسر صعودًا: درجة صاعدة + تصحيح الموجة 2 (قاع أحدث) ثمّ إغلاق يكسر قمّة1 (الاتجاه يطابق رسم الفيبو ⇒ الهدف على ext المرسوم)
+    if dir == 1 and not na(m.ltP) and not na(m.lbP) and not na(m.pbP) and m.lbBar > m.ltBar and close > m.ltP and close[1] <= m.ltP
+        float rng1   = m.ltP - m.pbP
+        float fEntry = close
+        float fStop  = math.max(m.lbP, m.ltP - 0.786 * rng1) - fbuf   // قاع2 مقصوصًا عند 0.786
+        float fTgt   = m.pbP + 1.618 * rng1
+        if fStop < fEntry and fTgt > fEntry
+            f_emitFibSig(true, degName, fEntry, fStop, fTgt)
+    // كسر هبوطًا: درجة هابطة
+    if dir == -1 and not na(m.lbP) and not na(m.ltP) and not na(m.ptP) and m.ltBar > m.lbBar and close < m.lbP and close[1] >= m.lbP
+        float rng1   = m.ptP - m.lbP
+        float fEntry = close
+        float fStop  = math.min(m.ltP, m.lbP + 0.786 * rng1) + fbuf   // قمّة2 مقصوصًا عند 0.786
+        float fTgt   = m.ptP - 1.618 * rng1
+        if fStop > fEntry and fTgt < fEntry
+            f_emitFibSig(false, degName, fEntry, fStop, fTgt)
+    // ارتداد صعودًا: لمس 0.618 يُسلّح ⇒ أوّل شمعة صاعدة تُطلِق
+    if dir == 1 and not na(m.ltP)
+        float w1s = m.ltBar > m.lbBar ? m.lbP : m.pbP
+        if not na(w1s) and m.ltP > w1s
+            float rng1 = m.ltP - w1s
+            float f618 = m.ltP - 0.618 * rng1
+            float f786 = m.ltP - 0.786 * rng1
+            if m.ltBar != array.get(fibPeakArr, di)
+                array.set(fibPeakArr, di, m.ltBar)
+                array.set(fibArmArr, di, false)
+                array.set(fibFiredArr, di, false)
+            if close < m.ltP and low <= f618
+                array.set(fibArmArr, di, true)
+            if array.get(fibArmArr, di) and not array.get(fibFiredArr, di) and close > open and close > f786
+                float fEntry = close
+                float fStop  = f786 - fbuf
+                float fTgt   = w1s + 1.618 * rng1
+                if fStop < fEntry and fTgt > fEntry
+                    array.set(fibFiredArr, di, true)
+                    f_emitFibSig(true, degName, fEntry, fStop, fTgt)
+    // ارتداد هبوطًا
+    if dir == -1 and not na(m.lbP)
+        float w1s = m.lbBar > m.ltBar ? m.ltP : m.ptP
+        if not na(w1s) and w1s > m.lbP
+            float rng1 = w1s - m.lbP
+            float f618 = m.lbP + 0.618 * rng1
+            float f786 = m.lbP + 0.786 * rng1
+            if m.lbBar != array.get(fibTroughArr, di)
+                array.set(fibTroughArr, di, m.lbBar)
+                array.set(fibArmDArr, di, false)
+                array.set(fibFiredDArr, di, false)
+            if close > m.lbP and high >= f618
+                array.set(fibArmDArr, di, true)
+            if array.get(fibArmDArr, di) and not array.get(fibFiredDArr, di) and close < open and close < f786
+                float fEntry = close
+                float fStop  = f786 + fbuf
+                float fTgt   = w1s - 1.618 * rng1
+                if fStop > fEntry and fTgt < fEntry
+                    array.set(fibFiredDArr, di, true)
+                    f_emitFibSig(false, degName, fEntry, fStop, fTgt)
 
 // اتجاه الدرجة الكبيرة = اتجاه خط ترند كامل الموجة التاريخية:
 //   إن كانت قمّة الموجة أحدث من قاعها ⇒ صاعدة، والعكس ⇒ هابطة. (لا اشتقاق بالكسر)
@@ -2230,31 +2312,16 @@ if barstate.isconfirmed
                     else
                         label.new(bar_index, close, f_t("بيع؟","Sell?"), yloc = yloc.price, style = label.style_label_down, color = color.new(#C00000, 50), textcolor = color.white, size = size.tiny, tooltip = tipUS)
 
-// ===== [v3.88.31 · B4-1] إشارات فيبو مستقلّة ✦ — النموذج (ب) الكسر، المتوسطة =====
-//   منفصلة تمامًا عن M-Waves: دالّة رسم خاصّة (f_fibSig)، خارج tradeDir/التأمين/منع التكديس، **ومستقلّة عن نافذة drawWaves** (لا تختفي بخفض الرسم).
-//   صعودًا: إغلاق يكسر قمّة الموجة 1 (memM.ltP) بعد تصحيح الموجة 2 ⇒ دخول الموجة 3؛ الوقف خلف قاع الموجة 2 (memM.lbP)؛ الهدف = امتداد 1.618 من بداية الموجة 1 (memM.pbP). (barstate.isconfirmed ⇒ غير مُعيد للرسم)
+// ===== [v3.88.36 · B4] إشارات فيبو/إليوت لكلّ درجة (دالّة معمّمة) — منفصلة تمامًا عن M-Waves =====
+//   كلّ درجة بذاكرتها (كبيرة memBph · متوسطة memM · صغيرة memS) واتجاهها؛ الوسم شراء/بيع، الدرجة بالاسم في tooltip.
+//   مستقلّة عن نافذة drawWaves، خارج tradeDir/التأمين/منع التكديس. (barstate.isconfirmed ⇒ غير مُعيد للرسم)
 if fibStandaloneSignals and barstate.isconfirmed
-    float fbuf = mgStopPts > 0 ? mgStopPts : 0.25 * atrv   // هامش الوقف (يدويّ أو ربع ATR) — buf الأصليّ محلّيّ لكتلة أخرى
-    // [v3.88.32] الشرط البنيويّ (لا medActiveDir المتأخّر): آخر قاع أحدث من آخر قمّة = نحن في تصحيح الموجة 2 ⇒ ننتظر كسر قمّة الموجة 1
-    if not na(memM.ltP) and not na(memM.lbP) and not na(memM.pbP) and memM.lbBar > memM.ltBar and close > memM.ltP and close[1] <= memM.ltP
-        float fEntry = close
-        float fStop  = memM.lbP - fbuf
-        float fTgt   = memM.pbP + 1.618 * (memM.ltP - memM.pbP)
-        if fStop < fEntry and fTgt > fEntry
-            float rrF = f_rr(fEntry, fStop, fTgt)
-            string tipF = "✦ " + f_t("فيبو — كسر قمّة الموجة 1 (دخول الموجة 3)","Fib — wave-1 peak break (wave-3 entry)") + f_t("\nدخول: ","\nEntry: ") + str.tostring(fEntry, format.mintick) + f_t("\nوقف: ","\nStop: ") + str.tostring(fStop, format.mintick) + f_t("\nهدف (ext 1.618): ","\nTarget (ext 1.618): ") + str.tostring(fTgt, format.mintick) + "\nR:R = " + (na(rrF) ? "—" : str.tostring(rrF, "#.##"))
-            f_fibSig(bar_index, fEntry, "✦" + f_t("شراء","Buy"), true, fibSigColBuy, rrF, tipF)
-            alert("M-Waves ✦Fib: " + f_t("شراء كسر @ ","Breakout Buy @ ") + str.tostring(fEntry, format.mintick) + f_t(" · هدف ext1.618 "," · tgt ext1.618 ") + str.tostring(fTgt, format.mintick), alert.freq_once_per_bar)
-    // مرآة هبوطًا: آخر قمّة أحدث من آخر قاع = تصحيح صاعد ⇒ ننتظر كسر قاع الموجة 1
-    if not na(memM.lbP) and not na(memM.ltP) and not na(memM.ptP) and memM.ltBar > memM.lbBar and close < memM.lbP and close[1] >= memM.lbP
-        float fEntry = close
-        float fStop  = memM.ltP + fbuf
-        float fTgt   = memM.ptP + 1.618 * (memM.lbP - memM.ptP)
-        if fStop > fEntry and fTgt < fEntry
-            float rrF = f_rr(fEntry, fStop, fTgt)
-            string tipF = "✦ " + f_t("فيبو — كسر قاع الموجة 1 (دخول الموجة 3)","Fib — wave-1 trough break (wave-3 entry)") + f_t("\nدخول: ","\nEntry: ") + str.tostring(fEntry, format.mintick) + f_t("\nوقف: ","\nStop: ") + str.tostring(fStop, format.mintick) + f_t("\nهدف (ext 1.618): ","\nTarget (ext 1.618): ") + str.tostring(fTgt, format.mintick) + "\nR:R = " + (na(rrF) ? "—" : str.tostring(rrF, "#.##"))
-            f_fibSig(bar_index, fEntry, "✦" + f_t("بيع","Sell"), false, fibSigColSell, rrF, tipF)
-            alert("M-Waves ✦Fib: " + f_t("بيع كسر @ ","Breakout Sell @ ") + str.tostring(fEntry, format.mintick) + f_t(" · هدف ext1.618 "," · tgt ext1.618 ") + str.tostring(fTgt, format.mintick), alert.freq_once_per_bar)
+    if fibSigBig
+        f_fibDegSig(memBph, 0, largeDir,       f_t("كبيرة","Big"))
+    if fibSigMed
+        f_fibDegSig(memM,   1, medActiveDir,   f_t("متوسطة","Med"))
+    if fibSigSmall
+        f_fibDegSig(memS,   2, smallActiveDir, f_t("صغيرة","Small"))
 
 // ===================== حدود الموجة التاريخية ==============================
 // • إذا أدخل المستخدم عدد شموع > 0: تُرسم الحدود على آخر هذا العدد من الشموع.
