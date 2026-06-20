@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.90.2", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.90.3", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -431,6 +431,8 @@ type SigCfg
     color cSell      = #AB47BC
     array<label> store
     string tag       = "Fib "
+    string markN     = "✦"   // رمز الإشارة العاديّة (M-Waves نجمة · ZigZag حرف z)
+    string markC     = "☆"   // رمز إشارة التقاطُع (M-Waves نجمة مجوّفة · ZigZag z+نجمة)
 
 updateDeg(DegMem m, bool isTop, float wick, float body, int bar, int dir, color liqCol, color lvlCol, bool sLiq, bool sLvl, int waveStart, int liqExt, int lvlExt, float bandHi, float bandLo, int liqW, int lvlW) =>
     if isTop
@@ -1390,7 +1392,7 @@ f_emitFibSig(bool up, string degName, float entry, float stop, float tgt, bool c
         string e = str.tostring(entry, format.mintick)
         string s = str.tostring(stop, format.mintick)
         string t = str.tostring(tgt, format.mintick)
-        string mk = confl ? "☆" : "✦"   // [v3.88.40] إشارة التقاطُع (داخل منطقة) = ☆ · الباقي = ✦
+        string mk = confl ? c.markC : c.markN   // رمز الإشارة حسب المحرّك (M-Waves ✦/☆ · ZigZag Ƶ/Ƶ☆)
         string body = up ? (f_t("الهدف: ","Target: ") + t + f_t("\nالدخول: ","\nEntry: ") + e + f_t("\nالوقف: ","\nStop: ") + s) : (f_t("الوقف: ","Stop: ") + s + f_t("\nالدخول: ","\nEntry: ") + e + f_t("\nالهدف: ","\nTarget: ") + t)
         string tip = mk + " " + c.tag + degName + (confl ? f_t(" · تقاطُع منطقة"," · zone confluence") : "") + "\n" + body + "\nR:R = " + (na(rrF) ? "—" : str.tostring(rrF, "#.##"))
         label lb = label.new(bar_index, entry, mk + (up ? f_t("شراء","Buy") : f_t("بيع","Sell")), yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = up ? c.cBuy : c.cSell, textcolor = color.white, size = size.small, tooltip = tip)
@@ -3707,7 +3709,7 @@ if showZigzag and barstate.islast
 
 // إشارات محرّك ZigZag المستقلّة (بعد بناء المحاور) — إعادة استخدام f_fibDegSig على DegMem مبنيّ من نقاط ZigZag · di = 3/4/5
 if zzSignals and barstate.isconfirmed
-    SigCfg zzCfg = SigCfg.new(zzSigMinRR, zzSigConflOnly, zzSigMinWave, zzSigKeepOld, zzSigColBuy, zzSigColSell, zzSigLbls, "ZigZag ")
+    SigCfg zzCfg = SigCfg.new(zzSigMinRR, zzSigConflOnly, zzSigMinWave, zzSigKeepOld, zzSigColBuy, zzSigColSell, zzSigLbls, "ZigZag ", "Ƶ", "Ƶ☆")
     if zzSigBig
         [zm3, zd3] = f_zzMem(zzP3, zzB3, zzT3)
         f_fibDegSig(zm3, 5, zd3, f_t("كبيرة","Big"),   diagInZone, zzCfg)
