@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.88.42", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.89.0", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -207,6 +207,7 @@ waveDnSmall  = input.float(1.3, "Small: lower / الصغيرة: خفض",    minv
 maxWaveSets  = input.int(2, "Max wave-sets per degree (0=all) / أقصى دفعات لكلّ درجة (0=الكلّ)", minval = 0, group = grpWave, tooltip = "Show only the latest N impulse+abc sets per degree (reduces clutter, esp. small).\nيعرض آخر N دفعة فقط لكلّ درجة (يقلّل الزحام، خاصّةً الصغيرة).")
 wcMaxPivots  = input.int(60, "Scan only last N pivots (perf) / امسح آخر N نقطة فقط (أداء)", minval = 12, maxval = 500, group = grpWave, tooltip = "Wave-count & Fibonacci scan only the most recent N pivots per degree instead of all history — fixes CPU-time errors. Lower = faster.\nالترقيم والفيبو يمسحان آخر N نقطة فقط لكلّ درجة بدل كلّ التاريخ — يحلّ خطأ CPU. الأقلّ = أسرع.")
 useWaveValidation  = input.bool(false, "Elliott validation rules (! + tooltip) / قواعد التحقّق إليوت", group = grpWave, tooltip = "Wave 2/3/4 rules ⇒ ! mark + reason in tooltip.\nقواعد الموجة 2/3/4 ⇒ علامة ! + السبب في Tooltip.")
+showFormingWave = input.bool(true, "Live forming wave (1?)-(5?) / الموجة الجارية حيّة (1?)-(5?)", group = grpWave, tooltip = "Appends a tentative live pivot (current price) so the developing impulse is numbered (1?)-(5?) — whole set tentative until wave 5 confirms; redraws/cancels each bar (no fixed wrong count). One detection pass ⇒ no overlap.\nيُلحق محورًا مؤقّتًا (السعر الحاليّ) فتُرقَّم الدفعة المتطوّرة (1?)-(5?) — كلّها مؤقّتة حتى تتأكّد الموجة 5؛ تُحدَّث/تُلغى كلّ بار (لا عدّ خاطئ ثابت). مرور واحد ⇒ بلا تراكب.")
 
 // ----- الفيبو (رسم) + الإشارات ✦ -----
 grpFib       = "🌊 إليوت/فيبو · ② الفيبو (رسم)"
@@ -3265,22 +3266,33 @@ var array<label> wcLbls = array.new<label>()
 //   صاعدة (تنتهي بقمّة): ق1 _3>_1 · ق3 _5>_2 · ق2 _W3≠الأصغر · قمّة جديدة _6>_4. هابطة: المرآة.
 //   _1 = أصل الموجة (بلا وسم)؛ الوسوم (1)(2)(3)(4)(5) على _2.._6. الدفعات غير متداخلة (lastEnd).
 f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, color col, string sz, float offUp, float offDn, int maxSets) =>
-    int n = array.size(pP)
+    // [v3.88.50 · أ] نسخة عمل + محور مؤقّت اختياريّ عند الحافّة الحيّة (الموجة الجارية) — pP الأصليّة تبقى نظيفة (الفيبو يقرأها)
+    array<float> wP = array.copy(pP)
+    array<int>   wB = array.copy(pBar)
+    array<bool>  wT = array.copy(pTop)
+    bool hasTent = false
+    if showFormingWave and array.size(pTop) > 0
+        bool tT = not array.get(pTop, array.size(pTop) - 1)   // نوع المحور المؤقّت معاكس لآخر محور مؤكَّد
+        array.push(wP, tT ? high : low)                       // قيمته = السعر الحاليّ (قمّة⇒high · قاع⇒low)
+        array.push(wB, bar_index)
+        array.push(wT, tT)
+        hasTent := true
+    int n = array.size(wP)
     if n >= 6
         // المرور 1: اعثر على نهايات الدفعات الخماسيّة الصحيحة (غير متداخلة، تحجز 3 خانات لـ abc)
         array<int> ends = array.new<int>()
         int lastEnd = -1
         for e = 5 to n - 1
             if e - 5 >= lastEnd
-                bool t6 = array.get(pTop, e)   // قمّة ⇒ دفعة صاعدة، قاع ⇒ هابطة
-                bool altOk = array.get(pTop, e-4) == t6 and array.get(pTop, e-2) == t6 and array.get(pTop, e-5) != t6 and array.get(pTop, e-3) != t6 and array.get(pTop, e-1) != t6
+                bool t6 = array.get(wT, e)   // قمّة ⇒ دفعة صاعدة، قاع ⇒ هابطة
+                bool altOk = array.get(wT, e-4) == t6 and array.get(wT, e-2) == t6 and array.get(wT, e-5) != t6 and array.get(wT, e-3) != t6 and array.get(wT, e-1) != t6
                 if altOk
-                    float p1 = array.get(pP, e-5)
-                    float p2 = array.get(pP, e-4)
-                    float p3 = array.get(pP, e-3)
-                    float p4 = array.get(pP, e-2)
-                    float p5 = array.get(pP, e-1)
-                    float p6 = array.get(pP, e)
+                    float p1 = array.get(wP, e-5)
+                    float p2 = array.get(wP, e-4)
+                    float p3 = array.get(wP, e-3)
+                    float p4 = array.get(wP, e-2)
+                    float p5 = array.get(wP, e-1)
+                    float p6 = array.get(wP, e)
                     bool isWave = false
                     if t6   // صاعدة: ق1 p3>p1 · ق3 p5>p2 · ق2 W3≠الأصغر · قمّة جديدة p6>p4
                         float mn = math.min(p2 - p1, math.min(p4 - p3, p6 - p5))
@@ -3297,17 +3309,18 @@ f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, color col, s
         if total > 0
             for s = fromI to total - 1
                 int e = array.get(ends, s)
+                bool tent = hasTent and e == n - 1   // الدفعة تنتهي عند المحور المؤقّت ⇒ كلّها مؤقّتة (1?)-(5?)
                 // [v3.88.42 · A2] تحقّق قواعد إليوت الثلاث لهذه الدفعة ⇒ tooltip على (5) + علامة ! إن خُولفت (مبوَّب useWaveValidation)
                 string vtip = ""
                 bool   anyViol = false
                 if useWaveValidation
-                    bool  t6 = array.get(pTop, e)
-                    float p1 = array.get(pP, e-5)
-                    float p2 = array.get(pP, e-4)
-                    float p3 = array.get(pP, e-3)
-                    float p4 = array.get(pP, e-2)
-                    float p5 = array.get(pP, e-1)
-                    float p6 = array.get(pP, e)
+                    bool  t6 = array.get(wT, e)
+                    float p1 = array.get(wP, e-5)
+                    float p2 = array.get(wP, e-4)
+                    float p3 = array.get(wP, e-3)
+                    float p4 = array.get(wP, e-2)
+                    float p5 = array.get(wP, e-1)
+                    float p6 = array.get(wP, e)
                     bool  r1 = t6 ? (p3 > p1) : (p1 > p3)   // ق1: الموجة2 لا تتجاوز بداية الموجة1
                     bool  r2 = math.abs(p4 - p3) != math.min(math.abs(p2 - p1), math.min(math.abs(p4 - p3), math.abs(p6 - p5)))   // ق2: الموجة3 ليست الأقصر
                     bool  r3 = t6 ? (p5 > p2) : (p2 > p5)   // ق3: الموجة4 لا تدخل أرض الموجة1
@@ -3316,13 +3329,13 @@ f_drawWaveCount(array<float> pP, array<int> pBar, array<bool> pTop, color col, s
                 for w = 0 to 7   // 0-4 ⇒ (1)-(5)، 5-7 ⇒ (a)(b)(c) [التصحيح بعد الموجة 5]
                     int idx = e - 4 + w
                     if idx < n
-                        string lbl  = w <= 4 ? "(" + str.tostring(w + 1) + ")" : (w == 5 ? "(a)" : w == 6 ? "(b)" : "(c)")
-                        if useWaveValidation and w == 4 and anyViol   // ! على (5) عند مخالفة (لا يحدث مع الكشف الصارم — احتياط مستقبليّ)
+                        string lbl  = w <= 4 ? ("(" + str.tostring(w + 1) + (tent ? "?" : "") + ")") : (w == 5 ? "(a)" : w == 6 ? "(b)" : "(c)")   // الموجة الجارية ⇒ (1?)-(5?)
+                        if useWaveValidation and w == 4 and anyViol and not tent   // ! على (5) عند مخالفة (لا للمؤقّتة)
                             lbl := lbl + " !"
-                        bool   isTop = array.get(pTop, idx)
-                        float  py    = array.get(pP, idx) + (isTop ? offUp : -offDn)
-                        if bar_index - array.get(pBar, idx) < 4900
-                            label lb = label.new(array.get(pBar, idx), py, lbl, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz, tooltip = (useWaveValidation and w == 4) ? vtip : "")
+                        bool   isTop = array.get(wT, idx)
+                        float  py    = array.get(wP, idx) + (isTop ? offUp : -offDn)
+                        if bar_index - array.get(wB, idx) < 4900
+                            label lb = label.new(array.get(wB, idx), py, lbl, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_none, textcolor = col, size = sz, tooltip = (useWaveValidation and w == 4 and not tent) ? vtip : (tent ? f_t("موجة جارية (مؤقّتة) — تتأكّد أو تُلغى مع السعر","Forming wave (tentative) — confirms or cancels with price") : ""))
                             array.push(wcLbls, lb)
 // ===== [v3.88.23 · B1/B2] فيبوناتشي — على آخر ساق دافعة فعّالة بالاتجاه (ارتداد=دخول · امتداد=هدف أماميّ) =====
 var array<line>  fibLines   = array.new<line>()
