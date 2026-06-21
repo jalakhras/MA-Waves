@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.91.0", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.91.6", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -39,8 +39,6 @@ showSmall = input.bool(true,  "Small pivots (red/green) / الصغيرة (أحم
 showMed   = input.bool(true,  "Medium degree (orange) / المتوسطة (برتقالي)",  group = grpShow)
 showBig   = input.bool(true,  "Big degree (blue) / الكبيرة (أزرق)",      group = grpShow)
 showPending = input.bool(true, "Pending circles (grey) / الدوائر المعلّقة (رماديّة)", group = grpShow)
-showArrows = input.bool(true, "All small arrows / كل الأسهم الصغيرة", group = grpShow,
-     tooltip = "Show/hide every small pivot arrow (connector lines keep their own toggle).\nإظهار/إخفاء كل الأسهم الصغيرة (الخطوط الواصلة بمفتاحها).")
 linkSmall = input.bool(true,  "Link small pivots / وصل الصغيرة بخطوط", group = grpShow)
 linkMed   = input.bool(true,  "Link medium pivots / وصل المتوسطة بخطوط", group = grpShow)
 linkBig   = input.bool(true,  "Link big pivots / وصل الكبيرة بخطوط",  group = grpShow)
@@ -1053,25 +1051,22 @@ bool d4Dn = d4Valid and d4DnRaw   // كسر آخر قاع ⇒ تأكيد بيع 
 
 // دالّة رسم سهم صغير مصمت (الطرف على الذيل) وتُعيد الكائن لإمكان حذفه/إعادة تلوينه
 drawSArrow(bool isTop, float px, int bar, color colA) =>
-    polyline result = na
-    if showArrows
-        float slen    = arrLenAtr * atrv
-        float headH   = slen * 0.45                                  // ارتفاع رأس السهم (متناسق)
-        int   headWb  = math.max(1, arrWidth)                        // نصف عرض الرأس (شموع) — يتبع المدخل مباشرةً
-        int   shaftWb = math.max(1, int(math.round(headWb * 0.45)))  // نصف عرض الساق ≈ نصف الرأس
-        shaftWb := math.min(shaftWb, math.max(1, headWb - 1))        // الرأس أعرض من الساق دائماً
-        float yShaft  = isTop ? px + slen  : px - slen
-        float yHead   = isTop ? px + headH : px - headH
-        pts = array.new<chart.point>()
-        array.push(pts, chart.point.from_index(bar,           px))   // طرف السهم على النقطة
-        array.push(pts, chart.point.from_index(bar - headWb,  yHead))
-        array.push(pts, chart.point.from_index(bar - shaftWb, yHead))
-        array.push(pts, chart.point.from_index(bar - shaftWb, yShaft))
-        array.push(pts, chart.point.from_index(bar + shaftWb, yShaft))
-        array.push(pts, chart.point.from_index(bar + shaftWb, yHead))
-        array.push(pts, chart.point.from_index(bar + headWb,  yHead))
-        result := polyline.new(pts, closed = true, xloc = xloc.bar_index, line_color = colA, fill_color = colA, line_width = 1)
-    result
+    float slen    = arrLenAtr * atrv
+    float headH   = slen * 0.45                                  // ارتفاع رأس السهم (متناسق)
+    int   headWb  = math.max(1, arrWidth)                        // نصف عرض الرأس (شموع) — يتبع المدخل مباشرةً
+    int   shaftWb = math.max(1, int(math.round(headWb * 0.45)))  // نصف عرض الساق ≈ نصف الرأس
+    shaftWb := math.min(shaftWb, math.max(1, headWb - 1))        // الرأس أعرض من الساق دائماً
+    float yShaft  = isTop ? px + slen  : px - slen
+    float yHead   = isTop ? px + headH : px - headH
+    pts = array.new<chart.point>()
+    array.push(pts, chart.point.from_index(bar,           px))   // طرف السهم على النقطة
+    array.push(pts, chart.point.from_index(bar - headWb,  yHead))
+    array.push(pts, chart.point.from_index(bar - shaftWb, yHead))
+    array.push(pts, chart.point.from_index(bar - shaftWb, yShaft))
+    array.push(pts, chart.point.from_index(bar + shaftWb, yShaft))
+    array.push(pts, chart.point.from_index(bar + shaftWb, yHead))
+    array.push(pts, chart.point.from_index(bar + headWb,  yHead))
+    polyline.new(pts, closed = true, xloc = xloc.bar_index, line_color = colA, fill_color = colA, line_width = 1)
 
 // حالة الدرجة الصغيرة: لا تُرسم القمة/القاع إلا بعد تأكّدها (تتابُع + فعالية)
 var float ldTopP   = na   // آخر قمة مرسومة (مؤكّدة)
@@ -1093,15 +1088,11 @@ var array<int>      sArrB = array.new<int>()
 // يرسم سهماً صغيراً ويخزّنه — مع فرض التناوب (لا نقطتان من نفس النوع متتاليتين)
 // يأخذ نوع آخر نقطة ويُعيد النوع الجديد (تفادياً لتعديل متغيّر عام داخل دالّة)
 storeSArrow(bool isTop, float px, int bar, color colA, int lastType) =>
-    if (isTop and lastType == 1) or ((not isTop) and lastType == -1)
-        // نفس نوع آخر نقطة: استبدل السابق بالأبعد (احذفه)
-        if array.size(sArr) > 0
-            polyline.delete(array.last(sArr))
-            array.pop(sArr)
-            array.pop(sArrB)
+    // [v3.91.6] دفع بسيط **بلا استبدال/حذف** — مبدأ المستخدم: لا نبني ثمّ نحذف. التناوب تضمنه آليّة المعلَّق
+    //   (لا تُرسم نقطة إلّا مع شريكها المعاكس بعد فحص الفعاليّة) ⇒ لا قمّتان/قاعان متتاليان من الأساس، فلا حاجة لحذف.
     array.push(sArr, drawSArrow(isTop, px, bar, colA))
     array.push(sArrB, bar)
-    if array.size(sArr) > 400   // [V3.45] سقف ذاكرة: قصّ الأقدم (تفادي نموّ sArr/sArrB بلا حدّ عبر التاريخ + تخفيف حلقة المسح)
+    if array.size(sArr) > 400   // سقف ذاكرة فقط (لا علاقة له بالقوانين)
         polyline.delete(array.shift(sArr))
         array.shift(sArrB)
     isTop ? 1 : -1
@@ -1500,6 +1491,7 @@ if barstate.isconfirmed
         // اتجاه الموجة الصغيرة النشطة (يُحسب قبل الرسم): يبدأ = اتجاه الموجة التاريخية،
         //   ولا ينقلب إلا بكسر البنية: قمة أعلى من آخر قمة ⇒ صاعدة، قاع أدنى من آخر قاع ⇒ هابطة.
         //   (= قاعدة الدرس: كسر آخر قاع صعوداً / آخر قمة هبوطاً يبدأ موجة صغيرة جديدة.)
+        int prevSmallDir = smallActiveDir
         if smallActiveDir == 0
             // [D] التمهيد من المصدر البنيوي للأكبر (largeDir) أولاً؛ نافذة bigDir احتياط أخير فقط
             int sBoot = largeDir != 0 ? largeDir : bigDir
@@ -1509,6 +1501,11 @@ if barstate.isconfirmed
             smallActiveDir := 1
         if (not isTop) and not na(memS.lbP) and sPx < memS.lbP
             smallActiveDir := -1
+        // [v3.91.3] انعكاس الموجة الصغيرة ⇒ صفّر مرجع فعاليّة العرض (ldTopP/ldBotP) لئلّا تُقارَن نقاط الموجة الجديدة
+        //   بقمّة/قاع الموجة السابقة (مرجع قديم = سلبيّ كاذب يُخفي نقاطًا فعّالة). الموجة الجديدة تبدأ مرجعها من نقطتها الأولى.
+        if smallActiveDir != prevSmallDir and prevSmallDir != 0
+            ldTopP := na
+            ldBotP := na
         if showSmall and sBar >= drawLeft
             // آلية موحّدة: النقطة لا تُرسم إلا عند تكوّن شريكها المعاكس.
             //   • لا معلّقة ⇒ اجعل الحالية معلّقة (لا ترسم بعد).
@@ -1524,10 +1521,11 @@ if barstate.isconfirmed
                     pendP := sPx
                     pendBar := sBar
             else
-                // [ق3 الفعاليّة، v3.87.5 — الدرس 05] النقطة التصحيحيّة لا تُرسم إلّا إن أُكِّدت بتطرّف معاكس:
-                //   صعودًا (smallActiveDir==1) القاع المعلّق فعّال إن صنعت القمّةُ التاليةُ (sPx) سعرًا أعلى من
-                //   القمّة المرسومة السابقة (ldTopP)؛ هبوطًا القمّة المعلّقة فعّالة بقاعٍ تالٍ (sPx) أدنى من السابق (ldBotP).
-                //   الدافعة (قمّة صعودًا/قاع هبوطًا) تُرسم دائمًا. الحالة تتقدّم سواء رُسمت أم لا (تصويريّ فقط، لا يمسّ تغذية المتوسطة).
+                // [الدرس 05 — ق2 تتابُع + ق3 فعاليّة] النقطة التصحيحيّة لا تُرسم إلّا إن أكّدها تطرّف معاكس **فعّال**:
+                //   صعودًا (dir=1): القاع المعلّق فعّال إن صنعت القمّةُ التاليةُ (sPx) سعرًا **أعلى** من آخر قمّة مرسومة (ldTopP).
+                //   هبوطًا (dir=-1): القمّة المعلّقة فعّالة بقاعٍ تالٍ (sPx) **أدنى** من آخر قاع مرسوم (ldBotP).
+                //   الترفيع داخل corrEffS ⇒ القمّة غير الصاعدة تُسقَط هي وقاعها (ق2). والمرجع (ldTopP/ldBotP) يُصفَّر
+                //   عند **انعكاس الموجة** (أعلاه) ⇒ تُقارَن نقاط الموجة الجديدة بمرجعها لا بالموجة السابقة (لا سلبيّ كاذب).
                 bool corrEffS = true
                 if smallActiveDir == 1 and pendType == -1
                     corrEffS := na(ldTopP) or sPx > ldTopP
@@ -1546,9 +1544,9 @@ if barstate.isconfirmed
                     else
                         ldBotP := pendP
                         ldBotBar := pendBar
-                pendP := sPx
-                pendBar := sBar
-                pendType := curType
+                    pendP := sPx
+                    pendBar := sBar
+                    pendType := curType
         lastSmallP := sPx
         lastSmallBar := sBar
         // [تشخيص] خزّن نقطة الصغيرة بالترتيب (لجدول الاشتقاق صغيرة→متوسطة→كبيرة)
@@ -1624,15 +1622,9 @@ if barstate.isconfirmed
             bool upW     = corrDir == 1
             bool corrEnd = (upW and not eTopM) or ((not upW) and eTopM)
             if corrEnd
-                // (M5) نظافة التصحيح المتوسط: امسح الأسهم الصغيرة المرسومة الواقعة داخل
-                //   ساق التصحيح (lastMedBar → eBM) حصراً — مسح بصري لا يمسّ حالة الصغيرة.
-                if not na(lastMedBar) and array.size(sArrB) > 0   // قاعدة الدرس (دائمة): التصحيح المتوسط يخلو من الأسهم الصغيرة
-                    for k = array.size(sArrB) - 1 to 0
-                        int ab = array.get(sArrB, k)
-                        if ab > lastMedBar and ab < eBM
-                            polyline.delete(array.get(sArr, k))
-                            array.remove(sArr, k)
-                            array.remove(sArrB, k)
+                // [v3.91.6] أُزيل **مسح أسهم التصحيح المتوسط + إعادة بنائها** (كان build-then-delete يخالف مبدأ المستخدم
+                //   ويكسر التناوب فيحذف قيعانًا/قممًا سليمة). الأسهم الصغيرة الصالحة تبقى ظاهرة (آليّة المعلَّق بنتها صحيحةً متناوبةً).
+                //   «نظافة التصحيح المتوسط» (الدرس) تُؤجَّل لميزة **تعتيم** لاحقة (لا حذف). يبقى فقط إعادة تأسيس مرجع فعاليّة الصغيرة:
                 if upW
                     ldBotP := ePM
                     ldBotBar := eBM
@@ -1643,7 +1635,6 @@ if barstate.isconfirmed
                     ldBotP := na
                 ldAnyP := ePM
                 ldAnyBar := eBM
-                ldType := 0
             lastMedP := ePM
             lastMedBar := eBM
             array.push(medBars, eBM)
