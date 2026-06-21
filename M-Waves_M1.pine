@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.90.8", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.91.0", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -2597,10 +2597,16 @@ if (showBig or showWaveCountBig or (showFib and (fibRetrBig or fibExtBig))) and 
         array.push(kB, pendEffB)
         array.push(kT, histDir != 1)
         pendEffP := na
-    // النقطة الزرقاء الحدودية المثبّتة عند histLeft (بداية الـleg الكبير النشط) — تُرسم دائماً.
-    //   صاعدة ⇒ قاع أزرق حدودي؛ هابطة ⇒ قمة زرقاء حدودية. لا تخضع لحذف الفعالية.
-    if (not useBigBreak) and not na(pinBP)
-        bool dup = array.size(kB) > 0 and array.get(kB, array.size(kB) - 1) == pinBB
+    // النقطة الزرقاء الحدودية المثبّتة عند histLeft (بداية الموجة التاريخية = نهاية الموجة السابقة = تطرّف كبير مؤكَّد)
+    //   — تُثبَّت زرقاء في **كلّ المسارات** [قرار المستخدم 2026-06-21: البداية = صغير+متوسط+كبير، تداخل الدرجات؛
+    //   ليست كبيرًا مُخترَعًا بل موروثًا من نهاية الموجة الكبيرة السابقة ⇒ لا تخالف الفعالية]. صاعدة ⇒ قاع أزرق · هابطة ⇒ قمة زرقاء.
+    if not na(pinBP)
+        bool dup = false
+        if array.size(kB) > 0
+            for di = 0 to array.size(kB) - 1
+                if array.get(kB, di) == pinBB
+                    dup := true
+                    break
         if not dup
             array.push(kP, pinBP)
             array.push(kLvl, pinBL)
