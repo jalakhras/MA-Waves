@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.92.7", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.92.8", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -36,6 +36,8 @@ confSmallRev = input.bool(true, "Confirm small-wave reversal by close break / ت
      tooltip = "[G1] Small-wave direction flips only when the pivot candle BODY (close side) breaks the last small peak/trough — not a momentary wick. Reduces whipsaw flips in ranges.\n[G1] اتجاه الصغيرة ينقلب فقط حين يكسر جسم شمعة النقطة (جهة الإغلاق) آخر قمّة/قاع صغير — لا ذيلًا لحظيًّا. يقلّل الانقلاب الذبذبيّ في العرضيّ.")
 feedMedFromEffective = input.bool(true, "Feed medium from effective small pivots only / تغذية المتوسطة بالصغيرة الفعّالة فقط", group = grpEng,
      tooltip = "[M1] Medium extraction consumes only confirmed/effective small pivots (drawn ones that passed corrEffS), not raw emits. Cleaner medium structure per lesson 06.\n[M1] استخراج المتوسطة يستهلك القمم/القيعان الصغيرة الفعّالة المؤكَّدة (المرسومة التي اجتازت corrEffS) فقط، لا الانبثاقات الخام. بنية متوسطة أنظف وفق الدرس 06.")
+medFirstAfterBreak = input.bool(true, "Medium pivot = first effective small pivot after break (not extreme) / النقطة المتوسطة = أوّل صغيرة فعّالة بعد الكسر لا الأقصى", group = grpEng,
+     tooltip = "[Lesson06] Producing event = the break OPPOSITE to the active medium wave (medActiveDir): up=small-trough break, down=small-peak break. Each break emits the PAIR — 'before' = extreme matching the wave (highest peak / lowest trough before), 'after' = the breaking pivot itself (first, not extreme). false = legacy alternating extreme-tracking.\n[الدرس06] الحدث المُنتِج = الكسر المعاكس لاتجاه الموجة المتوسطة (medActiveDir): صعودًا كسر قاع، هبوطًا كسر قمّة. كل كسر يُخرج الزوج — «قبله» = الأقصى الموافق للاتجاه، «بعده» = النقطة الكاسرة نفسها (أوّل لا أقصى). false = التتبّع المتناوب القديم للأقصى.")
 
 // ----- 👁️ Display & Layers -----
 grpShow   = "👁️ Display & Layers / الإظهار والطبقات"
@@ -402,6 +404,77 @@ feed(Proc s, float p, float bHi, float bLo, int t, int b, bool isTop) =>
                 s.minBotTime := t
         s.prevBotP := p
     [emitted, eP, eBHi, eBLo, eTime, eB, eTop]
+
+// [الدرس06 v3.92.8] معالج المتوسطة بقاعدة «أوّل لا أقصى» + الزوج، بحسب اتجاه الموجة المتوسطة wdir.
+//   الحدث المُنتِج = الكسر **المعاكس** لاتجاه الموجة (لا dir المتناوب الداخليّ):
+//     صعودًا (wdir==1): الحدث = كسر قاع صغير (p < prevBotP). تجاوز القمم = استمرار، لا نقطة.
+//     هبوطًا (wdir==-1): الحدث = كسر قمّة صغيرة (p > prevTopP). كسر القيعان = استمرار، لا نقطة.
+//   يُخرج الزوج: «قبله» = الأقصى الموافق للاتجاه قبل الكسر (صعودًا أعلى قمّة maxTop / هبوطًا أدنى قاع minBot)؛
+//     «بعده» = النقطة الكاسرة نفسها (الحاليّة) عبر emit2 — بلا تتبّع أقصى وبلا تأخير. التناوب تلقائيّ (نوعان متعاكسان).
+feedMedPair(Proc s, float p, float bHi, float bLo, int t, int b, bool isTop, int wdir) =>
+    bool  emitted = false
+    bool  emit2   = false
+    float eP      = na
+    float eBHi    = na
+    float eBLo    = na
+    int   eTime   = na
+    int   eB      = na
+    bool  eTop    = false
+    if wdir == 1
+        if isTop
+            // قمّة في موجة صاعدة: تتبّع أعلى قمّة (= «قبله» المرتقَبة)
+            if na(s.maxTopP) or p > s.maxTopP
+                s.maxTopP := p
+                s.maxTopBHi := bHi
+                s.maxTopBLo := bLo
+                s.maxTopBar := b
+                s.maxTopTime := t
+            s.prevTopP := p
+        else
+            // قاع: إن كسر آخر قاع للأسفل ⇒ نهاية تصحيح ⇒ أخرِج الزوج (قمّة قبله + هذا القاع بعده)
+            if not na(s.prevBotP) and p < s.prevBotP and not na(s.maxTopP)
+                emitted := true
+                eP := s.maxTopP
+                eBHi := s.maxTopBHi
+                eBLo := s.maxTopBLo
+                eTime := s.maxTopTime
+                eB := s.maxTopBar
+                eTop := true
+                emit2 := true
+                s.maxTopP := na
+                s.maxTopBHi := na
+                s.maxTopBLo := na
+                s.maxTopBar := na
+                s.maxTopTime := na
+            s.prevBotP := p
+    else if wdir == -1
+        if not isTop
+            // قاع في موجة هابطة: تتبّع أدنى قاع (= «قبله» المرتقَبة)
+            if na(s.minBotP) or p < s.minBotP
+                s.minBotP := p
+                s.minBotBHi := bHi
+                s.minBotBLo := bLo
+                s.minBotBar := b
+                s.minBotTime := t
+            s.prevBotP := p
+        else
+            // قمّة: إن كسرت آخر قمّة للأعلى ⇒ نهاية تصحيح ⇒ أخرِج الزوج (قاع قبله + هذه القمّة بعده)
+            if not na(s.prevTopP) and p > s.prevTopP and not na(s.minBotP)
+                emitted := true
+                eP := s.minBotP
+                eBHi := s.minBotBHi
+                eBLo := s.minBotBLo
+                eTime := s.minBotTime
+                eB := s.minBotBar
+                eTop := false
+                emit2 := true
+                s.minBotP := na
+                s.minBotBHi := na
+                s.minBotBLo := na
+                s.minBotBar := na
+                s.minBotTime := na
+            s.prevTopP := p
+    [emitted, eP, eBHi, eBLo, eTime, eB, eTop, emit2]
 
 // ============== ذاكرة الدرجة + رسم السيولة والمستويات ===================
 // لكل درجة: نحفظ آخر قمتين/قاعين (ذيل + جسم + شمعة)، ثم:
@@ -1587,6 +1660,7 @@ if barstate.isconfirmed
         // --- الدرجة المتوسطة [M1 v3.92.7] تُغذّى بالنقطة الصغيرة **الفعّالة المرسومة** (cf*) حين feedMedFromEffective — لا الخام (sPx) ---
         //   النقطة غير الفعّالة (المُسقَطة من corrEffS) ليست جزءًا من البنية ⇒ لا تدخل استخراج المتوسطة (قاعدة الدرس 06).
         bool  emM    = false
+        bool  emit2M = false
         float ePM    = na
         float eBHiM  = na
         float eBLoM  = na
@@ -1595,14 +1669,27 @@ if barstate.isconfirmed
         bool  eTopM  = false
         if feedMedFromEffective
             if cfHas
-                [xemM, xePM, xeBHiM, xeBLoM, xeTimeM, xeBM, xeTopM] = feed(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop)
-                emM    := xemM
-                ePM    := xePM
-                eBHiM  := xeBHiM
-                eBLoM  := xeBLoM
-                eTimeM := xeTimeM
-                eBM    := xeBM
-                eTopM  := xeTopM
+                if medFirstAfterBreak
+                    // [الدرس06 v3.92.8] معالج «أوّل لا أقصى» + الزوج بحسب اتجاه الموجة المتوسطة (wdir = medActiveDir مع تمهيد largeDir/bigDir عند الصفر)
+                    int wdirM = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
+                    [zemM, zePM, zeBHiM, zeBLoM, zeTimeM, zeBM, zeTopM, zemit2M] = feedMedPair(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop, wdirM)
+                    emM    := zemM
+                    ePM    := zePM
+                    eBHiM  := zeBHiM
+                    eBLoM  := zeBLoM
+                    eTimeM := zeTimeM
+                    eBM    := zeBM
+                    eTopM  := zeTopM
+                    emit2M := zemit2M
+                else
+                    [xemM, xePM, xeBHiM, xeBLoM, xeTimeM, xeBM, xeTopM] = feed(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop)
+                    emM    := xemM
+                    ePM    := xePM
+                    eBHiM  := xeBHiM
+                    eBLoM  := xeBLoM
+                    eTimeM := xeTimeM
+                    eBM    := xeBM
+                    eTopM  := xeTopM
         else
             [yemM, yePM, yeBHiM, yeBLoM, yeTimeM, yeBM, yeTopM] = feed(pmed, sPx, sBHi, sBLo, sTime, sBar, isTop)
             emM    := yemM
@@ -1716,6 +1803,73 @@ if barstate.isconfirmed
             // ملاحظة [صُحّح v3.87.12]: اتجاه الكبيرة من bigDirLvl (حالتان، §07) يُقرأ islast.
             //         بناء قمم/قيعان الكبيرة (آخر ~7 موجات) يتمّ **لاحقاً** (§07، islast)
             //         بالاستخراج **بالكسر** من المتوسطة الفعّالة (المسار الافتراضيّ useBigBreak) — لا اشتقاق إنلاين هنا.
+
+        // [الدرس06 v3.92.8] «بعده» = النقطة الكاسرة الحاليّة (cf*) ⇒ ارسمها نقطةً متوسطة فعّالة بعد «قبله» مباشرةً (الزوج، بالترتيب الزمنيّ)
+        if emit2M
+            float levelM2 = cfTop ? cfBHi : cfBLo
+            label mlbl2 = na
+            label mlblO2 = na
+            if showMed and cfBar >= drawLeft
+                mlblO2 := label.new(cfBar, cfP, "", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_circle, color = cMedBorder, size = f_lblSize(medCircleSize))
+                mlbl2  := label.new(cfBar, cfP, "", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_circle, color = cMed, size = f_lblSizeIn(medCircleSize))
+            array.push(mcP, cfP)
+            array.push(mcLvl, levelM2)
+            array.push(mcHi, cfBHi)
+            array.push(mcLo, cfBLo)
+            array.push(mcBar, cfBar)
+            array.push(mcTm, cfTime)
+            array.push(mcTop, cfTop)
+            array.push(mcEff, true)
+            array.push(mcLbl, mlbl2)
+            array.push(mcLblO, mlblO2)
+            emittedMedBar := true
+            if array.size(mcP) > 150
+                label oldLbl2 = array.get(mcLbl, 0)
+                if not na(oldLbl2)
+                    label.delete(oldLbl2)
+                label oldLblO2 = array.get(mcLblO, 0)
+                if not na(oldLblO2)
+                    label.delete(oldLblO2)
+                array.shift(mcP)
+                array.shift(mcLvl)
+                array.shift(mcHi)
+                array.shift(mcLo)
+                array.shift(mcBar)
+                array.shift(mcTm)
+                array.shift(mcTop)
+                array.shift(mcEff)
+                array.shift(mcLbl)
+                array.shift(mcLblO)
+            if linkMed and not na(lastMedBar) and cfBar >= drawLeft
+                line.new(lastMedBar, lastMedP, cfBar, cfP, xloc = xloc.bar_index, color = cLineM, width = 2)
+            // «بعده» = نهاية التصحيح (نوع معاكس للاتجاه) ⇒ أعد تأسيس مراجع فعاليّة الصغيرة (موجة صغيرة جديدة)
+            int  corrDir2 = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
+            bool upW2     = corrDir2 == 1
+            bool corrEnd2 = (upW2 and not cfTop) or ((not upW2) and cfTop)
+            if corrEnd2
+                if upW2
+                    ldBotP := cfP
+                    ldBotBar := cfBar
+                    ldTopP := na
+                else
+                    ldTopP := cfP
+                    ldTopBar := cfBar
+                    ldBotP := na
+                ldAnyP := cfP
+                ldAnyBar := cfBar
+            lastMedP := cfP
+            lastMedBar := cfBar
+            array.push(medBars, cfBar)
+            if array.size(medBars) > 20
+                array.shift(medBars)
+            int mActive2 = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
+            updateDeg(memM, cfTop, cfP, levelM2, cfBar, mActive2, cLiqM, cLvlM, false, false, medGate, liqExtBars, lvlExtBars, hwHiBand, hwLoBand, wMed, wMed)
+            phaseOnPivot(medPh, cfTop, cfP, cfBar)
+            [embp2, ePbp2, eHibp2, eLobp2, eTbp2, eBbp2, eTopbp2] = feed(pbigPh, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop)
+            if embp2
+                int bDirPiv2 = largeDir != 0 ? largeDir : bigDir
+                updateDeg(memBph, eTopbp2, ePbp2, (eTopbp2 ? eHibp2 : eLobp2), eBbp2, bDirPiv2, na, na, false, false, na, 0, 0, na, na, 2, 2)
+                phaseOnPivot(bigPh, eTopbp2, ePbp2, eBbp2)
 
     // ===== كاشف كسر خط السيولة المتوسط (نصف الجسم) — أساس المراحل الخمس =====
     // الكسر = إغلاق شمعة خلف خط السيولة بأكثر من نصف جسمها.
