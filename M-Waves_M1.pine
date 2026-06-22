@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.92.8", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.92.9", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -36,8 +36,6 @@ confSmallRev = input.bool(true, "Confirm small-wave reversal by close break / ت
      tooltip = "[G1] Small-wave direction flips only when the pivot candle BODY (close side) breaks the last small peak/trough — not a momentary wick. Reduces whipsaw flips in ranges.\n[G1] اتجاه الصغيرة ينقلب فقط حين يكسر جسم شمعة النقطة (جهة الإغلاق) آخر قمّة/قاع صغير — لا ذيلًا لحظيًّا. يقلّل الانقلاب الذبذبيّ في العرضيّ.")
 feedMedFromEffective = input.bool(true, "Feed medium from effective small pivots only / تغذية المتوسطة بالصغيرة الفعّالة فقط", group = grpEng,
      tooltip = "[M1] Medium extraction consumes only confirmed/effective small pivots (drawn ones that passed corrEffS), not raw emits. Cleaner medium structure per lesson 06.\n[M1] استخراج المتوسطة يستهلك القمم/القيعان الصغيرة الفعّالة المؤكَّدة (المرسومة التي اجتازت corrEffS) فقط، لا الانبثاقات الخام. بنية متوسطة أنظف وفق الدرس 06.")
-medFirstAfterBreak = input.bool(true, "Medium pivot = first effective small pivot after break (not extreme) / النقطة المتوسطة = أوّل صغيرة فعّالة بعد الكسر لا الأقصى", group = grpEng,
-     tooltip = "[Lesson06] Producing event = the break OPPOSITE to the active medium wave (medActiveDir): up=small-trough break, down=small-peak break. Each break emits the PAIR — 'before' = extreme matching the wave (highest peak / lowest trough before), 'after' = the breaking pivot itself (first, not extreme). false = legacy alternating extreme-tracking.\n[الدرس06] الحدث المُنتِج = الكسر المعاكس لاتجاه الموجة المتوسطة (medActiveDir): صعودًا كسر قاع، هبوطًا كسر قمّة. كل كسر يُخرج الزوج — «قبله» = الأقصى الموافق للاتجاه، «بعده» = النقطة الكاسرة نفسها (أوّل لا أقصى). false = التتبّع المتناوب القديم للأقصى.")
 
 // ----- 👁️ Display & Layers -----
 grpShow   = "👁️ Display & Layers / الإظهار والطبقات"
@@ -1669,27 +1667,18 @@ if barstate.isconfirmed
         bool  eTopM  = false
         if feedMedFromEffective
             if cfHas
-                if medFirstAfterBreak
-                    // [الدرس06 v3.92.8] معالج «أوّل لا أقصى» + الزوج بحسب اتجاه الموجة المتوسطة (wdir = medActiveDir مع تمهيد largeDir/bigDir عند الصفر)
-                    int wdirM = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
-                    [zemM, zePM, zeBHiM, zeBLoM, zeTimeM, zeBM, zeTopM, zemit2M] = feedMedPair(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop, wdirM)
-                    emM    := zemM
-                    ePM    := zePM
-                    eBHiM  := zeBHiM
-                    eBLoM  := zeBLoM
-                    eTimeM := zeTimeM
-                    eBM    := zeBM
-                    eTopM  := zeTopM
-                    emit2M := zemit2M
-                else
-                    [xemM, xePM, xeBHiM, xeBLoM, xeTimeM, xeBM, xeTopM] = feed(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop)
-                    emM    := xemM
-                    ePM    := xePM
-                    eBHiM  := xeBHiM
-                    eBLoM  := xeBLoM
-                    eTimeM := xeTimeM
-                    eBM    := xeBM
-                    eTopM  := xeTopM
+                // [الدرس06 v3.92.9 — تنظيف: feedMedPair كور] معالج «أوّل لا أقصى» + الزوج هو المسار الثابت الوحيد للمتوسطة الفعّالة (بلا input)
+                //   (wdir = medActiveDir مع تمهيد largeDir/bigDir عند الصفر — مصدر مؤقّت [D1]؛ يُربَط بخط المستوى في 08/09)
+                int wdirM = medActiveDir != 0 ? medActiveDir : (largeDir != 0 ? largeDir : bigDir)
+                [zemM, zePM, zeBHiM, zeBLoM, zeTimeM, zeBM, zeTopM, zemit2M] = feedMedPair(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop, wdirM)
+                emM    := zemM
+                ePM    := zePM
+                eBHiM  := zeBHiM
+                eBLoM  := zeBLoM
+                eTimeM := zeTimeM
+                eBM    := zeBM
+                eTopM  := zeTopM
+                emit2M := zemit2M
         else
             [yemM, yePM, yeBHiM, yeBLoM, yeTimeM, yeBM, yeTopM] = feed(pmed, sPx, sBHi, sBLo, sTime, sBar, isTop)
             emM    := yemM
