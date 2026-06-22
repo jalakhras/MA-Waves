@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.91.6", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.92.4", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -750,8 +750,6 @@ var int   curLoBar  = na
 var int   curLoTime = na
 var int   corr      = 0      // عدّاد شموع التصحيح الصحيحة
 var float corrRef   = na     // مرجع تدرّج التصحيح (أدنى/أعلى آخر شمعة مُحتسبة)
-var float corrPrevBHi = na   // أعلى جسم آخر شمعة تصحيح مُحتسبة (لفحص الابتلاع)
-var float corrPrevBLo = na   // أسفل جسمها
 
 var Proc pmed = Proc.new()  // معالج المتوسطة (يُغذّى بالصغيرة)
 
@@ -1404,24 +1402,14 @@ if barstate.isconfirmed
             curHiTime := time
             corr := 0
             corrRef := na
-            corrPrevBHi := na
-            corrPrevBLo := na
         else if isValid and bear
-            float bHiC = math.max(open, close)
-            float bLoC = math.min(open, close)
+            // [v3.92.0 تنظيف] التصحيح = شمعتان حمراوان «تحت بعض» (الدرس) — بلا فلتر ابتلاع (ليس في الدرس المنطوق ولا مراجعة مصعب)
             if corr == 0
                 corr := 1
                 corrRef := low
-                corrPrevBHi := bHiC
-                corrPrevBLo := bLoC
             else if low < corrRef
-                // فحص الابتلاع: لا تُحتسب إن ابتلع جسمها جسم السابقة أو العكس
-                bool engulf = (bHiC >= corrPrevBHi and bLoC <= corrPrevBLo) or (corrPrevBHi >= bHiC and corrPrevBLo <= bLoC)
-                if not engulf
-                    corr := corr + 1
-                    corrRef := low
-                    corrPrevBHi := bHiC
-                    corrPrevBLo := bLoC
+                corr := corr + 1
+                corrRef := low
             if corr >= minCorr
                 emitSmallTop := true
                 sPx := curHi
@@ -1437,8 +1425,6 @@ if barstate.isconfirmed
                 curLoTime := time
                 corr := 0
                 corrRef := na
-                corrPrevBHi := na
-                corrPrevBLo := na
     else
         // موجة هابطة: القاع = أدنى سعر قبل التصحيح. التصحيح = شمعتان صحيحتان
         // كل واحدة قمّتها أعلى من سابقتها (لا يُشترط تتابُعهما زمنياً).
@@ -1450,23 +1436,14 @@ if barstate.isconfirmed
             curLoTime := time
             corr := 0
             corrRef := na
-            corrPrevBHi := na
-            corrPrevBLo := na
         else if isValid and bull
-            float bHiC = math.max(open, close)
-            float bLoC = math.min(open, close)
+            // [v3.92.0 تنظيف] التصحيح = شمعتان خضراوان «فوق بعض» (الدرس) — بلا فلتر ابتلاع (ليس في الدرس المنطوق ولا مراجعة مصعب)
             if corr == 0
                 corr := 1
                 corrRef := high
-                corrPrevBHi := bHiC
-                corrPrevBLo := bLoC
             else if high > corrRef
-                bool engulf = (bHiC >= corrPrevBHi and bLoC <= corrPrevBLo) or (corrPrevBHi >= bHiC and corrPrevBLo <= bLoC)
-                if not engulf
-                    corr := corr + 1
-                    corrRef := high
-                    corrPrevBHi := bHiC
-                    corrPrevBLo := bLoC
+                corr := corr + 1
+                corrRef := high
             if corr >= minCorr
                 emitSmallBot := true
                 sPx := curLo
@@ -1482,8 +1459,6 @@ if barstate.isconfirmed
                 curHiTime := time
                 corr := 0
                 corrRef := na
-                corrPrevBHi := na
-                corrPrevBLo := na
 
     // عند تأكيد قمة/قاع صغيرة: لا تُرسم إلا بعد تأكّدها (تتابُع + فعالية) حسب اتجاه موجتها الصغيرة النشطة
     if emitSmallTop or emitSmallBot
