@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.92.5", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.92.6", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -42,6 +42,8 @@ showMed   = input.bool(true,  "Medium degree (orange) / المتوسطة (برت
 showBig   = input.bool(true,  "Big degree (blue) / الكبيرة (أزرق)",      group = grpShow)
 showPending = input.bool(true, "Pending circles (grey) / الدوائر المعلّقة (رماديّة)", group = grpShow)
 linkSmall = input.bool(true,  "Link small pivots / وصل الصغيرة بخطوط", group = grpShow)
+connSmallEff = input.bool(true, "Connect effective pivots only (skip dropped) / وصل الفعّالة فقط (تخطّي المُسقَطة)", group = grpShow,
+     tooltip = "[Change 1] Small connecting line links only effective (drawn) small pivots via a small-only anchor that is never reset to a medium/dropped point — no gaps, skips dropped pivots. Basis for clean Elliott counting.\n[تغيير 1] خطّ وصل الصغيرة يربط النقاط الصغيرة الفعّالة فقط عبر مرجع مستقلّ لا يُعاد لنقطة متوسطة/مُسقَطة — بلا انقطاع، يتخطّى المُسقَطة. أساس عدّ إليوت النظيف.")
 linkMed   = input.bool(true,  "Link medium pivots / وصل المتوسطة بخطوط", group = grpShow)
 linkBig   = input.bool(true,  "Link big pivots / وصل الكبيرة بخطوط",  group = grpShow)
 showOpp    = input.bool(true, "Opportunity & entry signals / إشارات الفرص والدخول", group = grpShow)
@@ -1073,8 +1075,10 @@ var float ldTopP   = na   // آخر قمة مرسومة (مؤكّدة)
 var int   ldTopBar = na
 var float ldBotP   = na   // آخر قاع مرسوم (مؤكّد)
 var int   ldBotBar = na
-var float ldAnyP   = na   // آخر نقطة مرسومة (لربط الخطوط)
+var float ldAnyP   = na   // آخر نقطة مرسومة (لربط الخطوط) — مشترك؛ تعيد المتوسطة إرساءه عند corrEnd
 var int   ldAnyBar = na
+var float ldSmAnyP   = na   // [Change 1] مرجع وصل الصغيرة **المستقلّ**: آخر نقطة صغيرة فعّالة مرسومة فقط — لا يُعاد إرساؤه من نقطة متوسطة
+var int   ldSmAnyBar = na
 var int   ldType   = 0    // نوع آخر نقطة مرسومة: 1=قمة، -1=قاع، 0=لا شيء
 // آلية النقطة المعلّقة الموحّدة: لا تُرسم نقطة إلا مع شريكها المعاكس (لا منفردة إلا الأخيرة)
 var float pendP    = na   // سعر النقطة المعلّقة (لم تُرسم بعد)
@@ -1512,10 +1516,15 @@ if barstate.isconfirmed
                 if corrEffS
                     color pc = pendType == 1 ? cTop : cBot
                     ldType := storeSArrow(pendType == 1, pendP, pendBar, pc, ldType)
-                    if linkSmall and not na(ldAnyBar)
-                        line.new(ldAnyBar, ldAnyP, pendBar, pendP, xloc = xloc.bar_index, color = cLineS, width = 1)
+                    // [Change 1] الوصل من آخر نقطة صغيرة **فعّالة** (ldSmAny حين connSmallEff — مستقلّ عن إعادة إرساء المتوسطة) إلى الحالية، متخطّيًا المُسقَطة بلا انقطاع
+                    float lnkP   = connSmallEff ? ldSmAnyP   : ldAnyP
+                    int   lnkBar = connSmallEff ? ldSmAnyBar : ldAnyBar
+                    if linkSmall and not na(lnkBar)
+                        line.new(lnkBar, lnkP, pendBar, pendP, xloc = xloc.bar_index, color = cLineS, width = 1)
                     ldAnyP := pendP
                     ldAnyBar := pendBar
+                    ldSmAnyP := pendP
+                    ldSmAnyBar := pendBar
                     if pendType == 1
                         ldTopP := pendP
                         ldTopBar := pendBar
