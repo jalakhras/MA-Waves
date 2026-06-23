@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.93.2", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.93.3", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -1680,10 +1680,27 @@ if barstate.isconfirmed
                 //   يكسر تأخّر medActiveDir (كسر المستوى بشمعتين) **دون مساس** medActiveDir ولا آثاره (الإرساء/قياد الصغيرة/الخطوط/09-10). تمهيد largeDir/bigDir عند الصفر أوّليًّا فقط.
                 if medExtrDir == 0
                     medExtrDir := largeDir != 0 ? largeDir : bigDir
+                int prevMedExtrDir = medExtrDir
                 if cfTop and not na(memM.ltP) and cfBHi > memM.ltP
                     medExtrDir := 1
                 if (not cfTop) and not na(memM.lbP) and cfBLo < memM.lbP
                     medExtrDir := -1
+                // [D1 v3.93.3] جذر النقاط الزائفة: عند **انقلاب** medExtrDir فعليًّا، صفّر حالة pmed البائتة (نظير تصفير الصغيرة 1578)
+                //   ⇒ الموجة الجديدة تبدأ نظيفة، فلا تُقارَن نقاطها بحالة الموجة السابقة ⇒ لا انبعاث زائف عند الانتقال.
+                //   المرساة (نقاط مرسومة) في mcP لا pmed ⇒ تبقى. التصفير يمسّ التتبّع فقط.
+                if medExtrDir != prevMedExtrDir and prevMedExtrDir != 0
+                    pmed.prevTopP := na
+                    pmed.prevBotP := na
+                    pmed.maxTopP := na
+                    pmed.maxTopBHi := na
+                    pmed.maxTopBLo := na
+                    pmed.maxTopBar := na
+                    pmed.maxTopTime := na
+                    pmed.minBotP := na
+                    pmed.minBotBHi := na
+                    pmed.minBotBLo := na
+                    pmed.minBotBar := na
+                    pmed.minBotTime := na
                 int wdirM = medExtrDir != 0 ? medExtrDir : (largeDir != 0 ? largeDir : bigDir)
                 [zemM, zePM, zeBHiM, zeBLoM, zeTimeM, zeBM, zeTopM, zemit2M] = feedMedPair(pmed, cfP, cfBHi, cfBLo, cfTime, cfBar, cfTop, wdirM)
                 emM    := zemM
