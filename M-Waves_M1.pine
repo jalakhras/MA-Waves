@@ -18,7 +18,7 @@
 //   [✓] الاستنتاجات وحالة السوق  [✓] المناطق (المستوى الثاني)
 //   [ ] إشارات الصفقات (دخول/وقف/هدف)
 // ============================================================================
-indicator("M-Waves Engine v3.94.0", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
+indicator("M-Waves Engine v3.94.14", overlay = true, max_labels_count = 500, max_lines_count = 500, max_polylines_count = 100, max_boxes_count = 300, max_bars_back = 5000)
 
 // ============================ Settings / الإعدادات ====================================
 // ----- 🌐 Language -----
@@ -164,13 +164,12 @@ colHRSell    = input.color(color.new(#F23645, 60),  "High-risk Sell color / لو
 
 // ----- 📈 Big Degree (advanced) -----
 grpBig    = "📈 Big Degree (advanced) / الدرجة الكبيرة (متقدّم)"
-useBigBreak  = input.bool(false, "Extract big by break (from active medium) / استخراج الكبيرة بالكسر", group = grpBig,
+useBigBreak  = input.bool(true, "Extract big by break (from active medium) / استخراج الكبيرة بالكسر", group = grpBig,
      tooltip = "Blue pivots derived by the break mechanism from active medium points; direction from blue structure.\nتُشتقّ الزرقاء بالكسر من المتوسطة الفعّالة.")
 bigMinSwings = input.int(2, "Min medium points in big wave / أدنى نقاط متوسطة", minval = 1, maxval = 10, group = grpBig,
      tooltip = "Helper filter (auto): fewest medium points to count a move as a big wave.\nفلتر مساعد: أقل عدد نقاط متوسطة.")
-legMinRatio  = input.float(0.382, "Wave-leg size (× wave amplitude) / حجم ساق الموجة (× سعة الموجة)", minval = 0.0, maxval = 1.0, step = 0.05, group = grpBig,
+legMinRatio  = input.float(0.3, "Wave-leg size (× wave amplitude) / حجم ساق الموجة (× سعة الموجة)", minval = 0.0, maxval = 1.0, step = 0.05, group = grpBig,
      tooltip = "[م1 ط0] عتبة محرّك حدود الموجات (الطبقة 0) = نسبة من سعة الموجة التاريخية (ampHist) — بديل أصيل لـATR. تضبط دقّة الـleg. 0 = تعطيل.")
-cLegBound    = input.color(#26C6DA, "Wave boundary (leg) / حدّ الموجة (leg)", group = grpBig)
 bigMinBars   = input.int(30, "Min big-wave time (candles) / أدنى زمن", minval = 0, group = grpBig,
      tooltip = "Helper filter: 0 = disabled.\nفلتر مساعد: 0 = تعطيل.")
 bigLegs      = input.int(7, "Candidate big waves / عدد الموجات الكبيرة المرشّحة", minval = 2, maxval = 15, group = grpBig)
@@ -1458,8 +1457,11 @@ else if rawBigDir != bigDir and math.abs(hbW - lbW) > wlen * 0.1
 //   مستقلّ تمامًا عن المتوسطة/الكبيرة (لا دائرة): تطرّفات سعرية متناوبة، سعة كل ساق ≥ legMinRatio × ampHist
 //   (نسبة من سعة الموجة التاريخية، لا ATR). التناوب ينطلق من اتجاه الموجة الحالية bigDir. كل طرف = حدّ موجة (بار+سعر).
 //   per-bar، أمين، غير متكرّر. المخرَج (legBars/legPs/legTops) = أساس الطبقة 1 (تصفير المتوسطة في م2).
+// فلاتر منطق v1.32 منقولة للسعر الخام (لا للمتوسطة): okAmp (السعة = ارتداد ≥ legTh) + okSw (سيقان ≥ bigMinSwings). [v3.94.5: حُذف okBars — 30 شمعة صارم جدًّا على الخام فأفرغ نافذة موجاتنا]
+//   التناوب مضمون بنيويًّا: legDir0 ينقلب عند كلّ تأكيد فقط ⇒ قمّة↔قاع حتمًا (لا متتاليان من نوع واحد). الفلاتر تكبح السيقان الصغيرة (تنظيف على مستوى الموجة).
 float legTh = legMinRatio * ampHist
 var int   legDir0     = 0
+var int   legSwC      = 0      // عدّاد شموع/سيقان الـleg الحالي (مقابل legSw في v1.32؛ اسم مميّز عن legSw المحلّيّ في استخراج الكبيرة)
 var float legExtHi    = na
 var int   legExtHiBar = na
 var float legExtLo    = na
@@ -1473,53 +1475,67 @@ if legDir0 == 0 and bigDir != 0
     legExtHiBar := bar_index
     legExtLo := low
     legExtLoBar := bar_index
+    legSwC := 0
 if legDir0 == 1
+    legSwC := legSwC + 1
     if na(legExtHi) or high > legExtHi
         legExtHi := high
         legExtHiBar := bar_index
     if not na(legTh) and legTh > 0 and not na(legExtHi) and low < legExtHi - legTh
-        array.push(legBars, legExtHiBar)
-        array.push(legPs, legExtHi)
-        array.push(legTops, true)
-        legDir0 := -1
-        legExtLo := low
-        legExtLoBar := bar_index
+        bool okSwL   = legSwC >= bigMinSwings   // [v3.94.5] حُذف okBars (30 شمعة = صارم جدًّا على السعر الخام، يمنع حدود موجاتنا الحديثة)
+        if okSwL
+            array.push(legBars, legExtHiBar)
+            array.push(legPs, legExtHi)
+            array.push(legTops, true)
+            legDir0 := -1
+            legExtLo := low
+            legExtLoBar := bar_index
+            legSwC := 0
 else if legDir0 == -1
+    legSwC := legSwC + 1
     if na(legExtLo) or low < legExtLo
         legExtLo := low
         legExtLoBar := bar_index
     if not na(legTh) and legTh > 0 and not na(legExtLo) and high > legExtLo + legTh
-        array.push(legBars, legExtLoBar)
-        array.push(legPs, legExtLo)
-        array.push(legTops, false)
-        legDir0 := 1
-        legExtHi := high
-        legExtHiBar := bar_index
-int legCap = drawWaves * 4 + 8
+        bool okSwL   = legSwC >= bigMinSwings   // [v3.94.5] حُذف okBars (انظر أعلاه)
+        if okSwL
+            array.push(legBars, legExtLoBar)
+            array.push(legPs, legExtLo)
+            array.push(legTops, false)
+            legDir0 := 1
+            legExtHi := high
+            legExtHiBar := bar_index
+            legSwC := 0
+int legCap = bigLegs * 2 + 2   // [v3.94.2] العدد = عدد الموجات الكبيرة المرشّحة bigLegs (لا drawWaves) ⇒ ≥7 حدًّا (نظير keep في v1.32)
 while array.size(legBars) > legCap
     array.shift(legBars)
     array.shift(legPs)
     array.shift(legTops)
-// [م1 عرض] حدود الموجات بصرياً (تحقّق فقط — لا يمسّ أيّ نقطة): خطّ متعرّج + علامة عند كل طرف leg
-var array<line>  legLines = array.new<line>()
+// [م1 عرض v3.94.13] طريقتا استخراج الكبيرة بمفتاح useBigBreak الواحد: false = leg (السعر الخام، دوائر زرقاء على طرفَي تاريخ التاريخ ≤ histLeft والأقدم) · true = كسر من المتوسطة (دوائر mcP + خطّ الوصل أدناه). تظهر مجموعة واحدة فقط. المحرّك (legBars) يعمل دائمًا لـم2.
 var array<label> legMarks = array.new<label>()
+var array<line>  legLines = array.new<line>()
 if barstate.islast
-    if array.size(legLines) > 0
-        for li = 0 to array.size(legLines) - 1
-            line.delete(array.get(legLines, li))
-        array.clear(legLines)
     if array.size(legMarks) > 0
         for li = 0 to array.size(legMarks) - 1
             label.delete(array.get(legMarks, li))
         array.clear(legMarks)
-    int nlg = array.size(legBars)
-    if nlg > 0
-        for li = 0 to nlg - 1
-            if array.get(legBars, li) >= drawLeft
-                if li > 0
-                    array.push(legLines, line.new(array.get(legBars, li - 1), array.get(legPs, li - 1), array.get(legBars, li), array.get(legPs, li), xloc = xloc.bar_index, color = cLegBound, width = 2))
-                bool tpL = array.get(legTops, li)
-                array.push(legMarks, label.new(array.get(legBars, li), array.get(legPs, li), "", xloc = xloc.bar_index, yloc = yloc.price, style = tpL ? label.style_triangledown : label.style_triangleup, color = cLegBound, size = size.tiny))
+    if array.size(legLines) > 0
+        for li = 0 to array.size(legLines) - 1
+            line.delete(array.get(legLines, li))
+        array.clear(legLines)
+    if not useBigBreak
+        int   nlg = array.size(legBars)
+        int   prevLBar = na
+        float prevLP   = na
+        if nlg > 0
+            for li = 0 to nlg - 1
+                if array.get(legBars, li) <= histLeft   // ≤ نهاية تاريخ التاريخ (histLeft) ⇒ طرفا تاريخ التاريخ + الأقدم، لا داخل موجتنا الفعّالة. التناوب قاع↔قمّة مضمون.
+                    array.push(legMarks, label.new(array.get(legBars, li), array.get(legPs, li), "", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_circle, color = cBigBorder, size = f_lblSize(bigCircleSize)))
+                    array.push(legMarks, label.new(array.get(legBars, li), array.get(legPs, li), "", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_circle, color = cBig, size = f_lblSizeIn(bigCircleSize)))
+                    if linkBig and not na(prevLBar)   // [v3.94.14] خطّ الوصل بين دوائر الـleg المتتالية (نظير خطّ الكسر؛ يحترم linkBig)
+                        array.push(legLines, line.new(prevLBar, prevLP, array.get(legBars, li), array.get(legPs, li), xloc = xloc.bar_index, color = color.new(cBig, 0), width = 2))
+                    prevLBar := array.get(legBars, li)
+                    prevLP := array.get(legPs, li)
 
 emitSmallTop = false
 emitSmallBot = false
@@ -3003,7 +3019,7 @@ if (showBig or showWaveCountBig or (showFib and (fibRetrBig or fibExtBig)) or sh
     int nb = array.size(kP)
     int prevBar = na
     float prevP = na
-    if showBig and nb > 0   // [v3.88.10] رسم دوائر/خطوط الكبيرة فقط عند showBig (الاستخراج أعلاه يعمل للترقيم أيضًا)
+    if showBig and nb > 0 and useBigBreak   // [v3.94.13] دوائر/خطوط الكبيرة بالكسر من المتوسطة فقط حين useBigBreak=true؛ وإلّا الـleg (السعر) يرسم الدوائر أعلاه
         for i = 0 to nb - 1
             float p = array.get(kP, i)
             int   b = array.get(kB, i)
