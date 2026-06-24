@@ -3,7 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.7.0 — الموجة التلقائيّة من أصل الحركة إلى الآن (كالقديم) + حذف مدخل الحساسيّة
+// الإصدار الداخليّ: v0.8.0 — الدورة 1: الدرجة 0 (الصغيرة، قاعدة الشمعتين، درس 05) — كشف خام
+//   (صندوق الموجة/اللوحة مؤقّتان حتى يُعاد ربطهما بالدرجة الكبيرة في الدورة 3)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_bars_back = 5000)
 
@@ -40,8 +41,17 @@ float  swingMinDays = input.float(2.0, "Swing lower bound (days/wave) — below 
 float  swingMaxDays = input.float(10.0, "Swing upper bound (days/wave) — above = Invest / حدّ السوينغ الأعلى", minval = 0.5, step = 0.5, group = grpFH, tooltip = "زمن الموجة أكثر من هذا ⇒ استثمار ⇒ انزل فريمًا.")
 color  fhBg         = input.color(#1E222D, "Panel background / خلفية اللوحة", group = grpFH)
 
+// ─── المدخلات: الدرجة 0 (الصغيرة) ───
+string grpSmall = "🔴 Small Degree / الصغيرة (درجة 0)"
+bool   showSmall = input.bool(true, "Show small pivots / إظهار القمم والقيعان الصغيرة", group = grpSmall)
+int    minCorr   = input.int(2, "Correction candles to confirm / شموع التصحيح للتأكيد", minval = 1, maxval = 5, group = grpSmall, tooltip = "[درس 05] شمعتان صحيحتان في اتجاه التصحيح.")
+bool   useValid  = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpSmall, tooltip = "[درس 05] النويز = ذيل أطول من الجسم ⇒ يُستبعَد.")
+color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpSmall)
+color  cBot      = input.color(#089981, "Small bottom / قاع صغير", group = grpSmall)
+
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
+int SMALL_KEEP = 300   // سقف القمم/القيعان الصغيرة المحفوظة (أداء)
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
 // موضع اللوحة من اختيار نصّيّ.
@@ -154,8 +164,106 @@ if showFrameHelper and barstate.islast
     f_drawWavePanel()
 
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ط1 — القمم والقيعان   [دروس 05-07]
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─── الدرجة 0 (الصغيرة): كشف القمم/القيعان بقاعدة الشمعتين [درس 05] ───
+//   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
+//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله. أساسٌ تُشتقّ منه بقيّة الدرجات بالكسر.
+//   منقول من المحرّك المثبَت (M-Waves_M1) منظّفًا. [الدورة 1: كشف خام؛ الفعالية/التتابُع لاحقًا]
+var int   sdir    = 0       // اتجاه الموجة الصغيرة: 1 صعود · -1 هبوط · 0 غير مهيّأ
+var float curHi   = na      // أعلى سعر جارٍ (مرشّح القمّة)
+var int   curHiBar = na
+var float curLo   = na      // أدنى سعر جارٍ (مرشّح القاع)
+var int   curLoBar = na
+var int   corr    = 0       // عدّاد شموع التصحيح الصحيحة
+var float corrRef = na      // مرجع تدرّج التصحيح (تحت بعض)
+var array<int>   sBars = array.new<int>()
+var array<float> sPs   = array.new<float>()
+var array<bool>  sTops = array.new<bool>()
+
+if barstate.isconfirmed
+    float body = math.abs(close - open)
+    float uw   = high - math.max(close, open)
+    float lw   = math.min(close, open) - low
+    bool  valid = (not useValid) or (body > 0 and body >= uw and body >= lw)
+    bool  bear  = close < open
+    bool  bull  = close > open
+    if sdir == 0
+        sdir := 1
+        curHi := high
+        curHiBar := bar_index
+        curLo := low
+        curLoBar := bar_index
+    else if sdir == 1
+        // موجة صاعدة: القمّة = أعلى سعر قبل تصحيح بشمعتين صحيحتين «تحت بعض»
+        if high > curHi
+            curHi := high
+            curHiBar := bar_index
+            corr := 0
+            corrRef := na
+        else if valid and bear
+            if corr == 0
+                corr := 1
+                corrRef := low
+            else if low < corrRef
+                corr := corr + 1
+                corrRef := low
+            if corr >= minCorr
+                array.push(sBars, curHiBar)
+                array.push(sPs, curHi)
+                array.push(sTops, true)
+                sdir := -1
+                curLo := low
+                curLoBar := bar_index
+                corr := 0
+                corrRef := na
+    else
+        // موجة هابطة: القاع = أدنى سعر قبل تصحيح بشمعتين صحيحتين «فوق بعض»
+        if low < curLo
+            curLo := low
+            curLoBar := bar_index
+            corr := 0
+            corrRef := na
+        else if valid and bull
+            if corr == 0
+                corr := 1
+                corrRef := high
+            else if high > corrRef
+                corr := corr + 1
+                corrRef := high
+            if corr >= minCorr
+                array.push(sBars, curLoBar)
+                array.push(sPs, curLo)
+                array.push(sTops, false)
+                sdir := 1
+                curHi := high
+                curHiBar := bar_index
+                corr := 0
+                corrRef := na
+    // قصّ للأحدث فقط (أداء)
+    while array.size(sBars) > SMALL_KEEP
+        array.shift(sBars)
+        array.shift(sPs)
+        array.shift(sTops)
+
+// رسم القمم/القيعان الصغيرة (islast فقط)
+var array<label> sMarks = array.new<label>()
+if barstate.islast
+    for m in sMarks
+        label.delete(m)
+    array.clear(sMarks)
+    if showSmall
+        int ns = array.size(sBars)
+        if ns > 0
+            for i = 0 to ns - 1
+                bool t = array.get(sTops, i)
+                array.push(sMarks, label.new(array.get(sBars, i), array.get(sPs, i), "", xloc = xloc.bar_index, yloc = yloc.price, style = t ? label.style_arrowdown : label.style_arrowup, color = t ? cTop : cBot, size = size.tiny))
+
+
 // ─────────────────────────────────────────────────────────────────────────────
-// ط1 — القمم والقيعان (+ محرّك الـleg/الكبيرة)   [دروس 05-07]   (لاحقًا)
+// ط1 — المتوسطة/الكبيرة (بالكسر)   [دروس 06-07]   (لاحقًا)
 // ─────────────────────────────────────────────────────────────────────────────
 
 
