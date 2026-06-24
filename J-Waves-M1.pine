@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.3 — كل قانون دالّة مستقلّة بترتيب · الانقلاب مؤجَّل للدروس المتقدّمة (درس 09)
-//   شكل السهم المملوء · الصندوق/اللوحة مؤقّتان حتى الدورة 3 (الدرجة الكبيرة)
+// الإصدار الداخليّ: v0.9.4 — إعادة قاعدة درس 05 «إعادة عدّ الموجة» (تصفير المرجع، لا انقلاب اتجاه)
+//   تُصلِح نقاطًا فعّالة لم تُرسَم بعد قمّة عالية · الانقلاب (درس 09) يبقى مؤجَّلًا · السهم المملوء
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -203,6 +203,17 @@ method seedTrendDir(DegreeLaws self, bool isTop, float price) =>
         bool brokeBelowBot = (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
         self.trendDir := brokeAboveTop ? 1 : brokeBelowBot ? -1 : 0
 
+// ── القانون [درس 05]: إعادة عدّ الموجة (🔴 ليست الانقلاب) ──────────────────────
+//   صعودًا: قاعٌ تحت آخر قاع · هبوطًا: قمّةٌ فوق آخر قمّة ⇒ الموجة الصغيرة انتهت ⇒ **ابدأ عدّ موجة جديدة**،
+//   فتُصفَّر مراجعُ الفعاليّة (ق6/ق7) فتُقارَن النقاطُ الجديدة بموجتها لا بالموجة السابقة (وإلّا بقي مرجعٌ قديم يُخفي نقاطًا فعّالة).
+//   **الاتجاه لا يتغيّر** — تغيّر الاتجاه نفسه = الانقلاب/التجديد (درس 09) مؤجَّل.
+method restartWaveCount(DegreeLaws self, bool isTop, float price) =>
+    bool brokeAboveTop = isTop and not na(self.lastTopPrice) and price > self.lastTopPrice
+    bool brokeBelowBot = (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
+    if (self.trendDir == 1 and brokeBelowBot) or (self.trendDir == -1 and brokeAboveTop)
+        self.lastEffTopPrice    := na
+        self.lastEffBottomPrice := na
+
 // ── القانون ق4/ق5: التتابُع ──────────────────────────────────────────────────
 //   المعلَّق من نفس النوع يُستبدَل بالأكثر تطرّفًا (قمّة أعلى صعودًا / قاع أدنى هبوطًا) — الدافعة تتدرّج.
 method sequenceLaw(DegreeLaws self, bool isTop, float price, int bar) =>
@@ -236,6 +247,7 @@ method activateLaw(DegreeLaws self) =>
 // ── خطّ الأنابيب: يستدعي القوانين **بترتيب** (معمّم لكل درجة — مواصفة §6: حلقة لا تعاوُد) ──
 method feedPivot(DegreeLaws self, bool isTop, float price, int bar) =>
     self.seedTrendDir(isTop, price)                     // ① تمهيد الاتجاه (الانقلاب مؤجَّل — درس 09)
+    self.restartWaveCount(isTop, price)                 // ② [درس05] إعادة عدّ الموجة عند كسر معاكس (لا انقلاب)
     if isTop
         self.lastTopPrice := price
     else
@@ -246,9 +258,9 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar) =>
         self.pendingPrice := price
         self.pendingBar   := bar
     else if currentType == self.pendingType
-        self.sequenceLaw(isTop, price, bar)            // ② التتابُع (نفس النوع)
-    else if self.effectivenessLaw(price)               // ③ الفعاليّة (نوع معاكس)
-        self.activateLaw()                             // ④ التفعيل
+        self.sequenceLaw(isTop, price, bar)            // ③ التتابُع (نفس النوع)
+    else if self.effectivenessLaw(price)               // ④ الفعاليّة (نوع معاكس)
+        self.activateLaw()                             // ⑤ التفعيل
         self.pendingType  := currentType
         self.pendingPrice := price
         self.pendingBar   := bar
