@@ -3,10 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.0 — المحرّك المعمّم (قانون لكلّ دالّة: انقلاب/تتابُع/تغطية/تفعيل) + وصل الصغيرة
-//   سهم TradingView الأصليّ (label.arrow) · الصندوق/اللوحة مؤقّتان حتى الدورة 3 (الدرجة الكبيرة)
+// الإصدار الداخليّ: v0.9.1 — استعادة شكل السهم المملوء (polyline) + المحرّك المعمّم + وصل الصغيرة
+//   الصندوق/اللوحة مؤقّتان حتى الدورة 3 (الدرجة الكبيرة)
 // ════════════════════════════════════════════════════════════════════════════
-indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_bars_back = 5000)
+indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
 // ════════════════════════════════════════════════════════════════════════════
 // المعمارية الفراكتالية (الاتجاه: كل سهم للأعلى — لا طبقة تقرأ من فوقها)
@@ -48,9 +48,10 @@ int    minCorr   = input.int(2, "Correction candles to confirm / شموع الت
 bool   useValid  = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpSmall, tooltip = "[درس 05] النويز = ذيل أطول من الجسم ⇒ يُستبعَد.")
 color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpSmall)
 color  cBot      = input.color(#089981, "Small bottom / قاع صغير", group = grpSmall)
-string arrSizeOpt = input.string("Small", "Arrow size / حجم السهم", options = ["Tiny", "Small", "Normal", "Large"], group = grpSmall, tooltip = "سهم TradingView الأصليّ.")
-bool   linkSmall  = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
-color  cLineS     = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
+float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval = 0.1, step = 0.1, group = grpSmall, tooltip = "نسبة من نطاق سعريّ أصيل (لا ATR) — حجم رسم فقط.")
+int    arrWidth  = input.int(2, "Arrow width (candles) / عرض السهم", minval = 1, maxval = 10, group = grpSmall)
+bool   linkSmall = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
+color  cLineS    = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
 
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
@@ -328,28 +329,46 @@ if barstate.isconfirmed
                 correctionLevel  := na
     smallDegree.trimEffective(SMALL_KEEP)
 
-// ─── رسم الدرجة الصغيرة (islast): سهم TradingView الأصليّ على النقاط الفعّالة + خطوط الوصل بينها ───
-f_arrSize(string opt) =>
-    opt == "Tiny" ? size.tiny : opt == "Normal" ? size.normal : opt == "Large" ? size.large : size.small
+// ─── شكل السهم المملوء — منقول من الكود المثبَت (M-Waves_M1: drawSArrow) سهمًا 7 نقاط ───
+//   انحراف أمين: الارتفاع = نسبة من **نطاق سعريّ أصيل** (آخر 50 شمعة) بدل ATR — حجم رسم لا قاعدة.
+float arrScale = ta.highest(high, 50) - ta.lowest(low, 50)
+f_drawArrow(bool isTop, float price, int bar, color col) =>
+    float shaftLen  = arrLen * 0.25 * arrScale
+    float headLen   = shaftLen * 0.45                              // ارتفاع رأس السهم (متناسق)
+    int   headHalf  = math.max(1, arrWidth)                        // نصف عرض الرأس (شموع)
+    int   shaftHalf = math.max(1, int(math.round(headHalf * 0.45)))// نصف عرض الساق ≈ نصف الرأس
+    shaftHalf := math.min(shaftHalf, math.max(1, headHalf - 1))    // الرأس أعرض من الساق دائمًا
+    float yShaft  = isTop ? price + shaftLen : price - shaftLen
+    float yHead   = isTop ? price + headLen  : price - headLen
+    pts = array.new<chart.point>()
+    array.push(pts, chart.point.from_index(bar,             price))  // طرف السهم على النقطة
+    array.push(pts, chart.point.from_index(bar - headHalf,  yHead))
+    array.push(pts, chart.point.from_index(bar - shaftHalf, yHead))
+    array.push(pts, chart.point.from_index(bar - shaftHalf, yShaft))
+    array.push(pts, chart.point.from_index(bar + shaftHalf, yShaft))
+    array.push(pts, chart.point.from_index(bar + shaftHalf, yHead))
+    array.push(pts, chart.point.from_index(bar + headHalf,  yHead))
+    polyline.new(pts, closed = true, xloc = xloc.bar_index, line_color = col, fill_color = col, line_width = 1)
 
-var array<label> smallArrows = array.new<label>()
-var array<line>  smallLinks  = array.new<line>()
+// ─── رسم الدرجة الصغيرة (islast): السهم المملوء على النقاط الفعّالة + خطوط الوصل بينها ───
+var array<polyline> smallArrows = array.new<polyline>()
+var array<line>     smallLinks  = array.new<line>()
 if barstate.islast
     for a in smallArrows
-        label.delete(a)
+        polyline.delete(a)
     array.clear(smallArrows)
     for ln in smallLinks
         line.delete(ln)
     array.clear(smallLinks)
     int effectiveCount = array.size(smallDegree.effectiveBars)
     if effectiveCount > 0
-        int firstDrawn = math.max(0, effectiveCount - 200)   // نافذة عرض (أداء)؛ التخزين يبقى كاملًا لتغذية الدرجات
+        int firstDrawn = math.max(0, effectiveCount - 90)   // سقف polyline=100 ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الدرجات
         for i = firstDrawn to effectiveCount - 1
             bool  isTop  = array.get(smallDegree.effectiveIsTop, i)
             float price  = array.get(smallDegree.effectivePrices, i)
             int   bar    = array.get(smallDegree.effectiveBars, i)
             if showSmall
-                array.push(smallArrows, label.new(bar, price, "", xloc = xloc.bar_index, yloc = yloc.price, style = isTop ? label.style_arrowdown : label.style_arrowup, color = isTop ? cTop : cBot, size = f_arrSize(arrSizeOpt)))
+                array.push(smallArrows, f_drawArrow(isTop, price, bar, isTop ? cTop : cBot))
             if linkSmall and i > firstDrawn
                 float prevPrice = array.get(smallDegree.effectivePrices, i - 1)
                 int   prevBar   = array.get(smallDegree.effectiveBars, i - 1)
