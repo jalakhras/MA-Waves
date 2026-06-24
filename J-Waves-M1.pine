@@ -3,10 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.8.1 — شكل السهم من القديم (polyline سهم مملوء) بدل label.arrow
-//   (صندوق الموجة/اللوحة مؤقّتان حتى يُعاد ربطهما بالدرجة الكبيرة في الدورة 3)
+// الإصدار الداخليّ: v0.9.0 — المحرّك المعمّم (قانون لكلّ دالّة: انقلاب/تتابُع/تغطية/تفعيل) + وصل الصغيرة
+//   سهم TradingView الأصليّ (label.arrow) · الصندوق/اللوحة مؤقّتان حتى الدورة 3 (الدرجة الكبيرة)
 // ════════════════════════════════════════════════════════════════════════════
-indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
+indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_bars_back = 5000)
 
 // ════════════════════════════════════════════════════════════════════════════
 // المعمارية الفراكتالية (الاتجاه: كل سهم للأعلى — لا طبقة تقرأ من فوقها)
@@ -48,8 +48,9 @@ int    minCorr   = input.int(2, "Correction candles to confirm / شموع الت
 bool   useValid  = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpSmall, tooltip = "[درس 05] النويز = ذيل أطول من الجسم ⇒ يُستبعَد.")
 color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpSmall)
 color  cBot      = input.color(#089981, "Small bottom / قاع صغير", group = grpSmall)
-float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval = 0.1, step = 0.1, group = grpSmall, tooltip = "نسبة من نطاق سعريّ أصيل (لا ATR) — حجم رسم فقط.")
-int    arrWidth  = input.int(2, "Arrow width (candles) / عرض السهم", minval = 1, maxval = 10, group = grpSmall)
+string arrSizeOpt = input.string("Small", "Arrow size / حجم السهم", options = ["Tiny", "Small", "Normal", "Large"], group = grpSmall, tooltip = "سهم TradingView الأصليّ.")
+bool   linkSmall  = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
+color  cLineS     = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
 
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
@@ -170,120 +171,189 @@ if showFrameHelper and barstate.islast
 // ط1 — القمم والقيعان   [دروس 05-07]
 // ═════════════════════════════════════════════════════════════════════════════
 
-// ─── الدرجة 0 (الصغيرة): كشف القمم/القيعان بقاعدة الشمعتين [درس 05] ───
+// ═════════════════════════════════════════════════════════════════════════════
+// المحرّك المعمّم: قوانين القمم/القيعان — دالّة لكلّ قانون، تُعاد لكلّ الدرجات [مواصفة §4]
+//   يأخذ تطرّفًا خامًا (قمّة/قاع) ويُخرج النقاط **الفعّالة المتناوبة** بعد تطبيق:
+//   الانقلاب → التتابُع → الفعالية (التغطية) → التفعيل. صغيرة/متوسطة/كبيرة… كلّها بنفس الدوال.
+// ═════════════════════════════════════════════════════════════════════════════
+type DegreeLaws
+    int          waveDir          = 0    // اتجاه الموجة النشط: 1 صعود · -1 هبوط · 0 غير مهيّأ
+    float        lastTopPrice     = na   // آخر قمّة خام (لكسر البنية في الانقلاب)
+    float        lastBottomPrice  = na   // آخر قاع خام
+    int          pendingType      = 0    // النقطة المعلَّقة: 1 قمّة · -1 قاع · 0 لا شيء
+    float        pendingPrice     = na
+    int          pendingBar       = na
+    float        lastEffTopPrice  = na   // آخر قمّة فعّالة مرسومة (مرجع التغطية)
+    float        lastEffBottomPrice = na // آخر قاع فعّال مرسوم (مرجع التغطية)
+    array<int>   effectiveBars    = na   // مخرَج الدرجة: بارات النقاط الفعّالة المتناوبة
+    array<float> effectivePrices  = na
+    array<bool>  effectiveIsTop   = na
+
+newDegreeLaws() =>
+    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>())
+
+// قانون الانقلاب: قمّةٌ أعلى من آخر قمّة ⇒ موجة صاعدة، قاعٌ أدنى من آخر قاع ⇒ هابطة.
+//   عند تغيّر الاتجاه تُصفَّر مراجع التغطية فتقارن الموجةُ الجديدة بنفسها لا بالسابقة (لا سلبيّ كاذب). [§4]
+method applyReversal(DegreeLaws self, bool isTop, float price) =>
+    int previousDir = self.waveDir
+    if isTop and not na(self.lastTopPrice) and price > self.lastTopPrice
+        self.waveDir := 1
+    if (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
+        self.waveDir := -1
+    if self.waveDir != previousDir and previousDir != 0
+        self.lastEffTopPrice    := na
+        self.lastEffBottomPrice := na
+
+// قانون التتابُع: نقطةٌ معلَّقة من نفس النوع تُستبدَل بالأكثر تطرّفًا (قمّة أعلى / قاع أدنى) — الدافعة تتدرّج. [§4]
+method applySequence(DegreeLaws self, bool isTop, float price, int bar) =>
+    bool moreExtreme = (isTop and price > self.pendingPrice) or ((not isTop) and price < self.pendingPrice)
+    if moreExtreme
+        self.pendingPrice := price
+        self.pendingBar   := bar
+
+// قانون الفعالية (التغطية): المعلَّق فعّال إن تجاوز التطرّفُ المعاكس التالي آخرَ نقطة مرسومة من نوعه:
+//   صعودًا ⇒ القمّة التالية أعلى من آخر قمّة فعّالة · هبوطًا ⇒ القاع التالي أدنى من آخر قاع فعّال. [§4]
+method isPendingEffective(DegreeLaws self, float oppositePrice) =>
+    bool effective = true
+    if self.waveDir == 1 and self.pendingType == -1
+        effective := na(self.lastEffTopPrice) or oppositePrice > self.lastEffTopPrice
+    else if self.waveDir == -1 and self.pendingType == 1
+        effective := na(self.lastEffBottomPrice) or oppositePrice < self.lastEffBottomPrice
+    effective
+
+// قانون التفعيل: المعلَّق المؤكَّد يُرسَم (يُدفَع للنقاط الفعّالة) ويصبح مرجعَ التغطية الجديد. [§4]
+method activatePending(DegreeLaws self) =>
+    array.push(self.effectiveBars,   self.pendingBar)
+    array.push(self.effectivePrices, self.pendingPrice)
+    array.push(self.effectiveIsTop,  self.pendingType == 1)
+    if self.pendingType == 1
+        self.lastEffTopPrice := self.pendingPrice
+    else
+        self.lastEffBottomPrice := self.pendingPrice
+
+// خطّ الأنابيب: تطرّف خام ⇒ نقطة فعّالة، بتطبيق القوانين بالترتيب. معمّم لكلّ درجة (مواصفة §6: حلقة لا تعاوُد).
+method feedPivot(DegreeLaws self, bool isTop, float price, int bar) =>
+    self.applyReversal(isTop, price)
+    if isTop
+        self.lastTopPrice := price
+    else
+        self.lastBottomPrice := price
+    int currentType = isTop ? 1 : -1
+    if self.pendingType == 0
+        self.pendingType  := currentType
+        self.pendingPrice := price
+        self.pendingBar   := bar
+    else if currentType == self.pendingType
+        self.applySequence(isTop, price, bar)
+    else if self.isPendingEffective(price)
+        self.activatePending()
+        self.pendingType  := currentType
+        self.pendingPrice := price
+        self.pendingBar   := bar
+    // غير فعّال ⇒ يُسقَط الحاليّ ويبقى المعلَّق (التغطية)
+
+// قصّ النقاط الفعّالة للأحدث (أداء) — يحفظ سقفًا لكلّ درجة.
+method trimEffective(DegreeLaws self, int keep) =>
+    while array.size(self.effectiveBars) > keep
+        array.shift(self.effectiveBars)
+        array.shift(self.effectivePrices)
+        array.shift(self.effectiveIsTop)
+
+// ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
-//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله. أساسٌ تُشتقّ منه بقيّة الدرجات بالكسر.
-//   منقول من المحرّك المثبَت (M-Waves_M1) منظّفًا. [الدورة 1: كشف خام؛ الفعالية/التتابُع لاحقًا]
-var int   sdir    = 0       // اتجاه الموجة الصغيرة: 1 صعود · -1 هبوط · 0 غير مهيّأ
-var float curHi   = na      // أعلى سعر جارٍ (مرشّح القمّة)
-var int   curHiBar = na
-var float curLo   = na      // أدنى سعر جارٍ (مرشّح القاع)
-var int   curLoBar = na
-var int   corr    = 0       // عدّاد شموع التصحيح الصحيحة
-var float corrRef = na      // مرجع تدرّج التصحيح (تحت بعض)
-var array<int>   sBars = array.new<int>()
-var array<float> sPs   = array.new<float>()
-var array<bool>  sTops = array.new<bool>()
+//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله.
+var DegreeLaws smallDegree    = newDegreeLaws()
+var int        scanDir        = 0    // اتجاه المسح: 1 يترقّب قمّة · -1 يترقّب قاعًا · 0 غير مهيّأ
+var float      runningHighPrice = na // أعلى سعر جارٍ (مرشّح القمّة)
+var int        runningHighBar = na
+var float      runningLowPrice = na  // أدنى سعر جارٍ (مرشّح القاع)
+var int        runningLowBar  = na
+var int        correctionCount = 0   // عدّاد شموع التصحيح الصحيحة المتدرّجة
+var float      correctionLevel = na  // مرجع تدرّج التصحيح («تحت/فوق بعض»)
 
 if barstate.isconfirmed
-    float body = math.abs(close - open)
-    float uw   = high - math.max(close, open)
-    float lw   = math.min(close, open) - low
-    bool  valid = (not useValid) or (body > 0 and body >= uw and body >= lw)
-    bool  bear  = close < open
-    bool  bull  = close > open
-    if sdir == 0
-        sdir := 1
-        curHi := high
-        curHiBar := bar_index
-        curLo := low
-        curLoBar := bar_index
-    else if sdir == 1
-        // موجة صاعدة: القمّة = أعلى سعر قبل تصحيح بشمعتين صحيحتين «تحت بعض»
-        if high > curHi
-            curHi := high
-            curHiBar := bar_index
-            corr := 0
-            corrRef := na
-        else if valid and bear
-            if corr == 0
-                corr := 1
-                corrRef := low
-            else if low < corrRef
-                corr := corr + 1
-                corrRef := low
-            if corr >= minCorr
-                array.push(sBars, curHiBar)
-                array.push(sPs, curHi)
-                array.push(sTops, true)
-                sdir := -1
-                curLo := low
-                curLoBar := bar_index
-                corr := 0
-                corrRef := na
+    float bodySize      = math.abs(close - open)
+    float upperWick     = high - math.max(close, open)
+    float lowerWick     = math.min(close, open) - low
+    bool  isValidCandle = (not useValid) or (bodySize > 0 and bodySize >= upperWick and bodySize >= lowerWick)
+    bool  isBearCandle  = close < open
+    bool  isBullCandle  = close > open
+    if scanDir == 0
+        scanDir          := 1
+        runningHighPrice := high
+        runningHighBar   := bar_index
+        runningLowPrice  := low
+        runningLowBar    := bar_index
+    else if scanDir == 1
+        // يترقّب قمّة: القمّة = أعلى سعر قبل تصحيح بشمعتين صحيحتين هابطتين «تحت بعض»
+        if high > runningHighPrice
+            runningHighPrice := high
+            runningHighBar   := bar_index
+            correctionCount  := 0
+            correctionLevel  := na
+        else if isValidCandle and isBearCandle
+            if correctionCount == 0
+                correctionCount := 1
+                correctionLevel := low
+            else if low < correctionLevel
+                correctionCount := correctionCount + 1
+                correctionLevel := low
+            if correctionCount >= minCorr
+                smallDegree.feedPivot(true, runningHighPrice, runningHighBar)
+                scanDir          := -1
+                runningLowPrice  := low
+                runningLowBar    := bar_index
+                correctionCount  := 0
+                correctionLevel  := na
     else
-        // موجة هابطة: القاع = أدنى سعر قبل تصحيح بشمعتين صحيحتين «فوق بعض»
-        if low < curLo
-            curLo := low
-            curLoBar := bar_index
-            corr := 0
-            corrRef := na
-        else if valid and bull
-            if corr == 0
-                corr := 1
-                corrRef := high
-            else if high > corrRef
-                corr := corr + 1
-                corrRef := high
-            if corr >= minCorr
-                array.push(sBars, curLoBar)
-                array.push(sPs, curLo)
-                array.push(sTops, false)
-                sdir := 1
-                curHi := high
-                curHiBar := bar_index
-                corr := 0
-                corrRef := na
-    // قصّ للأحدث فقط (أداء)
-    while array.size(sBars) > SMALL_KEEP
-        array.shift(sBars)
-        array.shift(sPs)
-        array.shift(sTops)
+        // يترقّب قاعًا: القاع = أدنى سعر قبل تصحيح بشمعتين صحيحتين صاعدتين «فوق بعض»
+        if low < runningLowPrice
+            runningLowPrice := low
+            runningLowBar   := bar_index
+            correctionCount := 0
+            correctionLevel := na
+        else if isValidCandle and isBullCandle
+            if correctionCount == 0
+                correctionCount := 1
+                correctionLevel := high
+            else if high > correctionLevel
+                correctionCount := correctionCount + 1
+                correctionLevel := high
+            if correctionCount >= minCorr
+                smallDegree.feedPivot(false, runningLowPrice, runningLowBar)
+                scanDir          := 1
+                runningHighPrice := high
+                runningHighBar   := bar_index
+                correctionCount  := 0
+                correctionLevel  := na
+    smallDegree.trimEffective(SMALL_KEEP)
 
-// شكل السهم — منقول من الكود المثبَت (M-Waves_M1: drawSArrow) بشكله المعتمد (سهم 7 نقاط مملوء).
-//   انحراف أمين: المقياس العموديّ = نسبة من **نطاق سعريّ أصيل** (آخر 50 شمعة) بدل ATR — حجم رسم فقط، لا قاعدة.
-float arrScale = ta.highest(high, 50) - ta.lowest(low, 50)
-f_drawSArrow(bool isTop, float px, int bar, color colA) =>
-    float slen    = arrLen * 0.25 * arrScale
-    float headH   = slen * 0.45                                  // ارتفاع رأس السهم (متناسق)
-    int   headWb  = math.max(1, arrWidth)                        // نصف عرض الرأس (شموع)
-    int   shaftWb = math.max(1, int(math.round(headWb * 0.45)))  // نصف عرض الساق ≈ نصف الرأس
-    shaftWb := math.min(shaftWb, math.max(1, headWb - 1))        // الرأس أعرض من الساق دائمًا
-    float yShaft  = isTop ? px + slen  : px - slen
-    float yHead   = isTop ? px + headH : px - headH
-    pts = array.new<chart.point>()
-    array.push(pts, chart.point.from_index(bar,           px))   // طرف السهم على النقطة
-    array.push(pts, chart.point.from_index(bar - headWb,  yHead))
-    array.push(pts, chart.point.from_index(bar - shaftWb, yHead))
-    array.push(pts, chart.point.from_index(bar - shaftWb, yShaft))
-    array.push(pts, chart.point.from_index(bar + shaftWb, yShaft))
-    array.push(pts, chart.point.from_index(bar + shaftWb, yHead))
-    array.push(pts, chart.point.from_index(bar + headWb,  yHead))
-    polyline.new(pts, closed = true, xloc = xloc.bar_index, line_color = colA, fill_color = colA, line_width = 1)
+// ─── رسم الدرجة الصغيرة (islast): سهم TradingView الأصليّ على النقاط الفعّالة + خطوط الوصل بينها ───
+f_arrSize(string opt) =>
+    opt == "Tiny" ? size.tiny : opt == "Normal" ? size.normal : opt == "Large" ? size.large : size.small
 
-// رسم القمم/القيعان الصغيرة (islast فقط)
-var array<polyline> sMarks = array.new<polyline>()
+var array<label> smallArrows = array.new<label>()
+var array<line>  smallLinks  = array.new<line>()
 if barstate.islast
-    for m in sMarks
-        polyline.delete(m)
-    array.clear(sMarks)
-    if showSmall
-        int ns = array.size(sBars)
-        if ns > 0
-            int from = math.max(0, ns - 90)   // سقف polyline = 100 ⇒ ارسم الأحدث فقط (التخزين يبقى كاملًا لتغذية الدرجات)
-            for i = from to ns - 1
-                bool t = array.get(sTops, i)
-                array.push(sMarks, f_drawSArrow(t, array.get(sPs, i), array.get(sBars, i), t ? cTop : cBot))
+    for a in smallArrows
+        label.delete(a)
+    array.clear(smallArrows)
+    for ln in smallLinks
+        line.delete(ln)
+    array.clear(smallLinks)
+    int effectiveCount = array.size(smallDegree.effectiveBars)
+    if effectiveCount > 0
+        int firstDrawn = math.max(0, effectiveCount - 200)   // نافذة عرض (أداء)؛ التخزين يبقى كاملًا لتغذية الدرجات
+        for i = firstDrawn to effectiveCount - 1
+            bool  isTop  = array.get(smallDegree.effectiveIsTop, i)
+            float price  = array.get(smallDegree.effectivePrices, i)
+            int   bar    = array.get(smallDegree.effectiveBars, i)
+            if showSmall
+                array.push(smallArrows, label.new(bar, price, "", xloc = xloc.bar_index, yloc = yloc.price, style = isTop ? label.style_arrowdown : label.style_arrowup, color = isTop ? cTop : cBot, size = f_arrSize(arrSizeOpt)))
+            if linkSmall and i > firstDrawn
+                float prevPrice = array.get(smallDegree.effectivePrices, i - 1)
+                int   prevBar   = array.get(smallDegree.effectiveBars, i - 1)
+                array.push(smallLinks, line.new(prevBar, prevPrice, bar, price, xloc = xloc.bar_index, color = cLineS, width = 1))
 
 
 // ─────────────────────────────────────────────────────────────────────────────
