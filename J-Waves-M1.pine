@@ -3,7 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.5.0 — ط0 الأساس: صندوقا الموجة التاريخية وتاريخ التاريخ (بلا محرّك leg)
+// الإصدار الداخليّ: v0.6.0 — ط0: اختيار الموجة تلقائيًّا بالتطرّفات + label الطريقة + لوحة اختبار الموجة
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_bars_back = 5000)
 
@@ -11,11 +11,9 @@ indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count 
 // المعمارية الفراكتالية (الاتجاه: كل سهم للأعلى — لا طبقة تقرأ من فوقها)
 //   ط0 الأساس: الموجة التاريخية + تاريخ التاريخ     [دروس 03-04]  ← الأسفل
 //   ط1 القمم والقيعان (صغيرة→متوسطة→كبيرة)            [دروس 05-07]
-//   ط2 الخطوط والتجدّد                                [دروس 08-09]
-//   ط3 الاستنتاجات والمراحل                           [دروس 10-11]
-//   ط4 المناطق والفرص                                 [دروس 01-03]  ← الأعلى
-// مؤجَّل لـط1: محرّك الـleg/الدرجة الكبيرة (حدود الموجات، الدوائر الزرقاء، مدخلاتها).
-//   تاريخ التاريخ هنا = «بطول الموجة قبلها» (نصّ الدرس 04) — يُحسّن لاحقًا بالـleg إن لزم.
+//   ط2..ط4 (لاحقًا)
+// الاختيار التلقائيّ هنا من تطرّفات السعر الخام (لا دائرة، لا ارتكاز على ط1). عدّ الدرجات
+//   وملاءمة الفريم في اللوحة يكتملان بـط1 (يحتاجان الدرجات الثلاث).
 // ════════════════════════════════════════════════════════════════════════════
 
 
@@ -23,40 +21,62 @@ indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count 
 // ط0 — الأساس: الموجة التاريخية + تاريخ التاريخ   [درس 03-04]
 // ════════════════════════════════════════════════════════════════════════════
 
-// ─── المدخلات (أسماء/إعدادات/مجموعة الكود السابق) ───
+// ─── المدخلات: الموجة التاريخية ───
 string grpHist = "🌊 Historical Wave / الموجة التاريخية"
-bool   showHist = input.bool(true, "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
-bool   useHistN = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist, tooltip = "On: bounds over the last N candles. Off: auto default length.\nمفعّل: آخر N شمعة. مطفأ: طول افتراضيّ تلقائيّ.")
-int    histBars = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
-color  cHist    = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
-bool   showHoh  = input.bool(true, "Show prior-history bounds / حدود تاريخ التاريخ", group = grpHist)
-bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist, tooltip = "On: take N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
-int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
-color  cHoh     = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
+bool   showHist     = input.bool(true, "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
+bool   useHistN     = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist, tooltip = "On: bounds over the last N candles. Off: auto — last complete price swing.\nمفعّل: آخر N شمعة. مطفأ: تلقائيّ — آخر تأرجح سعريّ كامل.")
+int    histBars     = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
+int    histAutoSens = input.int(5, "Auto-wave swing sensitivity (pivot bars) / حساسية الاختيار التلقائيّ", minval = 1, maxval = 50, group = grpHist, tooltip = "عدد الشموع يمين/يسار لتأكيد التطرّف (pivot). أكبر = موجات أكبر/أنظف. يُستعمل عند الوضع التلقائيّ فقط.")
+color  cHist        = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
+bool   showHoh      = input.bool(true, "Show prior-history bounds / حدود تاريخ التاريخ", group = grpHist)
+bool   useHohN      = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist, tooltip = "On: N candles. Off: the swing before the historical wave.\nمفعّل: N شمعة. مطفأ: التأرجح السابق للموجة.")
+int    hohBars      = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
+color  cHoh         = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
 
-// الطول الافتراضيّ للموجة عند الوضع التلقائيّ (نظير autoLen السابق). المحلّل يختار الموجة يدويًّا
-//   (درس 03) عبر useHistN/histBars؛ هذا بداية عرض، لا عتبة استراتيجية.
+// ─── المدخلات: لوحة اختبار الموجة (تصميم الكود السابق) ───
+string grpFH = "🧪 Wave Test / لوحة اختبار الموجة"
+bool   showFrameHelper = input.bool(true, "Wave-test panel (wave time ⇒ trading type) / لوحة اختبار الموجة", group = grpFH)
+string fhPos        = input.string("Top L", "Panel position / موضع اللوحة", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpFH)
+float  swingMinDays = input.float(2.0, "Swing lower bound (days/impulse) — below = Scalp / حدّ السوينغ الأدنى", minval = 0.1, step = 0.5, group = grpFH, tooltip = "وسيط زمن الموجة أقلّ من هذا ⇒ مضاربة ⇒ اصعد فريمًا.")
+float  swingMaxDays = input.float(10.0, "Swing upper bound (days/impulse) — above = Invest / حدّ السوينغ الأعلى", minval = 0.5, step = 0.5, group = grpFH, tooltip = "وسيط زمن الموجة أكثر من هذا ⇒ استثمار ⇒ انزل فريمًا.")
+color  fhBg         = input.color(#1E222D, "Panel background / خلفية اللوحة", group = grpFH)
+
+// الطول الافتراضيّ للموجة عند تعذّر الاختيار التلقائيّ (نقاط غير كافية).
 int AUTO_WAVE_LEN = 150
 
-// ─── النوع: سياق الموجة التاريخية (نافذة + حدود) — مصدر واحد للحقيقة، يُحسب كل شمعة ───
+// ─── الأنواع (بيانات متماسكة — مصدر واحد للحقيقة) ───
+// سياق الموجة عند الوضع اليدويّ: نافذة + حدود.
 type WaveCtx
-    int   win    // طول النافذة (wlen)
-    int   left   // بداية الموجة (histLeft)
-    float hi     // أعلى الموجة
-    float lo     // أدنى الموجة
+    int   win
+    int   left
+    float hi
+    float lo
+
+// كاشف التأرجح: تطرّفات السعر المتناوبة (قمّة↔قاع) من السعر الخام — أساس الاختيار التلقائيّ.
+type Swing
+    array<int>   bars
+    array<float> ps
+    array<bool>  tops
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
-// طول الموجة (يدويّ بعدد الشموع أو افتراضيّ) مقيَّدًا ضمن المدى الصالح.
-f_waveLen(bool useN, int nBars) =>
-    int raw = useN ? nBars : AUTO_WAVE_LEN
-    math.min(math.max(raw, 1), bar_index + 1)
+// موضع اللوحة من اختيار نصّيّ.
+f_pos(string s) =>
+    s == "Top L" ? position.top_left : s == "Top C" ? position.top_center : s == "Top R" ? position.top_right : s == "Mid L" ? position.middle_left : s == "Center" ? position.middle_center : s == "Mid R" ? position.middle_right : s == "Bot L" ? position.bottom_left : s == "Bot C" ? position.bottom_center : position.bottom_right
 
-// سياق الموجة التاريخية (يُحسب كل شمعة — ta.* تتطلّب تقييمًا مستمرًّا).
-f_waveContext(bool useN, int nBars) =>
-    int win  = f_waveLen(useN, nBars)
+// لون أغمق (للحدّ) من لون التعبئة مع حفظ الشفافية.
+f_dark(color c) =>
+    color.new(color.rgb(color.r(c) * 0.6, color.g(c) * 0.6, color.b(c) * 0.6), color.t(c))
+
+// طول الموجة اليدويّ مقيَّدًا.
+f_waveLen(int nBars) =>
+    math.min(math.max(nBars, 1), bar_index + 1)
+
+// سياق الموجة اليدويّ (نافذة آخر N شمعة) — يُحسب كل شمعة (ta.* تتطلّب تقييمًا مستمرًّا).
+f_waveCtxManual(int nBars) =>
+    int win = f_waveLen(nBars)
     WaveCtx.new(win, bar_index - win + 1, ta.highest(high, win), ta.lowest(low, win))
 
-// أعلى/أدنى سعر ضمن نطاق بارات [leftB..rightB] (يُستدعى عند islast فقط — قليل التكلفة).
+// أعلى/أدنى سعر ضمن نطاق بارات [leftB..rightB] (islast فقط).
 f_rangeHiLo(int leftB, int rightB) =>
     float hi = na
     float lo = na
@@ -68,30 +88,169 @@ f_rangeHiLo(int leftB, int rightB) =>
                 lo := na(lo) or low[off] < lo ? low[off] : lo
     [hi, lo]
 
+// مُنشئ كاشف التأرجح.
+f_newSwing() =>
+    Swing.new(array.new<int>(), array.new<float>(), array.new<bool>())
+
+// زمن الساق بين تطرّفَين (أيام).
+f_legDays(int barA, int barB) =>
+    (time[bar_index - barB] - time[bar_index - barA]) / 86400000.0
+
+// ─── methods كاشف التأرجح (تغليف الحالة) ───
+// إضافة تطرّف مع ضمان التناوب: نفس النوع ⇒ نُبقي الأكثر تطرّفًا؛ نوع مختلف ⇒ نضيف.
+method f_add(Swing s, int b, float p, bool isTop) =>
+    int n = array.size(s.bars)
+    if n == 0
+        array.push(s.bars, b)
+        array.push(s.ps, p)
+        array.push(s.tops, isTop)
+    else if array.get(s.tops, n - 1) == isTop
+        float lastP = array.get(s.ps, n - 1)
+        if (isTop and p > lastP) or (not isTop and p < lastP)
+            array.set(s.bars, n - 1, b)
+            array.set(s.ps, n - 1, p)
+    else
+        array.push(s.bars, b)
+        array.push(s.ps, p)
+        array.push(s.tops, isTop)
+
+// قصّ التطرّفات للأحدث فقط (أداء).
+method f_trim(Swing s, int keep) =>
+    while array.size(s.bars) > keep
+        array.shift(s.bars)
+        array.shift(s.ps)
+        array.shift(s.tops)
+
 // ─── الحساب (لكلّ شمعة) ───
-WaveCtx ctx = f_waveContext(useHistN, histBars)
+// كاشف التأرجح: pivot مؤكَّد عند offset = الحساسية.
+var Swing sw = f_newSwing()
+float pvH = ta.pivothigh(high, histAutoSens, histAutoSens)
+float pvL = ta.pivotlow(low, histAutoSens, histAutoSens)
+int   pvBar = bar_index - histAutoSens
+if not na(pvH)
+    sw.f_add(pvBar, pvH, true)
+if not na(pvL)
+    sw.f_add(pvBar, pvL, false)
+sw.f_trim(12)
+
+// سياق الموجة اليدويّ (للوضع اليدويّ فقط).
+WaveCtx mctx = f_waveCtxManual(histBars)
 
 // ─── الرسم (islast فقط — منفصل عن الحساب) ───
-var box waveBox = na
-var box hohBox  = na
+var box   waveBox = na
+var box   hohBox  = na
+var label waveLbl = na
+var label hohLbl  = na
 if barstate.islast
-    // صندوق الموجة التاريخية
+    int nsw = array.size(sw.bars)
+    // ===== الموجة التاريخية =====
     if not na(waveBox)
         box.delete(waveBox)
         waveBox := na
-    if showHist
-        waveBox := box.new(ctx.left, ctx.hi, bar_index, ctx.lo, xloc = xloc.bar_index, border_color = cHist, bgcolor = cHist)
-    // صندوق تاريخ التاريخ = نافذة بطول الموجة (أو يدويّ) قبل بداية الموجة مباشرةً
+    if not na(waveLbl)
+        label.delete(waveLbl)
+        waveLbl := na
+    // الحدود: يدويّ (نافذة) أو تلقائيّ (آخر تأرجح كامل [n-2 → n-1]) مع احتياطيّ نافذة.
+    int   wL = na
+    int   wR = na
+    float wHi = na
+    float wLo = na
+    if useHistN or nsw < 2
+        // يدويّ ⇒ نافذة آخر N شمعة · تلقائيّ بلا تطرّفات كافية ⇒ احتياطيّ نافذة افتراضية
+        wL := useHistN ? mctx.left : math.max(bar_index - AUTO_WAVE_LEN + 1, 0)
+        wR := bar_index
+        [mh, ml] = f_rangeHiLo(wL, wR)
+        wHi := mh
+        wLo := ml
+    else
+        wL := array.get(sw.bars, nsw - 2)
+        wR := array.get(sw.bars, nsw - 1)
+        float pA = array.get(sw.ps, nsw - 2)
+        float pB = array.get(sw.ps, nsw - 1)
+        wHi := math.max(pA, pB)
+        wLo := math.min(pA, pB)
+    if showHist and not na(wHi) and not na(wLo)
+        color hBd = f_dark(cHist)
+        waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 1, bgcolor = cHist)
+        string hTxt = useHistN ? "الموجة التاريخية (يدوي)" : "الموجة التاريخية (تلقائي)"
+        waveLbl := label.new(wL, wHi, hTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_lower_right, color = hBd, textcolor = color.white, size = size.tiny)
+    // ===== تاريخ التاريخ =====
     if not na(hohBox)
         box.delete(hohBox)
         hohBox := na
-    if showHoh
-        int hohLen = useHohN ? hohBars : ctx.win
-        int hohL   = math.max(ctx.left - hohLen, 0)
-        int hohR   = ctx.left
-        [hohHi, hohLo] = f_rangeHiLo(hohL, hohR)
-        if not na(hohHi) and not na(hohLo)
-            hohBox := box.new(hohL, hohHi, hohR, hohLo, xloc = xloc.bar_index, border_color = cHoh, bgcolor = cHoh)
+    if not na(hohLbl)
+        label.delete(hohLbl)
+        hohLbl := na
+    int   hL = na
+    int   hR = na
+    float hHi = na
+    float hLo = na
+    if useHohN
+        hL := math.max((useHistN ? mctx.left : wL) - hohBars, 0)
+        hR := useHistN ? mctx.left : wL
+        [hh, hl] = f_rangeHiLo(hL, hR)
+        hHi := hh
+        hLo := hl
+    else if nsw >= 3
+        hL := array.get(sw.bars, nsw - 3)
+        hR := array.get(sw.bars, nsw - 2)
+        float pA = array.get(sw.ps, nsw - 3)
+        float pB = array.get(sw.ps, nsw - 2)
+        hHi := math.max(pA, pB)
+        hLo := math.min(pA, pB)
+    if showHoh and not na(hHi) and not na(hLo)
+        color hohBd = color.new(color.gray, 0)
+        hohBox := box.new(hL, hHi, hR, hLo, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh)
+        string hohTxt = useHohN ? "تاريخ التاريخ (يدوي)" : "تاريخ التاريخ (تلقائي)"
+        hohLbl := label.new(hL, hLo, hohTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny)
+
+// ─── لوحة اختبار الموجة (تصميم الكود السابق؛ تُغذَّى بأزمنة التأرجح في ط0) ───
+// الدرس 03 خ6: وسيط زمن الموجة الدافعة ⇒ نوع التداول. عدّ الدرجات/ملاءمة الفريم يكتملان بـط1.
+var table fht = table.new(f_pos(fhPos), 2, 7, bgcolor = fhBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+f_drawWavePanel() =>
+    table.set_position(fht, f_pos(fhPos))
+    // أزمنة سيقان التأرجح (أيام)، مفصولة صعودًا/هبوطًا. الدافعة = الأطول إجمالًا (الدرس 03).
+    int nsw = array.size(sw.bars)
+    array<float> upDur = array.new<float>()
+    array<float> dnDur = array.new<float>()
+    if nsw > 1
+        for i = 0 to nsw - 2
+            float d = f_legDays(array.get(sw.bars, i), array.get(sw.bars, i + 1))
+            if d > 0
+                if array.get(sw.tops, i + 1)
+                    array.push(upDur, d)   // ساق صاعدة (قاع⇒قمة)
+                else
+                    array.push(dnDur, d)   // ساق هابطة (قمة⇒قاع)
+    float upTot = array.size(upDur) > 0 ? array.sum(upDur) : 0.0
+    float dnTot = array.size(dnDur) > 0 ? array.sum(dnDur) : 0.0
+    array<float> impDur = upTot >= dnTot ? upDur : dnDur
+    int   numImp  = array.size(impDur)
+    float medDays = numImp > 0 ? array.median(impDur) : na
+    string timeTxt = na(medDays) ? "—" : medDays >= 1 ? str.tostring(medDays, "#.0") + " يوم" : medDays >= 0.0417 ? str.tostring(medDays * 24, "#.0") + " ساعة" : str.tostring(medDays * 1440, "#.0") + " دق"
+    string waveType = na(medDays) ? "—" : medDays < swingMinDays ? "مضاربة" : medDays <= swingMaxDays ? "سوينغ" : "استثمار"
+    color  wtBg = na(medDays) ? color.new(#787B86, 0) : medDays < swingMinDays ? color.new(#FF9800, 0) : medDays <= swingMaxDays ? color.new(#089981, 0) : color.new(#2962FF, 0)
+    string tradeNature = na(medDays) ? "بيانات غير كافية" : medDays < swingMinDays ? "صفقات دقائق–يوم" : medDays <= swingMaxDays ? "صفقات يومين–10 أيام" : "صفقات أسابيع–شهور"
+    color tvBg   = fhBg
+    color tvHdr  = color.new(color.rgb(color.r(fhBg) * 0.72, color.g(fhBg) * 0.72, color.b(fhBg) * 0.72), color.t(fhBg))
+    color tvMain = #D1D4DC
+    color tvMute = #787B86
+    table.cell(fht, 0, 0, "لوحة اختبار الموجة", text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(fht, 1, 0, "", bgcolor = tvHdr)
+    table.cell(fht, 0, 1, "درجات ظاهرة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 1, 1, "— / 3 (ط1)", text_color = tvMute, bgcolor = tvBg, text_size = size.small)
+    table.cell(fht, 0, 2, "موجات دافعة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 1, 2, str.tostring(numImp), text_color = tvMain, bgcolor = tvBg, text_size = size.small)
+    table.cell(fht, 0, 3, "وسيط زمن الموجة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 1, 3, timeTxt, text_color = tvMain, bgcolor = tvBg, text_size = size.small)
+    table.cell(fht, 0, 4, "نوع التداول", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 1, 4, waveType, text_color = color.white, bgcolor = wtBg, text_size = size.small)
+    table.cell(fht, 0, 5, "نمط الصفقة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 1, 5, tradeNature, text_color = tvMain, bgcolor = tvBg, text_size = size.small)
+    table.cell(fht, 0, 6, "الفريم مناسب؟", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 1, 6, "ينتظر الدرجات (ط1)", text_color = tvMute, bgcolor = tvBg, text_size = size.small)
+
+if showFrameHelper and barstate.islast
+    f_drawWavePanel()
 
 
 // ─────────────────────────────────────────────────────────────────────────────
