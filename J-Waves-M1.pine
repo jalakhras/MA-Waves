@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.6 — رسم النقطة المعلّقة (آخر قمة/قاع مبدئيًّا، لون أبهت) + اتجاه الموجة العامّ
-//   الاتجاه يقود القوانين المتقابلة + إعادة عدّ درس 05 · الانقلاب (درس 09) مؤجَّل · السهم المملوء
+// الإصدار الداخليّ: v0.9.7 — اتجاه الصغيرة يتبع الموجة العامّ (نافذة السعر) لا تحديدًا محلّيًّا
+//   ثابت لا يتقلّب على الارتدادات · النقطة المعلّقة تُرسَم مبدئيًّا · الانقلاب (درس 09) مؤجَّل
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -92,6 +92,10 @@ f_rangeDays(int leftB, int rightB) =>
 int hiOff = ta.highestbars(high, AUTO_WAVE_LEN)
 int loOff = ta.lowestbars(low, AUTO_WAVE_LEN)
 
+// اتجاه الموجة العامّ: القمّة أحدث من القاع ⇒ موجة صاعدة، والعكس هابطة. ثابت لا يتقلّب على الارتدادات
+//   (في الهبوط قمّة النافذة قديمة فلا يقلبه الارتداد). 🔴 مؤقّت من نافذة السعر — يُستبدَل باتجاه الكبيرة (الدورة 3).
+int waveGeneralDir = hiOff > loOff ? 1 : -1
+
 // يسار الموجة التاريخية: يدويّ (نافذة آخر N) أو تلقائيّ (أصل الحركة). يُحسب رخيصًا (بلا حلقة).
 f_waveLeft() =>
     useHistN ? math.max(bar_index - f_waveLen(histBars) + 1, 0) : bar_index + (hiOff > loOff ? loOff : hiOff)
@@ -178,11 +182,9 @@ if showFrameHelper and barstate.islast
 //   (ق1‑ق3: شمعتان/صحيحة/تحت‑بعض = كشف الدرجة 0 الخام أدناه، خاصّ بالدرجة 0.)
 // ═════════════════════════════════════════════════════════════════════════════
 type DegreeLaws
-    int          trendDir           = 0    // اتجاه الموجة العامّ (HH/HL صعود · LH/LL هبوط؛ مؤقّت حتى الكبيرة) — **ليس انقلاب درس 09**
-    float        lastTopPrice       = na   // آخر قمّة
-    float        prevTopPrice       = na   // القمّة قبل الأخيرة (لمقارنة البنية HH/LH)
+    int          trendDir           = 0    // اتجاه الموجة (يُغذَّى من الموجة العامّة؛ يقود القوانين المتقابلة) — **ليس انقلاب درس 09**
+    float        lastTopPrice       = na   // آخر قمّة (لكشف كسر البنية)
     float        lastBottomPrice    = na   // آخر قاع
-    float        prevBottomPrice    = na   // القاع قبل الأخير (لمقارنة البنية HL/LL)
     int          pendingType        = 0    // المعلَّق: 1 قمّة · -1 قاع · 0 لا شيء
     float        pendingPrice       = na
     int          pendingBar         = na
@@ -194,21 +196,6 @@ type DegreeLaws
 
 newDegreeLaws() =>
     DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>())
-
-// ── تحديد اتجاه الموجة العامّ من بنية السوق ──────────────────────────────────
-//   صعود = قمّة أعلى **و** قاع أعلى (HH+HL) · هبوط = قمّة أدنى **و** قاع أدنى (LH+LL).
-//   عند تعارض (القمّة والقاع غير متّفقَين) يبقى الاتجاه العامّ كما هو ⇒ لا يتقلّب على كلّ تصحيح.
-//   عند تغيّر الاتجاه ⇒ موجة جديدة (تُصفَّر مراجع الفعاليّة). مؤقّت حتى تعطيه الكبيرة. 🔴 ليس انقلاب درس 09.
-method updateWaveDir(DegreeLaws self) =>
-    if not na(self.prevTopPrice) and not na(self.prevBottomPrice) and not na(self.lastTopPrice) and not na(self.lastBottomPrice)
-        int previousDir = self.trendDir
-        if self.lastTopPrice > self.prevTopPrice and self.lastBottomPrice > self.prevBottomPrice
-            self.trendDir := 1
-        else if self.lastTopPrice < self.prevTopPrice and self.lastBottomPrice < self.prevBottomPrice
-            self.trendDir := -1
-        if self.trendDir != previousDir and previousDir != 0
-            self.lastEffTopPrice    := na
-            self.lastEffBottomPrice := na
 
 // ── القانون [درس 05]: إعادة عدّ الموجة (🔴 ليست الانقلاب) ──────────────────────
 //   كسرٌ **معاكس للاتجاه** (صعودًا: قاع تحت آخر قاع · هبوطًا: قمّة فوق آخر قمّة) ⇒ ابدأ عدّ موجة جديدة،
@@ -249,18 +236,19 @@ method activateLaw(DegreeLaws self) =>
         self.lastEffBottomPrice := self.pendingPrice
 
 // ── خطّ الأنابيب: يستدعي القوانين **بترتيب** (معمّم لكل درجة — مواصفة §6: حلقة لا تعاوُد) ──
-method feedPivot(DegreeLaws self, bool isTop, float price, int bar) =>
+method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir) =>
+    // ① الاتجاه من الموجة العامّة (لا تحديد محلّيّ). تغيّره ⇒ موجة جديدة (تُصفَّر مراجع الفعاليّة)
+    if waveDir != self.trendDir
+        self.lastEffTopPrice    := na
+        self.lastEffBottomPrice := na
+        self.trendDir := waveDir
     // كشف الكسر مقابل التطرّف السابق (قبل تحديث المتتبّعات)
     bool brokeAboveTop = isTop and not na(self.lastTopPrice) and price > self.lastTopPrice
     bool brokeBelowBot = (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
-    // تحديث متتبّعات البنية (آخر قمّتين / آخر قاعين)
     if isTop
-        self.prevTopPrice := self.lastTopPrice
         self.lastTopPrice := price
     else
-        self.prevBottomPrice := self.lastBottomPrice
         self.lastBottomPrice := price
-    self.updateWaveDir()                                       // ① الاتجاه العامّ (HH/HL ↔ LH/LL)
     self.restartWaveCount(brokeAboveTop, brokeBelowBot)        // ② [درس05] إعادة العدّ عند كسر معاكس
     int currentType = isTop ? 1 : -1
     if self.pendingType == 0
@@ -323,7 +311,7 @@ if barstate.isconfirmed
                 correctionCount := correctionCount + 1
                 correctionLevel := low
             if correctionCount >= minCorr
-                smallDegree.feedPivot(true, runningHighPrice, runningHighBar)
+                smallDegree.feedPivot(true, runningHighPrice, runningHighBar, waveGeneralDir)
                 scanDir          := -1
                 runningLowPrice  := low
                 runningLowBar    := bar_index
@@ -344,7 +332,7 @@ if barstate.isconfirmed
                 correctionCount := correctionCount + 1
                 correctionLevel := high
             if correctionCount >= minCorr
-                smallDegree.feedPivot(false, runningLowPrice, runningLowBar)
+                smallDegree.feedPivot(false, runningLowPrice, runningLowBar, waveGeneralDir)
                 scanDir          := 1
                 runningHighPrice := high
                 runningHighBar   := bar_index
