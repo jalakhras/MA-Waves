@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.10 — مدخل اتجاه الموجة اليدويّ (Auto/Up/Down، درس 03) يثبّت الاتجاه
-//   القوانين ق4-ق7 صحيحة؛ التلقائيّ يتقلّب على الارتدادات ⇒ اليدويّ مستقرّ حتى تجهز الكبيرة (الدورة 3)
+// الإصدار الداخليّ: v0.9.11 — تبسيط جذريّ: مرشّحات الشمعتين ⇒ بنية متدرّجة (ق4/ق5) تُبنى من الصفر كل islast
+//   لا حالة متراكمة (لا معلّق) ⇒ بنية نظيفة · اتجاه الموجة يدويّ/تلقائيّ · ق6/ق7 تُضاف لاحقًا إن لزم
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -179,112 +179,65 @@ if showFrameHelper and barstate.islast
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ═════════════════════════════════════════════════════════════════════════════
-// المحرّك المعمّم: قوانين القمم/القيعان [درس 05] — **كل قانون دالّة مستقلّة، تُستدعى بترتيب**.
-//   ق4/ق5 (التتابُع) · ق6/ق7 (الفعاليّة) · بدء موجة جديدة — **قوانين كل الدرجات** (تُعاد حرفيًّا للمتوسطة/الكبيرة).
-//   (ق1‑ق3: شمعتان/صحيحة/تحت‑بعض = كشف الدرجة 0 الخام أدناه، خاصّ بالدرجة 0.)
+// المحرّك المعمّم — مبسّط: مرشّحات الشمعتين (ق1‑ق3) ⇒ بنية متدرّجة (ق4/ق5) تُبنى من الصفر كل islast.
+//   لا حالة متراكمة (لا معلّق دائم) ⇒ لا أسهم شاردة. dir من الموجة (يدويّ/تلقائيّ). معمّم لكل درجة.
 // ═════════════════════════════════════════════════════════════════════════════
-type DegreeLaws
-    int          trendDir           = 0    // اتجاه الموجة (يُغذَّى من الموجة العامّة؛ يقود القوانين المتقابلة) — **ليس انقلاب درس 09**
-    float        lastTopPrice       = na   // آخر قمّة (لكشف كسر البنية)
-    float        lastBottomPrice    = na   // آخر قاع
-    int          pendingType        = 0    // المعلَّق: 1 قمّة · -1 قاع · 0 لا شيء
-    float        pendingPrice       = na
-    int          pendingBar         = na
-    float        lastEffTopPrice    = na   // آخر قمّة فعّالة (مرجع ق6/ق7)
-    float        lastEffBottomPrice = na   // آخر قاع فعّال
-    array<int>   effectiveBars      = na   // مخرَج الدرجة: النقاط الفعّالة المتناوبة
-    array<float> effectivePrices    = na
-    array<bool>  effectiveIsTop     = na
+type Degree
+    array<int>   rawBars    = na   // كل المرشّحات الخام من الشمعتين (قبل التصفية)
+    array<float> rawPrices  = na
+    array<bool>  rawIsTop   = na
+    array<int>   effBars    = na   // البنية الفعّالة بعد ق4/ق5 (تُبنى على islast)
+    array<float> effPrices  = na
+    array<bool>  effIsTop   = na
 
-newDegreeLaws() =>
-    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>())
+newDegree() =>
+    Degree.new(rawBars = array.new<int>(), rawPrices = array.new<float>(), rawIsTop = array.new<bool>(), effBars = array.new<int>(), effPrices = array.new<float>(), effIsTop = array.new<bool>())
 
-// ── القانون [درس 05]: إعادة عدّ الموجة (🔴 ليست الانقلاب) ──────────────────────
-//   كسرٌ **معاكس للاتجاه** (صعودًا: قاع تحت آخر قاع · هبوطًا: قمّة فوق آخر قمّة) ⇒ ابدأ عدّ موجة جديدة،
-//   فتُصفَّر مراجعُ الفعاليّة فتُقارَن النقاطُ الجديدة بموجتها لا بالسابقة. **الاتجاه يبقى** (تغيّره = انقلاب درس 09 مؤجَّل).
-method restartWaveCount(DegreeLaws self, bool brokeAboveTop, bool brokeBelowBot) =>
-    if (self.trendDir == 1 and brokeBelowBot) or (self.trendDir == -1 and brokeAboveTop)
-        self.lastEffTopPrice    := na
-        self.lastEffBottomPrice := na
+// إضافة مرشّح خام (قمّة/قاع من الشمعتين) + قصّ السقف.
+method addRaw(Degree self, bool isTop, float price, int bar, int keep) =>
+    array.push(self.rawBars,   bar)
+    array.push(self.rawPrices, price)
+    array.push(self.rawIsTop,  isTop)
+    while array.size(self.rawBars) > keep
+        array.shift(self.rawBars)
+        array.shift(self.rawPrices)
+        array.shift(self.rawIsTop)
 
-// ── القانون ق4/ق5: التتابُع ──────────────────────────────────────────────────
-//   المعلَّق من نفس النوع يُستبدَل بالأكثر تطرّفًا (قمّة أعلى صعودًا / قاع أدنى هبوطًا) — الدافعة تتدرّج.
-method sequenceLaw(DegreeLaws self, bool isTop, float price, int bar) =>
-    bool moreExtreme = (isTop and price > self.pendingPrice) or ((not isTop) and price < self.pendingPrice)
-    if moreExtreme
-        self.pendingPrice := price
-        self.pendingBar   := bar
+// بناء البنية المتدرّجة من المرشّحات [ق4/ق5]: صعودًا نُبقي قممًا وقيعانًا **أعلى** من سابقتها (HH/HL)؛
+//   هبوطًا **أدنى** (LH/LL)؛ غير المتدرّج يُمسح. نوعان متعاكسان (تناوب). يُبنى من الصفر ⇒ لا حالة شاردة.
+method buildEffective(Degree self, int dir) =>
+    array.clear(self.effBars)
+    array.clear(self.effPrices)
+    array.clear(self.effIsTop)
+    float lastTop = na
+    float lastBot = na
+    int   n = array.size(self.rawBars)
+    if n > 0
+        for i = 0 to n - 1
+            bool  isTop = array.get(self.rawIsTop, i)
+            float price = array.get(self.rawPrices, i)
+            int   bar   = array.get(self.rawBars, i)
+            float ref   = isTop ? lastTop : lastBot
+            bool  keep  = dir == 0 or na(ref) or (dir == 1 ? price > ref : price < ref)
+            if keep
+                int m = array.size(self.effIsTop)
+                if m > 0 and array.get(self.effIsTop, m - 1) == isTop
+                    array.set(self.effBars,   m - 1, bar)      // نفس النوع متتاليًا ⇒ استبدل بالأنسب (الأكثر تطرّفًا)
+                    array.set(self.effPrices, m - 1, price)
+                else
+                    array.push(self.effBars,   bar)
+                    array.push(self.effPrices, price)
+                    array.push(self.effIsTop,  isTop)
+                if isTop
+                    lastTop := price
+                else
+                    lastBot := price
 
-// ── قانون التفعيل: الدافعة بالتتابُع (ق4/ق5) + التصحيحيّة بالفعاليّة (ق6/ق7) ──────
-//   تُفعَّل النقطة المعلّقة عند مجيء الوارد المعاكس، بحسب دورها:
-//   • **الدافعة** (قمّة صعودًا / قاع هبوطًا): تُفحَص **المعلّقة نفسها** — أعلى/أدنى من آخر فعّالة من نوعها (ق4/ق5 التتابُع).
-//   • **التصحيحيّة** (قاع صعودًا / قمّة هبوطًا): تُفحَص **الواردة** — تكسر آخر تطرّف دافع (قمّة أعلى صعودًا = ق6 · قاع أدنى هبوطًا = ق7).
-//   ⇒ القيعان تتنازل في الهبوط (الدافعة غير المتنازلة تُسقَط) والقمم تتصاعد في الصعود.
-method isPendingConfirmed(DegreeLaws self, float incomingPrice) =>
-    bool confirmed = true
-    if self.trendDir == 1
-        if self.pendingType == 1                                          // قمّة دافعة (ق4)
-            confirmed := na(self.lastEffTopPrice) or self.pendingPrice > self.lastEffTopPrice
-        else                                                             // قاع تصحيحيّ (ق6)
-            confirmed := na(self.lastEffTopPrice) or incomingPrice > self.lastEffTopPrice
-    else if self.trendDir == -1
-        if self.pendingType == -1                                        // قاع دافع (ق5)
-            confirmed := na(self.lastEffBottomPrice) or self.pendingPrice < self.lastEffBottomPrice
-        else                                                             // قمّة تصحيحيّة (ق7)
-            confirmed := na(self.lastEffBottomPrice) or incomingPrice < self.lastEffBottomPrice
-    confirmed
 
-// ── القانون: التفعيل ─────────────────────────────────────────────────────────
-//   المعلَّق المؤكَّد يُرسَم (يُدفَع للنقاط الفعّالة) ويصير مرجعَ التغطية الجديد.
-method activateLaw(DegreeLaws self) =>
-    array.push(self.effectiveBars,   self.pendingBar)
-    array.push(self.effectivePrices, self.pendingPrice)
-    array.push(self.effectiveIsTop,  self.pendingType == 1)
-    if self.pendingType == 1
-        self.lastEffTopPrice := self.pendingPrice
-    else
-        self.lastEffBottomPrice := self.pendingPrice
-
-// ── خطّ الأنابيب: يستدعي القوانين **بترتيب** (معمّم لكل درجة — مواصفة §6: حلقة لا تعاوُد) ──
-method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir) =>
-    // ① الاتجاه من الموجة العامّة (لا تحديد محلّيّ). تغيّره ⇒ موجة جديدة (تُصفَّر مراجع الفعاليّة)
-    if waveDir != self.trendDir
-        self.lastEffTopPrice    := na
-        self.lastEffBottomPrice := na
-        self.trendDir := waveDir
-    // كشف الكسر مقابل التطرّف السابق (قبل تحديث المتتبّعات)
-    bool brokeAboveTop = isTop and not na(self.lastTopPrice) and price > self.lastTopPrice
-    bool brokeBelowBot = (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
-    if isTop
-        self.lastTopPrice := price
-    else
-        self.lastBottomPrice := price
-    self.restartWaveCount(brokeAboveTop, brokeBelowBot)        // ② [درس05] إعادة العدّ عند كسر معاكس
-    int currentType = isTop ? 1 : -1
-    if self.pendingType == 0
-        self.pendingType  := currentType
-        self.pendingPrice := price
-        self.pendingBar   := bar
-    else if currentType == self.pendingType
-        self.sequenceLaw(isTop, price, bar)                   // ③ التتابُع (نفس النوع)
-    else if self.isPendingConfirmed(price)                    // ④ التفعيل (الدافعة ق4/ق5 + التصحيحيّة ق6/ق7)
-        self.activateLaw()                                    // ⑤ دفع النقطة الفعّالة
-        self.pendingType  := currentType
-        self.pendingPrice := price
-        self.pendingBar   := bar
-    // غير فعّال ⇒ يُسقَط الحاليّ ويبقى المعلَّق (التغطية)
-
-// قصّ النقاط الفعّالة للأحدث (أداء) — يحفظ سقفًا لكلّ درجة.
-method trimEffective(DegreeLaws self, int keep) =>
-    while array.size(self.effectiveBars) > keep
-        array.shift(self.effectiveBars)
-        array.shift(self.effectivePrices)
-        array.shift(self.effectiveIsTop)
-
-// ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
+// ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ⇒ مرشّحات تُغذّى المحرّك ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
-//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله.
-var DegreeLaws smallDegree    = newDegreeLaws()
+//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله. التصفية (ق4/ق5) تتمّ في buildEffective.
+var Degree     smallDegree    = newDegree()
 var int        scanDir        = 0    // اتجاه المسح: 1 يترقّب قمّة · -1 يترقّب قاعًا · 0 غير مهيّأ
 var float      runningHighPrice = na // أعلى سعر جارٍ (مرشّح القمّة)
 var int        runningHighBar = na
@@ -321,7 +274,7 @@ if barstate.isconfirmed
                 correctionCount := correctionCount + 1
                 correctionLevel := low
             if correctionCount >= minCorr
-                smallDegree.feedPivot(true, runningHighPrice, runningHighBar, waveGeneralDir)
+                smallDegree.addRaw(true, runningHighPrice, runningHighBar, SMALL_KEEP)
                 scanDir          := -1
                 runningLowPrice  := low
                 runningLowBar    := bar_index
@@ -342,13 +295,12 @@ if barstate.isconfirmed
                 correctionCount := correctionCount + 1
                 correctionLevel := high
             if correctionCount >= minCorr
-                smallDegree.feedPivot(false, runningLowPrice, runningLowBar, waveGeneralDir)
+                smallDegree.addRaw(false, runningLowPrice, runningLowBar, SMALL_KEEP)
                 scanDir          := 1
                 runningHighPrice := high
                 runningHighBar   := bar_index
                 correctionCount  := 0
                 correctionLevel  := na
-    smallDegree.trimEffective(SMALL_KEEP)
 
 // ─── شكل السهم المملوء — منقول من الكود المثبَت (M-Waves_M1: drawSArrow) سهمًا 7 نقاط ───
 //   انحراف أمين: الارتفاع = نسبة من **نطاق سعريّ أصيل** (آخر 50 شمعة) بدل ATR — حجم رسم لا قاعدة.
@@ -381,26 +333,20 @@ if barstate.islast
     for ln in smallLinks
         line.delete(ln)
     array.clear(smallLinks)
-    int effectiveCount = array.size(smallDegree.effectiveBars)
+    smallDegree.buildEffective(waveGeneralDir)              // ابنِ البنية المتدرّجة (ق4/ق5) من الصفر
+    int effectiveCount = array.size(smallDegree.effBars)
     if effectiveCount > 0
-        int firstDrawn = math.max(0, effectiveCount - 90)   // سقف polyline=100 ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الدرجات
+        int firstDrawn = math.max(0, effectiveCount - 90)   // سقف polyline=100 ⇒ ارسم الأحدث
         for i = firstDrawn to effectiveCount - 1
-            bool  isTop  = array.get(smallDegree.effectiveIsTop, i)
-            float price  = array.get(smallDegree.effectivePrices, i)
-            int   bar    = array.get(smallDegree.effectiveBars, i)
+            bool  isTop  = array.get(smallDegree.effIsTop, i)
+            float price  = array.get(smallDegree.effPrices, i)
+            int   bar    = array.get(smallDegree.effBars, i)
             if showSmall
                 array.push(smallArrows, f_drawArrow(isTop, price, bar, isTop ? cTop : cBot))
             if linkSmall and i > firstDrawn
-                float prevPrice = array.get(smallDegree.effectivePrices, i - 1)
-                int   prevBar   = array.get(smallDegree.effectiveBars, i - 1)
+                float prevPrice = array.get(smallDegree.effPrices, i - 1)
+                int   prevBar   = array.get(smallDegree.effBars, i - 1)
                 array.push(smallLinks, line.new(prevBar, prevPrice, bar, price, xloc = xloc.bar_index, color = cLineS, width = 1))
-    // النقطة المعلّقة (آخر قمة/قاع لم يؤكَّد بعد) — تُرسم مبدئيًّا بلون أبهت + وصلها بآخر فعّالة
-    if showSmall and smallDegree.pendingType != 0
-        bool  pTop = smallDegree.pendingType == 1
-        color pCol = color.new(pTop ? cTop : cBot, 45)
-        array.push(smallArrows, f_drawArrow(pTop, smallDegree.pendingPrice, smallDegree.pendingBar, pCol))
-        if linkSmall and effectiveCount > 0
-            array.push(smallLinks, line.new(array.get(smallDegree.effectiveBars, effectiveCount - 1), array.get(smallDegree.effectivePrices, effectiveCount - 1), smallDegree.pendingBar, smallDegree.pendingPrice, xloc = xloc.bar_index, color = color.new(cLineS, 45), width = 1))
 
 
 // ─────────────────────────────────────────────────────────────────────────────
