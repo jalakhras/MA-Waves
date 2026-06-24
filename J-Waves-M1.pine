@@ -3,7 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.5 — اتجاه الموجة العامّ من البنية (HH/HL↔LH/LL) ⇒ يُصلِح الهبوط
+// الإصدار الداخليّ: v0.9.6 — رسم النقطة المعلّقة (آخر قمة/قاع مبدئيًّا، لون أبهت) + اتجاه الموجة العامّ
 //   الاتجاه يقود القوانين المتقابلة + إعادة عدّ درس 05 · الانقلاب (درس 09) مؤجَّل · السهم المملوء
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
@@ -396,6 +396,13 @@ if barstate.islast
                 float prevPrice = array.get(smallDegree.effectivePrices, i - 1)
                 int   prevBar   = array.get(smallDegree.effectiveBars, i - 1)
                 array.push(smallLinks, line.new(prevBar, prevPrice, bar, price, xloc = xloc.bar_index, color = cLineS, width = 1))
+    // النقطة المعلّقة (آخر قمة/قاع لم يؤكَّد بعد) — تُرسم مبدئيًّا بلون أبهت + وصلها بآخر فعّالة
+    if showSmall and smallDegree.pendingType != 0
+        bool  pTop = smallDegree.pendingType == 1
+        color pCol = color.new(pTop ? cTop : cBot, 45)
+        array.push(smallArrows, f_drawArrow(pTop, smallDegree.pendingPrice, smallDegree.pendingBar, pCol))
+        if linkSmall and effectiveCount > 0
+            array.push(smallLinks, line.new(array.get(smallDegree.effectiveBars, effectiveCount - 1), array.get(smallDegree.effectivePrices, effectiveCount - 1), smallDegree.pendingBar, smallDegree.pendingPrice, xloc = xloc.bar_index, color = color.new(cLineS, 45), width = 1))
 
 
 // ─────────────────────────────────────────────────────────────────────────────
