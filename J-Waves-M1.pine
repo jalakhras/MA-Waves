@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.1 — استعادة شكل السهم المملوء (polyline) + المحرّك المعمّم + وصل الصغيرة
-//   الصندوق/اللوحة مؤقّتان حتى الدورة 3 (الدرجة الكبيرة)
+// الإصدار الداخليّ: v0.9.2 — كل قانون دالّة مستقلّة تُستدعى بترتيب + تصحيح «بدء موجة جديدة» (لا انعكاس اتجاه)
+//   شكل السهم المملوء · الصندوق/اللوحة مؤقّتان حتى الدورة 3 (الدرجة الكبيرة)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -173,57 +173,62 @@ if showFrameHelper and barstate.islast
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ═════════════════════════════════════════════════════════════════════════════
-// المحرّك المعمّم: قوانين القمم/القيعان — دالّة لكلّ قانون، تُعاد لكلّ الدرجات [مواصفة §4]
-//   يأخذ تطرّفًا خامًا (قمّة/قاع) ويُخرج النقاط **الفعّالة المتناوبة** بعد تطبيق:
-//   الانقلاب → التتابُع → الفعالية (التغطية) → التفعيل. صغيرة/متوسطة/كبيرة… كلّها بنفس الدوال.
+// المحرّك المعمّم: قوانين القمم/القيعان [درس 05] — **كل قانون دالّة مستقلّة، تُستدعى بترتيب**.
+//   ق4/ق5 (التتابُع) · ق6/ق7 (الفعاليّة) · بدء موجة جديدة — **قوانين كل الدرجات** (تُعاد حرفيًّا للمتوسطة/الكبيرة).
+//   (ق1‑ق3: شمعتان/صحيحة/تحت‑بعض = كشف الدرجة 0 الخام أدناه، خاصّ بالدرجة 0.)
 // ═════════════════════════════════════════════════════════════════════════════
 type DegreeLaws
-    int          waveDir          = 0    // اتجاه الموجة النشط: 1 صعود · -1 هبوط · 0 غير مهيّأ
-    float        lastTopPrice     = na   // آخر قمّة خام (لكسر البنية في الانقلاب)
-    float        lastBottomPrice  = na   // آخر قاع خام
-    int          pendingType      = 0    // النقطة المعلَّقة: 1 قمّة · -1 قاع · 0 لا شيء
-    float        pendingPrice     = na
-    int          pendingBar       = na
-    float        lastEffTopPrice  = na   // آخر قمّة فعّالة مرسومة (مرجع التغطية)
-    float        lastEffBottomPrice = na // آخر قاع فعّال مرسوم (مرجع التغطية)
-    array<int>   effectiveBars    = na   // مخرَج الدرجة: بارات النقاط الفعّالة المتناوبة
-    array<float> effectivePrices  = na
-    array<bool>  effectiveIsTop   = na
+    int          trendDir           = 0    // اتجاه الموجة الحاليّة (يأتي من الدرجة الأعلى لاحقًا؛ يُمهَّد هنا) — **ليس انعكاسًا**
+    float        lastTopPrice       = na   // آخر قمّة (لكشف كسر البنية)
+    float        lastBottomPrice    = na   // آخر قاع
+    int          pendingType        = 0    // المعلَّق: 1 قمّة · -1 قاع · 0 لا شيء
+    float        pendingPrice       = na
+    int          pendingBar         = na
+    float        lastEffTopPrice    = na   // آخر قمّة فعّالة (مرجع ق6/ق7)
+    float        lastEffBottomPrice = na   // آخر قاع فعّال
+    array<int>   effectiveBars      = na   // مخرَج الدرجة: النقاط الفعّالة المتناوبة
+    array<float> effectivePrices    = na
+    array<bool>  effectiveIsTop     = na
 
 newDegreeLaws() =>
     DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>())
 
-// قانون الانقلاب: قمّةٌ أعلى من آخر قمّة ⇒ موجة صاعدة، قاعٌ أدنى من آخر قاع ⇒ هابطة.
-//   عند تغيّر الاتجاه تُصفَّر مراجع التغطية فتقارن الموجةُ الجديدة بنفسها لا بالسابقة (لا سلبيّ كاذب). [§4]
-method applyReversal(DegreeLaws self, bool isTop, float price) =>
-    int previousDir = self.waveDir
-    if isTop and not na(self.lastTopPrice) and price > self.lastTopPrice
-        self.waveDir := 1
-    if (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
-        self.waveDir := -1
-    if self.waveDir != previousDir and previousDir != 0
-        self.lastEffTopPrice    := na
+// ── قانون: بدء موجة جديدة [درس 05] ──────────────────────────────────────────
+//   🔴 **ليس انعكاس اتجاه.** كسرُ البنية **عكس الاتجاه** ⇒ الموجة الحاليّة انتهت ⇒ **تبدأ موجة جديدة (بنفس الاتجاه)**،
+//   فتُصفَّر مراجعُ الفعاليّة فتُعدّ الموجة الجديدة **من الصفر** (لا تُقارَن بالسابقة). الاتجاه نفسه يأتي من الدرجة الأعلى
+//   (يُمهَّد هنا من أوّل كسر بنية لغياب درجة أعلى في الدرجة 0؛ يُربَط بالكبيرة في الدورة 3).
+//   صعودًا: قاعٌ تحت آخر قاع ⇒ موجة جديدة · هبوطًا: قمّةٌ فوق آخر قمّة ⇒ موجة جديدة.
+method startNewWave(DegreeLaws self, bool isTop, float price) =>
+    bool brokeAboveTop = isTop and not na(self.lastTopPrice) and price > self.lastTopPrice
+    bool brokeBelowBot = (not isTop) and not na(self.lastBottomPrice) and price < self.lastBottomPrice
+    if self.trendDir == 0
+        self.trendDir := brokeAboveTop ? 1 : brokeBelowBot ? -1 : 0   // تمهيد الاتجاه من أوّل بنية
+    else if (self.trendDir == 1 and brokeBelowBot) or (self.trendDir == -1 and brokeAboveTop)
+        self.lastEffTopPrice    := na   // كسر معاكس ⇒ موجة جديدة من الصفر (الاتجاه يبقى كما هو)
         self.lastEffBottomPrice := na
 
-// قانون التتابُع: نقطةٌ معلَّقة من نفس النوع تُستبدَل بالأكثر تطرّفًا (قمّة أعلى / قاع أدنى) — الدافعة تتدرّج. [§4]
-method applySequence(DegreeLaws self, bool isTop, float price, int bar) =>
+// ── القانون ق4/ق5: التتابُع ──────────────────────────────────────────────────
+//   المعلَّق من نفس النوع يُستبدَل بالأكثر تطرّفًا (قمّة أعلى صعودًا / قاع أدنى هبوطًا) — الدافعة تتدرّج.
+method sequenceLaw(DegreeLaws self, bool isTop, float price, int bar) =>
     bool moreExtreme = (isTop and price > self.pendingPrice) or ((not isTop) and price < self.pendingPrice)
     if moreExtreme
         self.pendingPrice := price
         self.pendingBar   := bar
 
-// قانون الفعالية (التغطية): المعلَّق فعّال إن تجاوز التطرّفُ المعاكس التالي آخرَ نقطة مرسومة من نوعه:
-//   صعودًا ⇒ القمّة التالية أعلى من آخر قمّة فعّالة · هبوطًا ⇒ القاع التالي أدنى من آخر قاع فعّال. [§4]
-method isPendingEffective(DegreeLaws self, float oppositePrice) =>
+// ── القانون ق6/ق7: الفعاليّة (التغطية) ───────────────────────────────────────
+//   المعلَّق فعّال إن تجاوز التطرّفُ المعاكس آخرَ نقطة فعّالة من نوعه:
+//   صعودًا ⇒ القمّة التالية أعلى من آخر قمّة فعّالة · هبوطًا ⇒ القاع التالي أدنى من آخر قاع فعّال.
+method effectivenessLaw(DegreeLaws self, float oppositePrice) =>
     bool effective = true
-    if self.waveDir == 1 and self.pendingType == -1
+    if self.trendDir == 1 and self.pendingType == -1
         effective := na(self.lastEffTopPrice) or oppositePrice > self.lastEffTopPrice
-    else if self.waveDir == -1 and self.pendingType == 1
+    else if self.trendDir == -1 and self.pendingType == 1
         effective := na(self.lastEffBottomPrice) or oppositePrice < self.lastEffBottomPrice
     effective
 
-// قانون التفعيل: المعلَّق المؤكَّد يُرسَم (يُدفَع للنقاط الفعّالة) ويصبح مرجعَ التغطية الجديد. [§4]
-method activatePending(DegreeLaws self) =>
+// ── القانون: التفعيل ─────────────────────────────────────────────────────────
+//   المعلَّق المؤكَّد يُرسَم (يُدفَع للنقاط الفعّالة) ويصير مرجعَ التغطية الجديد.
+method activateLaw(DegreeLaws self) =>
     array.push(self.effectiveBars,   self.pendingBar)
     array.push(self.effectivePrices, self.pendingPrice)
     array.push(self.effectiveIsTop,  self.pendingType == 1)
@@ -232,9 +237,9 @@ method activatePending(DegreeLaws self) =>
     else
         self.lastEffBottomPrice := self.pendingPrice
 
-// خطّ الأنابيب: تطرّف خام ⇒ نقطة فعّالة، بتطبيق القوانين بالترتيب. معمّم لكلّ درجة (مواصفة §6: حلقة لا تعاوُد).
+// ── خطّ الأنابيب: يستدعي القوانين **بترتيب** (معمّم لكل درجة — مواصفة §6: حلقة لا تعاوُد) ──
 method feedPivot(DegreeLaws self, bool isTop, float price, int bar) =>
-    self.applyReversal(isTop, price)
+    self.startNewWave(isTop, price)                     // ① بدء موجة جديدة عند كسر معاكس
     if isTop
         self.lastTopPrice := price
     else
@@ -245,9 +250,9 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar) =>
         self.pendingPrice := price
         self.pendingBar   := bar
     else if currentType == self.pendingType
-        self.applySequence(isTop, price, bar)
-    else if self.isPendingEffective(price)
-        self.activatePending()
+        self.sequenceLaw(isTop, price, bar)            // ② التتابُع (نفس النوع)
+    else if self.effectivenessLaw(price)               // ③ الفعاليّة (نوع معاكس)
+        self.activateLaw()                             // ④ التفعيل
         self.pendingType  := currentType
         self.pendingPrice := price
         self.pendingBar   := bar
