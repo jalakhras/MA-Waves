@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.9 — التفعيل: الدافعة بالتتابُع (ق4/ق5، تُفحَص المعلّقة) + التصحيحيّة بالفعاليّة (ق6/ق7، تُفحَص الواردة)
-//   يضمن تنازل القيعان في الهبوط وتصاعد القمم في الصعود (الدافعة غير المتدرّجة تُسقَط) · اتجاه الموجة العامّ
+// الإصدار الداخليّ: v0.9.10 — مدخل اتجاه الموجة اليدويّ (Auto/Up/Down، درس 03) يثبّت الاتجاه
+//   القوانين ق4-ق7 صحيحة؛ التلقائيّ يتقلّب على الارتدادات ⇒ اليدويّ مستقرّ حتى تجهز الكبيرة (الدورة 3)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -44,6 +44,7 @@ color  fhBg         = input.color(#1E222D, "Panel background / خلفية الل
 // ─── المدخلات: الدرجة 0 (الصغيرة) ───
 string grpSmall = "🔴 Small Degree / الصغيرة (درجة 0)"
 bool   showSmall = input.bool(true, "Show small pivots / إظهار القمم والقيعان الصغيرة", group = grpSmall)
+string waveDirMode = input.string("Auto", "Wave direction / اتجاه الموجة", options = ["Auto", "Up", "Down"], group = grpSmall, tooltip = "يقود قوانين الصعود/الهبوط (درس 03: المحلّل يختار اتجاه الموجة). Auto = من نافذة السعر (مؤقّت). يُستبدَل باتجاه الكبيرة لاحقًا.")
 int    minCorr   = input.int(2, "Correction candles to confirm / شموع التصحيح للتأكيد", minval = 1, maxval = 5, group = grpSmall, tooltip = "[درس 05] شمعتان صحيحتان في اتجاه التصحيح.")
 bool   useValid  = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpSmall, tooltip = "[درس 05] النويز = ذيل أطول من الجسم ⇒ يُستبعَد.")
 color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpSmall)
@@ -92,9 +93,10 @@ f_rangeDays(int leftB, int rightB) =>
 int hiOff = ta.highestbars(high, AUTO_WAVE_LEN)
 int loOff = ta.lowestbars(low, AUTO_WAVE_LEN)
 
-// اتجاه الموجة العامّ: القمّة أحدث من القاع ⇒ موجة صاعدة، والعكس هابطة. ثابت لا يتقلّب على الارتدادات
-//   (في الهبوط قمّة النافذة قديمة فلا يقلبه الارتداد). 🔴 مؤقّت من نافذة السعر — يُستبدَل باتجاه الكبيرة (الدورة 3).
-int waveGeneralDir = hiOff > loOff ? 1 : -1
+// اتجاه الموجة: يدويّ (Up/Down — درس 03) يتجاوز التلقائيّ. التلقائيّ من نافذة السعر (القمّة أحدث ⇒ صعود).
+//   🔴 التلقائيّ قد يتقلّب على الارتدادات الكبيرة (يُحَلّ نهائيًّا باتجاه الكبيرة، الدورة 3). اليدويّ مستقرّ.
+int waveAutoDir    = hiOff > loOff ? 1 : -1
+int waveGeneralDir = waveDirMode == "Up" ? 1 : waveDirMode == "Down" ? -1 : waveAutoDir
 
 // يسار الموجة التاريخية: يدويّ (نافذة آخر N) أو تلقائيّ (أصل الحركة). يُحسب رخيصًا (بلا حلقة).
 f_waveLeft() =>
