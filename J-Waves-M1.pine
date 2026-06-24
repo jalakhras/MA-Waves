@@ -3,70 +3,47 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.4.0 — ط0 الأساس: الموجة التاريخية + تاريخ التاريخ (صندوقان فقط)
-//                  محرّك الـleg يعمل (يغذّي تاريخ التاريخ وط1) لكن بلا رسم لأطرافه
+// الإصدار الداخليّ: v0.5.0 — ط0 الأساس: صندوقا الموجة التاريخية وتاريخ التاريخ (بلا محرّك leg)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_bars_back = 5000)
 
 // ════════════════════════════════════════════════════════════════════════════
 // المعمارية الفراكتالية (الاتجاه: كل سهم للأعلى — لا طبقة تقرأ من فوقها)
-//   ط0 الأساس: حدود الموجات + الموجة التاريخية      [دروس 03-04]  ← الأسفل
+//   ط0 الأساس: الموجة التاريخية + تاريخ التاريخ     [دروس 03-04]  ← الأسفل
 //   ط1 القمم والقيعان (صغيرة→متوسطة→كبيرة)            [دروس 05-07]
 //   ط2 الخطوط والتجدّد                                [دروس 08-09]
 //   ط3 الاستنتاجات والمراحل                           [دروس 10-11]
 //   ط4 المناطق والفرص                                 [دروس 01-03]  ← الأعلى
-// مؤجَّل لطبقته (موثَّق): رسم أطراف الـleg/الدوائر الزرقاء + مدخلاتها (cBig/cBigBorder/
-//   bigCircleSize/linkBig) ⇒ مع الدرجة الكبيرة في ط1. useBigBreak/histAnchorBig/drawWaves
-//   /bigMinBars ⇒ ط1+ التحليل العامل.
+// مؤجَّل لـط1: محرّك الـleg/الدرجة الكبيرة (حدود الموجات، الدوائر الزرقاء، مدخلاتها).
+//   تاريخ التاريخ هنا = «بطول الموجة قبلها» (نصّ الدرس 04) — يُحسّن لاحقًا بالـleg إن لزم.
 // ════════════════════════════════════════════════════════════════════════════
 
 
 // ════════════════════════════════════════════════════════════════════════════
-// ط0 — الأساس: حدود الموجات + الموجة التاريخية + تاريخ التاريخ + اتجاهها   [درس 03-04]
+// ط0 — الأساس: الموجة التاريخية + تاريخ التاريخ   [درس 03-04]
 // ════════════════════════════════════════════════════════════════════════════
 
-// ─── المدخلات (أسماء/إعدادات/مجموعات الكود السابق) ───
+// ─── المدخلات (أسماء/إعدادات/مجموعة الكود السابق) ───
 string grpHist = "🌊 Historical Wave / الموجة التاريخية"
-bool   showHist    = input.bool(true, "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
-bool   useHistN    = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist, tooltip = "On: draw bounds over the last N candles. Off: auto default length.\nمفعّل: آخر N شمعة. مطفأ: طول افتراضيّ تلقائيّ.")
-int    histBars    = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
-color  cHist       = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
-bool   showHoh     = input.bool(true, "Show prior-history bounds / حدود تاريخ التاريخ", group = grpHist)
-bool   useHohN     = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist, tooltip = "On: take N candles. Off: newest earlier leg ≥ amplitude threshold.\nمفعّل: N شمعة. مطفأ: أحدث ساق سابقة ≥ حدّ السعة.")
-int    hohBars     = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
-float  hohMinRatio = input.float(0.618, "Prior-history size threshold (× wave amplitude) / حدّ حجم تاريخ التاريخ", minval = 0.1, maxval = 1.0, step = 0.05, group = grpHist, tooltip = "تاريخ التاريخ = أحدث ساق leg سابقة سعتها ≥ هذه النسبة من سعة الموجة. الافتراضيّ 0.618 (فيبوناتشي).")
-color  cHoh        = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
+bool   showHist = input.bool(true, "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
+bool   useHistN = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist, tooltip = "On: bounds over the last N candles. Off: auto default length.\nمفعّل: آخر N شمعة. مطفأ: طول افتراضيّ تلقائيّ.")
+int    histBars = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
+color  cHist    = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
+bool   showHoh  = input.bool(true, "Show prior-history bounds / حدود تاريخ التاريخ", group = grpHist)
+bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist, tooltip = "On: take N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
+int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
+color  cHoh     = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
 
-string grpBig = "📈 Big Degree (advanced) / الدرجة الكبيرة (متقدّم)"
-int    bigMinSwings = input.int(2, "Min medium points in big wave / أدنى نقاط متوسطة", minval = 1, maxval = 10, group = grpBig, tooltip = "[ط0] فلتر الـleg: أقلّ عدد شموع قبل تأكيد طرف (كبح السيقان الصغيرة).")
-float  legMinRatio  = input.float(0.3, "Wave-leg size (× wave amplitude) / حجم ساق الموجة (× سعة الموجة)", minval = 0.0, maxval = 1.0, step = 0.05, group = grpBig, tooltip = "[ط0] عتبة محرّك حدود الموجات = نسبة من سعة الموجة التاريخية (ampHist) — بديل أصيل لـATR. تضبط دقّة الـleg.")
-int    bigLegs      = input.int(7, "Candidate big waves / عدد الموجات الكبيرة المرشّحة", minval = 2, maxval = 15, group = grpBig, tooltip = "[ط0] سقف الأداء: يُحفظ آخر (العدد × 2 + 2) من أطراف الـleg.")
-
-// الطول الافتراضيّ للموجة عند الوضع التلقائيّ (نظير autoLen السابق قبل ارتكاز ط1). المحلّل
-//   يختار الموجة يدويًّا (درس 03) عبر useHistN/histBars؛ هذا بداية عرض، لا عتبة استراتيجية.
+// الطول الافتراضيّ للموجة عند الوضع التلقائيّ (نظير autoLen السابق). المحلّل يختار الموجة يدويًّا
+//   (درس 03) عبر useHistN/histBars؛ هذا بداية عرض، لا عتبة استراتيجية.
 int AUTO_WAVE_LEN = 150
 
-// ─── الأنواع (بيانات متماسكة — مصدر واحد للحقيقة) ───
-// سياق الموجة التاريخية: نافذة + حدود + سعة + اتجاه. يُحسب مرّة كل شمعة.
+// ─── النوع: سياق الموجة التاريخية (نافذة + حدود) — مصدر واحد للحقيقة، يُحسب كل شمعة ───
 type WaveCtx
-    int   win        // طول النافذة (wlen)
-    int   left       // بداية الموجة (histLeft)
-    float hi         // أعلى الموجة (hwHiE)
-    float lo         // أدنى الموجة (hwLoE)
-    float amp        // السعة (ampHist)
-    int   dir        // اتجاه الموجة (bigDir)
-
-// محرّك الـleg: حالة متراكمة لاستخراج حدود الموجات من السعر الخام (مخرَج ط0 لتاريخ التاريخ وط1).
-type LegEngine
-    int          dir        // اتجاه الساق الجارية: 1 صعود · -1 هبوط · 0 غير مهيّأ
-    int          swC        // عدّاد شموع الساق الجارية
-    float        extHi      // أعلى تطرّف جارٍ
-    int          extHiBar
-    float        extLo      // أدنى تطرّف جارٍ
-    int          extLoBar
-    array<int>   bars       // بارات حدود الموجات (أطراف الـleg المؤكَّدة)
-    array<float> ps         // أسعارها
-    array<bool>  tops       // الطرف قمّة؟
+    int   win    // طول النافذة (wlen)
+    int   left   // بداية الموجة (histLeft)
+    float hi     // أعلى الموجة
+    float lo     // أدنى الموجة
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
 // طول الموجة (يدويّ بعدد الشموع أو افتراضيّ) مقيَّدًا ضمن المدى الصالح.
@@ -74,30 +51,10 @@ f_waveLen(bool useN, int nBars) =>
     int raw = useN ? nBars : AUTO_WAVE_LEN
     math.min(math.max(raw, 1), bar_index + 1)
 
-// اتجاه الموجة من خطّ ترندها (أحدث تطرّف) مع ثبات يمنع التذبذب قرب التوازن:
-//   لا ينقلب إلا إذا فاق فارق موضعَي القمّة/القاع 10% من النافذة. (لا اشتقاق بالكسر — هذه ط0)
-f_bigDir(int win) =>
-    int hb  = ta.highestbars(high, win)
-    int lb  = ta.lowestbars(low, win)
-    int raw = hb > lb ? 1 : -1
-    var int dir = 0
-    if dir == 0
-        dir := raw
-    else if raw != dir and math.abs(hb - lb) > win * 0.1
-        dir := raw
-    dir
-
-// سياق الموجة التاريخية كاملًا — يُجمّع مصدر الحقيقة في كائن واحد.
+// سياق الموجة التاريخية (يُحسب كل شمعة — ta.* تتطلّب تقييمًا مستمرًّا).
 f_waveContext(bool useN, int nBars) =>
-    int   win  = f_waveLen(useN, nBars)
-    int   left = bar_index - win + 1
-    float hi   = ta.highest(high, win)
-    float lo   = ta.lowest(low, win)
-    WaveCtx.new(win, left, hi, lo, hi - lo, f_bigDir(win))
-
-// مُنشئ محرّك leg بمصفوفات فارغة.
-f_newLeg() =>
-    LegEngine.new(0, 0, na, na, na, na, array.new<int>(), array.new<float>(), array.new<bool>())
+    int win  = f_waveLen(useN, nBars)
+    WaveCtx.new(win, bar_index - win + 1, ta.highest(high, win), ta.lowest(low, win))
 
 // أعلى/أدنى سعر ضمن نطاق بارات [leftB..rightB] (يُستدعى عند islast فقط — قليل التكلفة).
 f_rangeHiLo(int leftB, int rightB) =>
@@ -111,81 +68,10 @@ f_rangeHiLo(int leftB, int rightB) =>
                 lo := na(lo) or low[off] < lo ? low[off] : lo
     [hi, lo]
 
-// نطاق تاريخ التاريخ [يسار..يمين]: يدويّ بعدد الشموع، أو أحدث ساق leg سابقة (≤ histLeft)
-//   سعتها ≥ نسبة من السعة. يعتمد أطراف الـleg (مخرَج ط0 نفسه) — لا قراءة من المتوسطة (لا دائرة).
-f_hohRange(WaveCtx ctx, LegEngine e, bool useN, int nBars, float minRatio) =>
-    int rLeft  = na
-    int rRight = ctx.left
-    if useN
-        rLeft := math.max(ctx.left - nBars, 0)
-    else
-        float thr   = minRatio * ctx.amp
-        int   n     = array.size(e.bars)
-        bool  found = false
-        if n >= 2
-            for i = n - 1 to 1
-                if not found and array.get(e.bars, i) <= ctx.left and math.abs(array.get(e.ps, i) - array.get(e.ps, i - 1)) >= thr
-                    rLeft := array.get(e.bars, i - 1)
-                    rRight := array.get(e.bars, i)
-                    found := true
-        if not found
-            rLeft := math.max(ctx.left - ctx.win, 0)   // احتياطيّ: بطول الموجة قبله (الدرس 04)
-    [rLeft, rRight]
-
-// ─── الـmethods على محرّك الـleg (تغليف منطق الحالة) ───
-// خطوة لكل شمعة: تهيئة عند توفّر الاتجاه، تتبّع التطرّف الجاري، وتأكيد الطرف عند ارتداد ≥ th
-//   وعدد شموع ≥ minSw. التناوب قمّة↔قاع مضمون بنيويًّا (الاتجاه ينقلب عند كل تأكيد فقط).
-method f_step(LegEngine e, int seedDir, float th, int minSw) =>
-    if e.dir == 0 and seedDir != 0
-        e.dir := seedDir
-        e.extHi := high
-        e.extHiBar := bar_index
-        e.extLo := low
-        e.extLoBar := bar_index
-        e.swC := 0
-    if e.dir == 1
-        e.swC := e.swC + 1
-        if na(e.extHi) or high > e.extHi
-            e.extHi := high
-            e.extHiBar := bar_index
-        if not na(th) and th > 0 and not na(e.extHi) and low < e.extHi - th and e.swC >= minSw
-            array.push(e.bars, e.extHiBar)
-            array.push(e.ps, e.extHi)
-            array.push(e.tops, true)
-            e.dir := -1
-            e.extLo := low
-            e.extLoBar := bar_index
-            e.swC := 0
-    else if e.dir == -1
-        e.swC := e.swC + 1
-        if na(e.extLo) or low < e.extLo
-            e.extLo := low
-            e.extLoBar := bar_index
-        if not na(th) and th > 0 and not na(e.extLo) and high > e.extLo + th and e.swC >= minSw
-            array.push(e.bars, e.extLoBar)
-            array.push(e.ps, e.extLo)
-            array.push(e.tops, false)
-            e.dir := 1
-            e.extHi := high
-            e.extHiBar := bar_index
-            e.swC := 0
-
-// قصّ المصفوفات لإبقاء آخر `keep` أطراف فقط (حدّ الأداء).
-method f_trim(LegEngine e, int keep) =>
-    while array.size(e.bars) > keep
-        array.shift(e.bars)
-        array.shift(e.ps)
-        array.shift(e.tops)
-
-// ─── الحساب (لكلّ شمعة — مصدر واحد للحقيقة، لا قراءة من ط1+) ───
+// ─── الحساب (لكلّ شمعة) ───
 WaveCtx ctx = f_waveContext(useHistN, histBars)
-float   legTh = legMinRatio * ctx.amp
-var LegEngine leg = f_newLeg()
-leg.f_step(ctx.dir, legTh, bigMinSwings)
-leg.f_trim(bigLegs * 2 + 2)
 
 // ─── الرسم (islast فقط — منفصل عن الحساب) ───
-// صندوقا الموجة التاريخية وتاريخ التاريخ فقط (بلا رسم أطراف الـleg — تأتي مع الكبيرة في ط1).
 var box waveBox = na
 var box hohBox  = na
 if barstate.islast
@@ -195,19 +81,21 @@ if barstate.islast
         waveBox := na
     if showHist
         waveBox := box.new(ctx.left, ctx.hi, bar_index, ctx.lo, xloc = xloc.bar_index, border_color = cHist, bgcolor = cHist)
-    // صندوق تاريخ التاريخ (من أطراف الـleg/يدويّ — لا ارتكاز على المتوسطة)
+    // صندوق تاريخ التاريخ = نافذة بطول الموجة (أو يدويّ) قبل بداية الموجة مباشرةً
     if not na(hohBox)
         box.delete(hohBox)
         hohBox := na
     if showHoh
-        [hohL, hohR] = f_hohRange(ctx, leg, useHohN, hohBars, hohMinRatio)
+        int hohLen = useHohN ? hohBars : ctx.win
+        int hohL   = math.max(ctx.left - hohLen, 0)
+        int hohR   = ctx.left
         [hohHi, hohLo] = f_rangeHiLo(hohL, hohR)
         if not na(hohHi) and not na(hohLo)
             hohBox := box.new(hohL, hohHi, hohR, hohLo, xloc = xloc.bar_index, border_color = cHoh, bgcolor = cHoh)
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ط1 — القمم والقيعان   [دروس 05-07]   (لاحقًا)
+// ط1 — القمم والقيعان (+ محرّك الـleg/الكبيرة)   [دروس 05-07]   (لاحقًا)
 // ─────────────────────────────────────────────────────────────────────────────
 
 
