@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.7 — اتجاه الصغيرة يتبع الموجة العامّ (نافذة السعر) لا تحديدًا محلّيًّا
-//   ثابت لا يتقلّب على الارتدادات · النقطة المعلّقة تُرسَم مبدئيًّا · الانقلاب (درس 09) مؤجَّل
+// الإصدار الداخليّ: v0.9.8 — الفعاليّة تشمل الحالات الأربع (تفعيل فوريّ: قمّة أدنى/قاع أعلى أيضًا)
+//   يُصلِح تتابُع القيعان في الهبوط (لا تُفعَّل قيعان الارتداد) · اتجاه الموجة العامّ · المعلّق يُرسَم
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -213,15 +213,17 @@ method sequenceLaw(DegreeLaws self, bool isTop, float price, int bar) =>
         self.pendingPrice := price
         self.pendingBar   := bar
 
-// ── القانون ق6/ق7: الفعاليّة (التغطية) ───────────────────────────────────────
-//   المعلَّق فعّال إن تجاوز التطرّفُ المعاكس آخرَ نقطة فعّالة من نوعه:
-//   صعودًا ⇒ القمّة التالية أعلى من آخر قمّة فعّالة · هبوطًا ⇒ القاع التالي أدنى من آخر قاع فعّال.
-method effectivenessLaw(DegreeLaws self, float oppositePrice) =>
-    bool effective = true
-    if self.trendDir == 1 and self.pendingType == -1
-        effective := na(self.lastEffTopPrice) or oppositePrice > self.lastEffTopPrice
-    else if self.trendDir == -1 and self.pendingType == 1
-        effective := na(self.lastEffBottomPrice) or oppositePrice < self.lastEffBottomPrice
+// ── القانون ق6/ق7: الفعاليّة (التغطية) — تفعيل فوريّ بمجرّد تحقّق الشرط [قاعدة المستخدم] ──
+//   النقطة المعلّقة تُفعَّل حالما يواصل التطرّفُ الواردُ (المعاكس) الاتجاهَ مقابل **آخر نقطة فعّالة من نوع الوارد**:
+//   • صعودًا ⇒ الوارد أعلى من المرجع: قمّة جديدة أعلى (ق6) **أو** قاع أعلى (higher low).
+//   • هبوطًا ⇒ الوارد أدنى من المرجع: قاع جديد أدنى (ق7) **أو** قمّة أدنى (lower high).
+//   يشمل الحالات الأربع ⇒ لا تُفعَّل قيعانُ/قممُ الارتداد (التتابُع يبقى صحيحًا).
+method effectivenessLaw(DegreeLaws self, float incomingPrice) =>
+    bool  incomingIsTop = self.pendingType == -1            // الوارد معاكس المعلّق
+    float ref = incomingIsTop ? self.lastEffTopPrice : self.lastEffBottomPrice
+    bool  effective = true
+    if self.trendDir != 0 and not na(ref)
+        effective := self.trendDir == 1 ? incomingPrice > ref : incomingPrice < ref
     effective
 
 // ── القانون: التفعيل ─────────────────────────────────────────────────────────
