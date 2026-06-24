@@ -3,7 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.6.0 — ط0: اختيار الموجة تلقائيًّا بالتطرّفات + label الطريقة + لوحة اختبار الموجة
+// الإصدار الداخليّ: v0.6.1 — إصلاح: تاريخ التاريخ خلف الموجة (الموجة = آخر تطرّف→الآن، الأقرب للسعر)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_bars_back = 5000)
 
@@ -151,24 +151,13 @@ if barstate.islast
         label.delete(waveLbl)
         waveLbl := na
     // الحدود: يدويّ (نافذة) أو تلقائيّ (آخر تأرجح كامل [n-2 → n-1]) مع احتياطيّ نافذة.
-    int   wL = na
-    int   wR = na
-    float wHi = na
-    float wLo = na
-    if useHistN or nsw < 2
-        // يدويّ ⇒ نافذة آخر N شمعة · تلقائيّ بلا تطرّفات كافية ⇒ احتياطيّ نافذة افتراضية
-        wL := useHistN ? mctx.left : math.max(bar_index - AUTO_WAVE_LEN + 1, 0)
-        wR := bar_index
-        [mh, ml] = f_rangeHiLo(wL, wR)
-        wHi := mh
-        wLo := ml
-    else
-        wL := array.get(sw.bars, nsw - 2)
-        wR := array.get(sw.bars, nsw - 1)
-        float pA = array.get(sw.ps, nsw - 2)
-        float pB = array.get(sw.ps, nsw - 1)
-        wHi := math.max(pA, pB)
-        wLo := math.min(pA, pB)
+    // الموجة التاريخية = الأقرب للسعر (درس 03): من آخر تطرّف مؤكَّد إلى الآن.
+    //   يدويّ ⇒ نافذة آخر N شمعة · تلقائيّ بلا تطرّفات ⇒ احتياطيّ نافذة افتراضية.
+    int   wL = useHistN ? mctx.left : (nsw >= 1 ? array.get(sw.bars, nsw - 1) : math.max(bar_index - AUTO_WAVE_LEN + 1, 0))
+    int   wR = bar_index
+    [wmh, wml] = f_rangeHiLo(wL, wR)
+    float wHi = wmh
+    float wLo = wml
     if showHist and not na(wHi) and not na(wLo)
         color hBd = f_dark(cHist)
         waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 1, bgcolor = cHist)
@@ -181,23 +170,16 @@ if barstate.islast
     if not na(hohLbl)
         label.delete(hohLbl)
         hohLbl := na
-    int   hL = na
-    int   hR = na
+    // تاريخ التاريخ = خلف الموجة مباشرةً (ينتهي عند بدايتها wL) ⇒ يستحيل أن يقع داخلها.
+    //   التأرجح السابق (تلقائيّ) · أو يدويّ بعدد الشموع · أو بطول الموجة (احتياطيّ).
+    int   hR = wL
+    int   hL = useHohN ? math.max(wL - hohBars, 0) : (not useHistN and nsw >= 2 ? array.get(sw.bars, nsw - 2) : math.max(wL - mctx.win, 0))
     float hHi = na
     float hLo = na
-    if useHohN
-        hL := math.max((useHistN ? mctx.left : wL) - hohBars, 0)
-        hR := useHistN ? mctx.left : wL
-        [hh, hl] = f_rangeHiLo(hL, hR)
-        hHi := hh
-        hLo := hl
-    else if nsw >= 3
-        hL := array.get(sw.bars, nsw - 3)
-        hR := array.get(sw.bars, nsw - 2)
-        float pA = array.get(sw.ps, nsw - 3)
-        float pB = array.get(sw.ps, nsw - 2)
-        hHi := math.max(pA, pB)
-        hLo := math.min(pA, pB)
+    if hR > hL
+        [hmh, hml] = f_rangeHiLo(hL, hR)
+        hHi := hmh
+        hLo := hml
     if showHoh and not na(hHi) and not na(hLo)
         color hohBd = color.new(color.gray, 0)
         hohBox := box.new(hL, hHi, hR, hLo, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh)
