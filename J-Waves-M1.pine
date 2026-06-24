@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.14 — رجوع لآليّة المعلّق (v0.9.12: corrEffS للتصحيحيّة فقط) بعد أن حذف فلتر v0.9.13 الكثير
-//   + إزالة سقالة الطبقات الأمامية (دروس 06+) — الملفّ يقتصر على ط0 + الدرس 05 فقط (بناء تدريجيّ)
+// الإصدار الداخليّ: v0.9.15 — الاتجاه بنيويّ كالقديم (smallActiveDir): HH⇒صعود · LL⇒هبوط، تمهيد من الموجة،
+//   تصفير مراجع التغطية عند كل انعكاس بنيويّ (كان المفقود). آليّة المعلّق + corrEffS كما القديم
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -184,7 +184,9 @@ if showFrameHelper and barstate.islast
 //   النقطة لا تُرسَم إلّا مع شريكها المعاكس ⇒ تناوُب مضمون. معمّم لكل الدرجات.
 // ═════════════════════════════════════════════════════════════════════════════
 type DegreeLaws
-    int          trendDir           = 0    // اتجاه الموجة (يُغذَّى من الموجة؛ يقود القوانين المتقابلة) — ليس انقلاب درس 09
+    int          trendDir           = 0    // اتجاه الموجة (بنيويّ: HH⇒صعود · LL⇒هبوط؛ مُمهَّد من الموجة) — ليس انقلاب درس 09
+    float        lastRawTop         = na   // آخر قمّة خام (لكشف الكسر البنيويّ HH)
+    float        lastRawBottom      = na   // آخر قاع خام (لكشف الكسر البنيويّ LL)
     int          pendingType        = 0    // المعلَّق: 1 قمّة · -1 قاع · 0 لا شيء
     float        pendingPrice       = na
     int          pendingBar         = na
@@ -231,11 +233,23 @@ method activateLaw(DegreeLaws self) =>
 
 // ── خطّ الأنابيب: يستدعي القوانين **بترتيب** (معمّم لكل درجة — مواصفة §6: حلقة لا تعاوُد) ──
 method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir) =>
-    // الاتجاه من الموجة. تغيّره ⇒ تصفير مراجع التغطية (كالقديم: تصفير عند تغيّر الاتجاه)
-    if waveDir != self.trendDir
+    // ── الاتجاه البنيويّ (= smallActiveDir القديم) ──
+    //   تمهيد من اتجاه الموجة (نظير largeDir)؛ ثمّ ينقلب بكسر البنية: قمّة تكسر آخر قمّة (HH) ⇒ صعود،
+    //   قاع يكسر آخر قاع (LL) ⇒ هبوط. عند تغيّر الاتجاه ⇒ تصفير مراجع التغطية (الموجة الجديدة تقارن بنفسها).
+    int prevDir = self.trendDir
+    if self.trendDir == 0
+        self.trendDir := waveDir
+    if isTop and not na(self.lastRawTop) and price > self.lastRawTop
+        self.trendDir := 1
+    if (not isTop) and not na(self.lastRawBottom) and price < self.lastRawBottom
+        self.trendDir := -1
+    if self.trendDir != prevDir and prevDir != 0
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
-        self.trendDir := waveDir
+    if isTop
+        self.lastRawTop := price
+    else
+        self.lastRawBottom := price
     int currentType = isTop ? 1 : -1
     if self.pendingType == 0
         self.pendingType  := currentType                      // أوّل نقطة ⇒ معلّقة
