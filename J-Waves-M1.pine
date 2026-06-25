@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.11.0 — [درس04] اتجاه الموجة التاريخية من حدودها المختارة (مستقرّ) — يدويّ على histBars
-//   يحسم إسقاط النقاط الصحيحة عند الانعكاس (اليدويّ) · اتجاه الصغيرة = اتجاه الموجة (مصدر واحد)
+// الإصدار الداخليّ: v0.12.0 — [درس04] اتجاه الموجة = إغلاق البداية مقابل الآن (مباشر، لا دائرة، لا تأخّر)
+//   يحسم إسقاط النقاط الصحيحة · اتجاه الصغيرة = اتجاه الموجة (مصدر واحد، السعر الخام)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -92,18 +92,19 @@ f_rangeDays(int leftB, int rightB) =>
 int hiOff = ta.highestbars(high, AUTO_WAVE_LEN)
 int loOff = ta.lowestbars(low, AUTO_WAVE_LEN)
 
-// [درس04] اتجاه الموجة التاريخية من **حدودها المختارة** (مستقرّ): القمّة أبكر (أقدم) من القاع ⇒ هابطة، والعكس صاعدة.
-//   يدويّ: نافذة الموجة المختارة (histBars) · تلقائيّ: نافذة أصل الحركة (AUTO_WAVE_LEN) = الموجة نفسها.
-//   🔴 مصدر واحد للاتجاه (الموجة المختارة، لا نافذة منفصلة) — يُستبدَل باتجاه الكبيرة لاحقًا (الدورة 3).
-int hiOffH = ta.highestbars(high, histBars)
-int loOffH = ta.lowestbars(low, histBars)
-int hiBarW = useHistN ? hiOffH : hiOff
-int loBarW = useHistN ? loOffH : loOff
-int waveGeneralDir = hiBarW < loBarW ? -1 : 1
-
 // يسار الموجة التاريخية: يدويّ (نافذة آخر N) أو تلقائيّ (أصل الحركة). يُحسب رخيصًا (بلا حلقة).
 f_waveLeft() =>
     useHistN ? math.max(bar_index - f_waveLen(histBars) + 1, 0) : bar_index + (hiOff > loOff ? loOff : hiOff)
+
+// [درس04] اتجاه الموجة = إغلاق **بداية الموجة** مقابل الإغلاق الحاليّ (مباشر من السعر، لا دائرة، لا تأخّر).
+//   البداية أعلى ⇒ هابطة (-1) · البداية أدنى ⇒ صاعدة (+1) · تعادل نادر ⇒ يبقى آخر اتجاه.
+//   🔴 مصدر واحد (السعر الخام) — يُستبدَل باتجاه الكبيرة لاحقًا (الدورة 3).
+var int waveGeneralDir = 0
+int   startOff   = math.max(bar_index - f_waveLeft(), 0)
+float startClose = close[startOff]
+int   rawWaveDir = startClose > close ? -1 : (startClose < close ? 1 : 0)
+if rawWaveDir != 0
+    waveGeneralDir := rawWaveDir
 
 // ─── الرسم (islast فقط — منفصل عن الحساب) ───
 var box   waveBox = na
