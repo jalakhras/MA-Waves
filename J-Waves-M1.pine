@@ -52,6 +52,7 @@ float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval =
 int    arrWidth  = input.int(2, "Arrow width (candles) / عرض السهم", minval = 1, maxval = 10, group = grpSmall)
 bool   linkSmall = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
 color  cLineS    = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
+bool   showDiag  = input.bool(true, "[TEMP] Pivot state diagnostic / تشخيص حالة النقطة (مؤقّت)", group = grpSmall)
 
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
@@ -193,9 +194,13 @@ type DegreeLaws
     array<int>   effectiveBars      = na   // مخرَج الدرجة: النقاط الفعّالة المتناوبة
     array<float> effectivePrices    = na
     array<bool>  effectiveIsTop     = na
+    array<int>    diagBar   = na   // [تشخيص مؤقّت — تتابُع الصغيرة — يُزال] حالة كل نقطة صغيرة
+    array<float>  diagPrice = na
+    array<bool>   diagIsTop = na
+    array<string> diagText  = na
 
 newDegreeLaws() =>
-    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>())
+    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>(), diagBar = array.new<int>(), diagPrice = array.new<float>(), diagIsTop = array.new<bool>(), diagText = array.new<string>())
 
 // ── القانون ق4/ق5: التتابُع ──────────────────────────────────────────────────
 //   المعلَّق من نفس النوع يُستبدَل بالأكثر تطرّفًا (قمّة أعلى صعودًا / قاع أدنى هبوطًا) — الدافعة تتدرّج.
@@ -249,6 +254,23 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir)
     else
         self.lastRawBottom := price
     int currentType = isTop ? 1 : -1
+    // [تشخيص مؤقّت — تتابُع الصغيرة — يُزال] التقاط الحالة قبل معالجة المعلّق (المراجع = ما يفحصه corrEffS)
+    bool   dOpp = self.pendingType != 0 and currentType != self.pendingType
+    bool   dEff = dOpp and self.isPendingConfirmed(price)
+    string dCorr = dOpp ? (dEff ? "true" : "false") : "—"
+    string dLdTop = na(self.lastEffTopPrice) ? "na" : str.tostring(self.lastEffTopPrice, "#.###")
+    string dLdBot = na(self.lastEffBottomPrice) ? "na" : str.tostring(self.lastEffBottomPrice, "#.###")
+    string dPend = str.tostring(self.pendingType) + " " + (na(self.pendingPrice) ? "na" : str.tostring(self.pendingPrice, "#.###"))
+    string dTxt = (isTop ? "قمة " : "قاع ") + str.tostring(price, "#.###") + "\ndir=" + str.tostring(self.trendDir) + " prev=" + str.tostring(prevDir) + "\nldTop=" + dLdTop + " ldBot=" + dLdBot + "\npend=" + dPend + "\ncorrEff=" + dCorr
+    array.push(self.diagBar, bar)
+    array.push(self.diagPrice, price)
+    array.push(self.diagIsTop, isTop)
+    array.push(self.diagText, dTxt)
+    while array.size(self.diagBar) > 400
+        array.shift(self.diagBar)
+        array.shift(self.diagPrice)
+        array.shift(self.diagIsTop)
+        array.shift(self.diagText)
     if self.pendingType == 0
         self.pendingType  := currentType                      // أوّل نقطة ⇒ معلّقة
         self.pendingPrice := price
@@ -373,6 +395,7 @@ f_drawArrow(bool isTop, float price, int bar, color col) =>
 // ─── رسم الدرجة الصغيرة (islast): السهم المملوء على النقاط الفعّالة + خطوط الوصل بينها ───
 var array<polyline> smallArrows = array.new<polyline>()
 var array<line>     smallLinks  = array.new<line>()
+var array<label>    smallDiag   = array.new<label>()   // [تشخيص مؤقّت — يُزال]
 if barstate.islast
     for a in smallArrows
         polyline.delete(a)
@@ -380,6 +403,9 @@ if barstate.islast
     for ln in smallLinks
         line.delete(ln)
     array.clear(smallLinks)
+    for dl in smallDiag
+        label.delete(dl)
+    array.clear(smallDiag)
     int effectiveCount = array.size(smallDegree.effectiveBars)
     if effectiveCount > 0
         int firstDrawn = math.max(0, effectiveCount - 90)   // سقف polyline=100 ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الدرجات
@@ -400,6 +426,14 @@ if barstate.islast
         array.push(smallArrows, f_drawArrow(pTop, smallDegree.pendingPrice, smallDegree.pendingBar, pCol))
         if linkSmall and effectiveCount > 0
             array.push(smallLinks, line.new(array.get(smallDegree.effectiveBars, effectiveCount - 1), array.get(smallDegree.effectivePrices, effectiveCount - 1), smallDegree.pendingBar, smallDegree.pendingPrice, xloc = xloc.bar_index, color = color.new(cLineS, 45), width = 1))
+    // [تشخيص مؤقّت — تتابُع الصغيرة — يُزال] تسمية حالة كل نقطة صغيرة (آخر ~40)
+    if showDiag
+        int nd = array.size(smallDegree.diagBar)
+        if nd > 0
+            int firstD = math.max(0, nd - 40)
+            for i = firstD to nd - 1
+                bool   dT = array.get(smallDegree.diagIsTop, i)
+                array.push(smallDiag, label.new(array.get(smallDegree.diagBar, i), array.get(smallDegree.diagPrice, i), array.get(smallDegree.diagText, i), xloc = xloc.bar_index, yloc = yloc.price, style = dT ? label.style_label_down : label.style_label_up, color = color.new(color.yellow, 10), textcolor = color.black, size = size.small))
 
 
 // (الطبقات التالية ط1-المتوسطة فما فوق تُضاف عند الوصول إليها — لا سقالة مسبقة.)
