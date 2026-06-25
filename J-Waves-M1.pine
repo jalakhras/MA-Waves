@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.12.0 — [درس04] اتجاه الموجة = إغلاق البداية مقابل الآن (مباشر، لا دائرة، لا تأخّر)
-//   يحسم إسقاط النقاط الصحيحة · اتجاه الصغيرة = اتجاه الموجة (مصدر واحد، السعر الخام)
+// الإصدار الداخليّ: v0.13.0 — [درس05] كشف موجَّه بالاتجاه: تصحيح بلون عكس الاتجاه فقط، الشمعتان على التصحيح وحده
+//   انتهاء التصحيح = استئناف الدافعة بكسر تطرّفها (تفسير 3) · يستبدل زجزاج scanDir
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -263,84 +263,72 @@ method trimEffective(DegreeLaws self, int keep) =>
         array.shift(self.effectivePrices)
         array.shift(self.effectiveIsTop)
 
-// ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
-//   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
-//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله.
+// ─── الدرجة 0 (الصغيرة): كشف **موجَّه باتجاه الموجة** [درس 05] ───
+//   التصحيح بلون **عكس** اتجاه الموجة (هبوط ⇒ تصحيح أخضر · صعود ⇒ تصحيح أحمر)؛ شرط الشمعتين الصحيحتين
+//   «منزاح» يُطبَّق على **التصحيح وحده** لا الدافعة. كل تصحيح مكتمل ⇒ تطرّف الدافعة ثمّ تطرّف التصحيح (زمنيًّا).
+//   انتهاء التصحيح [تفسير المستخدم 3] = استئناف الدافعة بكسر تطرّفها (قاع جديد هبوطًا / قمّة جديدة صعودًا).
 var DegreeLaws smallDegree    = newDegreeLaws()
-var int        scanDir        = 0    // اتجاه المسح: 1 يترقّب قمّة · -1 يترقّب قاعًا · 0 غير مهيّأ
-var float      runningHighPrice = na // أعلى سعر جارٍ (مرشّح القمّة)
-var int        runningHighBar = na
-var float      runningLowPrice = na  // أدنى سعر جارٍ (مرشّح القاع)
-var int        runningLowBar  = na
-var int        correctionCount = 0   // عدّاد شموع التصحيح الصحيحة المتدرّجة
-var float      corrPrevBHi     = na  // [فجوة05] أعلى جسم شمعة التصحيح السابقة (لشرط «الجسم منزاح»)
-var float      corrPrevBLo     = na  // [فجوة05] أسفل جسم شمعة التصحيح السابقة
+var int        lastWaveDir    = 0    // لكشف انعكاس الموجة (تصفير الحالة)
+var bool       inCorrection   = false// طور: false دافعة · true تصحيح
+var float      impExtPrice    = na   // تطرّف الدافعة (قاع هبوطًا / قمّة صعودًا)
+var int        impExtBar      = na
+var float      corrExtPrice   = na   // تطرّف التصحيح (قمّة هبوطًا / قاع صعودًا)
+var int        corrExtBar     = na
+var int        corrCount      = 0    // عدّاد شموع التصحيح الصحيحة المتدرّجة
+var float      corrPrevBHi    = na   // أعلى جسم شمعة التصحيح السابقة («منزاح»)
+var float      corrPrevBLo    = na
 
-if barstate.isconfirmed
-    float bodySize      = math.abs(close - open)
-    float upperWick     = high - math.max(close, open)
-    float lowerWick     = math.min(close, open) - low
-    bool  isValidCandle = (not useValid) or (bodySize > 0 and bodySize >= upperWick and bodySize >= lowerWick)
-    bool  isBearCandle  = close < open
-    bool  isBullCandle  = close > open
-    float bHiC          = math.max(open, close)   // أعلى جسم الشمعة الحاليّة
-    float bLoC          = math.min(open, close)   // أسفل جسم الشمعة الحاليّة
-    if scanDir == 0
-        scanDir          := 1
-        runningHighPrice := high
-        runningHighBar   := bar_index
-        runningLowPrice  := low
-        runningLowBar    := bar_index
-    else if scanDir == 1
-        // يترقّب قمّة: القمّة = أعلى سعر قبل تصحيح بشمعتين صحيحتين هابطتين «تحت بعض» (الجسم منزاح كلّه لأسفل)
-        if high > runningHighPrice
-            runningHighPrice := high
-            runningHighBar   := bar_index
-            correctionCount  := 0
-            corrPrevBHi      := na
-            corrPrevBLo      := na
-        else if isValidCandle and isBearCandle
-            if correctionCount == 0
-                correctionCount := 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            else if bHiC < corrPrevBHi and bLoC < corrPrevBLo   // [فجوة05] الجسم منزاح كلّه لأسفل (تحت بعض، لا ابتلاع)
-                correctionCount := correctionCount + 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            if correctionCount >= minCorr
-                smallDegree.feedPivot(true, runningHighPrice, runningHighBar, waveGeneralDir)
-                scanDir          := -1
-                runningLowPrice  := low
-                runningLowBar    := bar_index
-                correctionCount  := 0
-                corrPrevBHi      := na
-                corrPrevBLo      := na
+if barstate.isconfirmed and waveGeneralDir != 0
+    int   dir       = waveGeneralDir
+    float bodySize  = math.abs(close - open)
+    float upperWick = high - math.max(close, open)
+    float lowerWick = math.min(close, open) - low
+    bool  isValid   = (not useValid) or (bodySize > 0 and bodySize >= upperWick and bodySize >= lowerWick)
+    bool  isCorr    = dir == 1 ? close < open : close > open   // التصحيح = عكس اتجاه الموجة
+    float bHiC      = math.max(open, close)
+    float bLoC      = math.min(open, close)
+    if dir != lastWaveDir                                      // انعكاس الموجة ⇒ تصفير الحالة
+        inCorrection := false
+        impExtPrice  := na
+        corrExtPrice := na
+        corrCount    := 0
+        lastWaveDir  := dir
+    if not inCorrection
+        // طور الدافعة: تتبّع تطرّفها (قاع هبوطًا / قمّة صعودًا) + ترقّب تصحيح بشمعتين عكس اللون «منزاحتين»
+        float impCand = dir == -1 ? low : high
+        if na(impExtPrice) or (dir == -1 ? impCand < impExtPrice : impCand > impExtPrice)
+            impExtPrice := impCand                            // الدافعة تواصل ⇒ تصفير محاولة التصحيح
+            impExtBar   := bar_index
+            corrCount   := 0
+        else if isValid and isCorr
+            if corrCount == 0
+                corrCount   := 1
+                corrPrevBHi := bHiC
+                corrPrevBLo := bLoC
+            else if dir == -1 ? (bHiC > corrPrevBHi and bLoC > corrPrevBLo) : (bHiC < corrPrevBHi and bLoC < corrPrevBLo)
+                corrCount   := corrCount + 1
+                corrPrevBHi := bHiC
+                corrPrevBLo := bLoC
+        if corrCount >= minCorr                               // تصحيح مؤكَّد ⇒ ادخل طور التصحيح (الدافعة مُجمَّدة)
+            inCorrection := true
+            corrExtPrice := dir == -1 ? high : low
+            corrExtBar   := bar_index
+            corrCount    := 0
     else
-        // يترقّب قاعًا: القاع = أدنى سعر قبل تصحيح بشمعتين صحيحتين صاعدتين «فوق بعض» (الجسم منزاح كلّه لأعلى)
-        if low < runningLowPrice
-            runningLowPrice := low
-            runningLowBar   := bar_index
-            correctionCount := 0
-            corrPrevBHi     := na
-            corrPrevBLo     := na
-        else if isValidCandle and isBullCandle
-            if correctionCount == 0
-                correctionCount := 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            else if bHiC > corrPrevBHi and bLoC > corrPrevBLo   // [فجوة05] الجسم منزاح كلّه لأعلى (فوق بعض، لا ابتلاع)
-                correctionCount := correctionCount + 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            if correctionCount >= minCorr
-                smallDegree.feedPivot(false, runningLowPrice, runningLowBar, waveGeneralDir)
-                scanDir          := 1
-                runningHighPrice := high
-                runningHighBar   := bar_index
-                correctionCount  := 0
-                corrPrevBHi      := na
-                corrPrevBLo      := na
+        // طور التصحيح: تتبّع تطرّفه (قمّة هبوطًا / قاع صعودًا)
+        float corrCand = dir == -1 ? high : low
+        if dir == -1 ? corrCand > corrExtPrice : corrCand < corrExtPrice
+            corrExtPrice := corrCand
+            corrExtBar   := bar_index
+        // [تفسير 3] استئناف الدافعة بكسر تطرّفها ⇒ التصحيح انتهى: أخرِج الدافعة ثمّ التصحيح (زمنيًّا)
+        if dir == -1 ? low < impExtPrice : high > impExtPrice
+            smallDegree.feedPivot(dir == 1, impExtPrice, impExtBar, dir)     // الدافعة: قاع هبوطًا / قمّة صعودًا
+            smallDegree.feedPivot(dir == -1, corrExtPrice, corrExtBar, dir)  // التصحيح: قمّة هبوطًا / قاع صعودًا
+            inCorrection := false
+            impExtPrice  := dir == -1 ? low : high             // ابدأ دافعة جديدة من الكسر
+            impExtBar    := bar_index
+            corrExtPrice := na
+            corrCount    := 0
     smallDegree.trimEffective(SMALL_KEEP)
 
 // ─── شكل السهم المملوء — منقول من الكود المثبَت (M-Waves_M1: drawSArrow) سهمًا 7 نقاط ───
