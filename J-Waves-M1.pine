@@ -3,8 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.16.0 — [درس05] كسر المستوى المحدِّد per-candle (بالذيل) ⇒ تصفير مراجع التغطية فيتجدّد التتابُع
-//   بلا انعكاس اتجاه (نطاق 1-5) · يستبدل تصفير v0.15.0 المتأخّر (per-pivot) · زجزاج/اتجاه كما هما
+// الإصدار الداخليّ: v0.17.0 — [درس05] إعادة عدّ الموجة: التصفير **بعد** تفعيل المعلّق القديم داخل feedPivot
+//   (النقطة الكاسرة تُرسم طبيعيًّا ثمّ تُصفَّر المراجع) — يستبدل تصفير v0.16.0 per-candle الذي كان يُلغيه تفعيلُ
+//   القمّة/القاع القديم. بلا انعكاس اتجاه (نطاق 1-5) · زجزاج/اتجاه كما هما
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -242,6 +243,10 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir)
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
         self.trendDir := waveDir
+    // ── [درس05] إعادة عدّ الموجة (كسر المستوى المحدِّد) — يُلتقَط **قبل** المعالجة بالمراجع القديمة ──
+    //   هبوطًا: قمّةٌ واردة تتجاوز آخر قمّة فعّالة (تطرّف الذيل = price) · صعودًا: قاعٌ وارد ينزل تحت آخر قاع فعّال.
+    //   تجاوز صارم بالذيل (price)، ولو بنقطة. بلا انعكاس اتجاه (النطاق 1-5).
+    bool brokeLevel = (self.trendDir == -1 and isTop and not na(self.lastEffTopPrice) and price > self.lastEffTopPrice) or (self.trendDir == 1 and (not isTop) and not na(self.lastEffBottomPrice) and price < self.lastEffBottomPrice)
     int currentType = isTop ? 1 : -1
     if self.pendingType == 0
         self.pendingType  := currentType                      // أوّل نقطة ⇒ معلّقة
@@ -255,14 +260,10 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir)
         self.pendingPrice := price
         self.pendingBar   := bar
     // غير فعّال ⇒ يُسقَط الوارد ويبقى المعلَّق (التغطية)
-
-// [درس05] كسر المستوى المحدِّد (per-candle): هبوطًا ذيلٌ يتجاوز آخر قمّة فعّالة · صعودًا ذيلٌ ينزل تحت آخر قاع فعّال
-//   ⇒ تصفير **كلا** المرجعين فتبدأ الموجة الجديدة تتابُعًا تقارن بنفسها. بلا انعكاس اتجاه. تجاوز صارم بالذيل.
-method checkLevelBreak(DegreeLaws self, float h, float l, int waveDir) =>
-    if waveDir == -1 and not na(self.lastEffTopPrice) and h > self.lastEffTopPrice
-        self.lastEffTopPrice    := na
-        self.lastEffBottomPrice := na
-    else if waveDir == 1 and not na(self.lastEffBottomPrice) and l < self.lastEffBottomPrice
+    // ── [درس05] التصفير **بعد** تفعيل المعلّق القديم (يُرسم آخر نقطة في الموجة القديمة) ──
+    //   لو صُفِّر قبلًا لأعاد تفعيلُ القمّة/القاع القديم ضبطَ المرجع فأبطله. الآن: تُرسم النقطة الكاسرة طبيعيًّا
+    //   ثمّ تُصفَّر المراجع ⇒ الموجة الجديدة تقارن بنفسها فتُرسم نقاطها. (تأكيد المستخدم 2026-06-24: «النقطة الكاسرة تُرسم».)
+    if brokeLevel
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
 
@@ -295,7 +296,6 @@ if barstate.isconfirmed
     bool  isBullCandle  = close > open
     float bHiC          = math.max(open, close)   // أعلى جسم الشمعة الحاليّة
     float bLoC          = math.min(open, close)   // أسفل جسم الشمعة الحاليّة
-    smallDegree.checkLevelBreak(high, low, waveGeneralDir)   // [درس05] كسر المستوى المحدِّد ⇒ تصفير المراجع (تجدّد التتابُع)
     if scanDir == 0
         scanDir          := waveGeneralDir != 0 ? waveGeneralDir : 1   // تمهيد من اتجاه الموجة: صاعدة⇒قمّة(1) · هابطة⇒قاع(-1)
         runningHighPrice := high
