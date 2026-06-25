@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.9.18 — rollback لـ v0.9.16 (الاتجاه البنيويّ + الجسم المنزاح) + حذف مدخل الاتجاه (تلقائيّ فقط)
-//   بانتظار اكتشاف المستخدم للمشكلة (الاتجاه التلقائيّ البنيويّ HH/LL)
+// الإصدار الداخليّ: v0.10.0 — [تتابُع05] اتجاه الصغيرة = اتجاه الموجة التاريخية (bigDir) طوال الموجة، مصدر واحد
+//   لا انقلاب على التصحيح المحلّيّ (كان يصفّر المرجع فيُبطل التصفية) ⇒ يحسم القاع المخالف للتتابُع · أُزيل التشخيص
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -52,7 +52,6 @@ float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval =
 int    arrWidth  = input.int(2, "Arrow width (candles) / عرض السهم", minval = 1, maxval = 10, group = grpSmall)
 bool   linkSmall = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
 color  cLineS    = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
-bool   showDiag  = input.bool(true, "[TEMP] Pivot state diagnostic / تشخيص حالة النقطة (مؤقّت)", group = grpSmall)
 
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
@@ -183,9 +182,7 @@ if showFrameHelper and barstate.islast
 //   النقطة لا تُرسَم إلّا مع شريكها المعاكس ⇒ تناوُب مضمون. معمّم لكل الدرجات.
 // ═════════════════════════════════════════════════════════════════════════════
 type DegreeLaws
-    int          trendDir           = 0    // اتجاه الموجة (بنيويّ: HH⇒صعود · LL⇒هبوط؛ مُمهَّد من الموجة) — ليس انقلاب درس 09
-    float        lastRawTop         = na   // آخر قمّة خام (لكشف الكسر البنيويّ HH)
-    float        lastRawBottom      = na   // آخر قاع خام (لكشف الكسر البنيويّ LL)
+    int          trendDir           = 0    // اتجاه الموجة = اتجاه الموجة التاريخية (bigDir)؛ لا انقلاب محلّيّ
     int          pendingType        = 0    // المعلَّق: 1 قمّة · -1 قاع · 0 لا شيء
     float        pendingPrice       = na
     int          pendingBar         = na
@@ -194,13 +191,9 @@ type DegreeLaws
     array<int>   effectiveBars      = na   // مخرَج الدرجة: النقاط الفعّالة المتناوبة
     array<float> effectivePrices    = na
     array<bool>  effectiveIsTop     = na
-    array<int>    diagBar   = na   // [تشخيص مؤقّت — تتابُع الصغيرة — يُزال] حالة كل نقطة صغيرة
-    array<float>  diagPrice = na
-    array<bool>   diagIsTop = na
-    array<string> diagText  = na
 
 newDegreeLaws() =>
-    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>(), diagBar = array.new<int>(), diagPrice = array.new<float>(), diagIsTop = array.new<bool>(), diagText = array.new<string>())
+    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>())
 
 // ── القانون ق4/ق5: التتابُع ──────────────────────────────────────────────────
 //   المعلَّق من نفس النوع يُستبدَل بالأكثر تطرّفًا (قمّة أعلى صعودًا / قاع أدنى هبوطًا) — الدافعة تتدرّج.
@@ -236,41 +229,14 @@ method activateLaw(DegreeLaws self) =>
 
 // ── خطّ الأنابيب: يستدعي القوانين **بترتيب** (معمّم لكل درجة — مواصفة §6: حلقة لا تعاوُد) ──
 method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir) =>
-    // ── الاتجاه البنيويّ (= smallActiveDir القديم) ──
-    //   تمهيد من اتجاه الموجة (نظير largeDir)؛ ثمّ ينقلب بكسر البنية: قمّة تكسر آخر قمّة (HH) ⇒ صعود،
-    //   قاع يكسر آخر قاع (LL) ⇒ هبوط. عند تغيّر الاتجاه ⇒ تصفير مراجع التغطية (الموجة الجديدة تقارن بنفسها).
-    int prevDir = self.trendDir
-    if self.trendDir == 0
-        self.trendDir := waveDir
-    if isTop and not na(self.lastRawTop) and price > self.lastRawTop
-        self.trendDir := 1
-    if (not isTop) and not na(self.lastRawBottom) and price < self.lastRawBottom
-        self.trendDir := -1
-    if self.trendDir != prevDir and prevDir != 0
+    // ── [تتابُع05] اتجاه الصغيرة = اتجاه الموجة التاريخية (bigDir) طوال الموجة — مصدر واحد ──
+    //   🔴 لا انقلاب على الكسر المحلّيّ/التصحيح (كان يتذبذب فيصفّر المرجع فيُبطل التصفية). الانقلاب فقط حين تنعكس
+    //   الموجة التاريخية نفسها (تغيّر bigDir) ⇒ عندها تُصفَّر مراجع التغطية (الموجة الجديدة تقارن بنفسها).
+    if waveDir != self.trendDir
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
-    if isTop
-        self.lastRawTop := price
-    else
-        self.lastRawBottom := price
+        self.trendDir := waveDir
     int currentType = isTop ? 1 : -1
-    // [تشخيص مؤقّت — تتابُع الصغيرة — يُزال] التقاط الحالة قبل معالجة المعلّق (المراجع = ما يفحصه corrEffS)
-    bool   dOpp = self.pendingType != 0 and currentType != self.pendingType
-    bool   dEff = dOpp and self.isPendingConfirmed(price)
-    string dCorr = dOpp ? (dEff ? "true" : "false") : "—"
-    string dLdTop = na(self.lastEffTopPrice) ? "na" : str.tostring(self.lastEffTopPrice, "#.###")
-    string dLdBot = na(self.lastEffBottomPrice) ? "na" : str.tostring(self.lastEffBottomPrice, "#.###")
-    string dPend = str.tostring(self.pendingType) + " " + (na(self.pendingPrice) ? "na" : str.tostring(self.pendingPrice, "#.###"))
-    string dTxt = (isTop ? "قمة " : "قاع ") + str.tostring(price, "#.###") + "\ndir=" + str.tostring(self.trendDir) + " prev=" + str.tostring(prevDir) + "\nldTop=" + dLdTop + " ldBot=" + dLdBot + "\npend=" + dPend + "\ncorrEff=" + dCorr
-    array.push(self.diagBar, bar)
-    array.push(self.diagPrice, price)
-    array.push(self.diagIsTop, isTop)
-    array.push(self.diagText, dTxt)
-    while array.size(self.diagBar) > 400
-        array.shift(self.diagBar)
-        array.shift(self.diagPrice)
-        array.shift(self.diagIsTop)
-        array.shift(self.diagText)
     if self.pendingType == 0
         self.pendingType  := currentType                      // أوّل نقطة ⇒ معلّقة
         self.pendingPrice := price
@@ -395,7 +361,6 @@ f_drawArrow(bool isTop, float price, int bar, color col) =>
 // ─── رسم الدرجة الصغيرة (islast): السهم المملوء على النقاط الفعّالة + خطوط الوصل بينها ───
 var array<polyline> smallArrows = array.new<polyline>()
 var array<line>     smallLinks  = array.new<line>()
-var array<label>    smallDiag   = array.new<label>()   // [تشخيص مؤقّت — يُزال]
 if barstate.islast
     for a in smallArrows
         polyline.delete(a)
@@ -403,9 +368,6 @@ if barstate.islast
     for ln in smallLinks
         line.delete(ln)
     array.clear(smallLinks)
-    for dl in smallDiag
-        label.delete(dl)
-    array.clear(smallDiag)
     int effectiveCount = array.size(smallDegree.effectiveBars)
     if effectiveCount > 0
         int firstDrawn = math.max(0, effectiveCount - 90)   // سقف polyline=100 ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الدرجات
@@ -426,14 +388,6 @@ if barstate.islast
         array.push(smallArrows, f_drawArrow(pTop, smallDegree.pendingPrice, smallDegree.pendingBar, pCol))
         if linkSmall and effectiveCount > 0
             array.push(smallLinks, line.new(array.get(smallDegree.effectiveBars, effectiveCount - 1), array.get(smallDegree.effectivePrices, effectiveCount - 1), smallDegree.pendingBar, smallDegree.pendingPrice, xloc = xloc.bar_index, color = color.new(cLineS, 45), width = 1))
-    // [تشخيص مؤقّت — تتابُع الصغيرة — يُزال] تسمية حالة كل نقطة صغيرة (آخر ~40)
-    if showDiag
-        int nd = array.size(smallDegree.diagBar)
-        if nd > 0
-            int firstD = math.max(0, nd - 40)
-            for i = firstD to nd - 1
-                bool   dT = array.get(smallDegree.diagIsTop, i)
-                array.push(smallDiag, label.new(array.get(smallDegree.diagBar, i), array.get(smallDegree.diagPrice, i), array.get(smallDegree.diagText, i), xloc = xloc.bar_index, yloc = yloc.price, style = dT ? label.style_label_down : label.style_label_up, color = color.new(color.yellow, 10), textcolor = color.black, size = size.small))
 
 
 // (الطبقات التالية ط1-المتوسطة فما فوق تُضاف عند الوصول إليها — لا سقالة مسبقة.)
