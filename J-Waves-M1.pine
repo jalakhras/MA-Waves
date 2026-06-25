@@ -3,8 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.14.0 — [درس05] العودة لكشف الزجزاج المتناوب المثبَت (لا كشف موجَّه) + شرط الجسم المنزاح
-//   الكشف يلتقط الكل، الفعاليّة تصفّي · تمهيد scanDir من اتجاه الموجة · إبقاء اتجاه الإغلاق (درس04)
+// الإصدار الداخليّ: v0.15.0 — [درس05] كسر المستوى المحدِّد (آخر قمّة/قاع فعّال) ⇒ تصفير مراجع التغطية فيتجدّد التتابُع
+//   بنفس القوانين، بلا انعكاس اتجاه (نطاق 1-5) · زجزاج الكشف + اتجاه الإغلاق كما هما
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
 
@@ -242,6 +242,14 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir)
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
         self.trendDir := waveDir
+    // [درس05] كسر المستوى المحدِّد (آخر قمّة/قاع فعّال) ⇒ تصفير مراجع التغطية فيتجدّد التتابُع — بلا انعكاس اتجاه.
+    //   هبوطًا: قمّة واردة تكسر آخر قمّة فعّالة · صعودًا: قاع وارد يكسر آخر قاع فعّال. (سعر التطرّف = الذيل، متّسق مع corrEffS.)
+    if self.trendDir == -1 and isTop and not na(self.lastEffTopPrice) and price > self.lastEffTopPrice
+        self.lastEffTopPrice    := na
+        self.lastEffBottomPrice := na
+    else if self.trendDir == 1 and (not isTop) and not na(self.lastEffBottomPrice) and price < self.lastEffBottomPrice
+        self.lastEffTopPrice    := na
+        self.lastEffBottomPrice := na
     int currentType = isTop ? 1 : -1
     if self.pendingType == 0
         self.pendingType  := currentType                      // أوّل نقطة ⇒ معلّقة
