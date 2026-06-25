@@ -3,9 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.20.1 — [درس06] الدرجة المتوسطة (الدورة 2): مُولِّد كسر معمّم (BreakProc) يحوّل الصغيرة الفعّالة
-//   ⇒ متوسطة خام ثمّ نفس feedPivot (تتابُع/فعاليّة/معلّق/إعادة عدّ) ⇒ دوائر برتقاليّة (حافة+تعبئة، أسلوب القديم) + وصل
-//   إصلاح RE10026: رسم المتوسطة بـxloc.bar_time (سلسلة زمن effectiveTimes/pendingTime) — النقاط القديمة تتجاوز حدّ bar_index
+// الإصدار الداخليّ: v0.21.0 — [درس06] BreakProc قاعدة(ب): الكاسر نفسه + أدنى/أعلى منذ التصفير، تصفير بعد كل كسر،
+//   أوّل-بعد-التصفير لا يكسر — لا متراكم (يستبدل منطق dir/maxTop/minBot المتراكم). تحقّق: هبوط 7 نقاط · صعود 5 نقاط.
+// v0.20.1 — الدرجة المتوسطة: مُولِّد كسر + رسم بالزمن (xloc.bar_time، إصلاح RE10026)
 // v0.19.0 — ✅ إغلاق الدرس 05 (الصغيرة): حسم ق2-أ + ق3-أ — توثيق + تنقية تعليقات (لا تغيير منطقيّ)
 // v0.18.1 — ضبط مدخلات حجم السهم: الطول 0.4 والعرض 2 بخطوة 0.01 (العرض float يُقرَّب لإزاحة شموع)
 // v0.18.0 — [درس05] تمهيد الكشف بطلب تطرّف بداية الموجة (scanDir = -waveGeneralDir) ⇒ يُكشَف قمّة/قاع البداية
@@ -308,85 +308,107 @@ method trimEffective(DegreeLaws self, int keep) =>
         array.shift(self.effectiveTimes)
 
 // ═════════════════════════════════════════════════════════════════════════════
-// مُولِّد الكسر المعمّم [درس 06] — يحوّل تطرّفات درجة أدنى **فعّالة** ⇒ تطرّف درجة أعلى **خام** بالكسر.
-//   صعودًا: كسر قاع أدنى (price < آخر قاع) ⇒ أخرِج **قمّة** = أعلى سعر قبل الكسر (maxTop المتراكمة).
-//   هبوطًا: كسر قمّة أعلى (price > آخر قمّة) ⇒ أخرِج **قاعًا** = أدنى سعر قبل الكسر (minBot المتراكمة).
-//   العتبة = أيّ كسر بفتيل (تجاوز صارم) — «العمليّة أرقام» (مصعب). التناوب مضمون بنيويًّا (قمّة عند كسر قاع والعكس).
-//   معمّم: يُعاد استعماله للكبيرة (الدورة 3) بلا تغيير منطق.
+// مُولِّد الكسر المعمّم [درس 06 — قاعدة (ب)] — ينتقي قمم/قيعان صغيرة فعّالة ⇒ متوسطة خام بالكسر.
+//   المُحفِّز = كسر التطرّف الصغير **السابق من نوع المرجع** (هبوطًا قمّة تتجاوز refTop · صعودًا قاع يتجاوز refBot).
+//   عند الكسر يُخرَج **زوج**: المقابل (أدنى/أعلى منذ آخر تصفير) **ثم الكاسر نفسه**، ثمّ **تصفير فوريّ** (لا متراكم).
+//   أوّل-بعد-التصفير من نوع المرجع يضبط المرجع بلا كسر. العتبة = تجاوز صارم بالفتيل («أرقام» مصعب). متناظر، معمّم.
 // ═════════════════════════════════════════════════════════════════════════════
 type BreakProc
-    int   dir          = 0    // اتجاه المُولِّد الداخليّ (تناوب الكسر): 1 صاعد · -1 هابط · 0 غير مهيّأ
-    float maxTopPrice  = na   // أعلى قمّة في الموجة الصاعدة الحاليّة («قبله» صعودًا)
-    int   maxTopBar    = na
-    int   maxTopTime   = na
-    float minBotPrice  = na   // أدنى قاع في الموجة الهابطة الحاليّة
-    int   minBotBar    = na
-    int   minBotTime   = na
-    float prevTopPrice = na   // آخر قمّة مُدخَلة (كشف الكسر للأعلى)
-    float prevBotPrice = na   // آخر قاع مُدخَل (كشف الكسر للأسفل)
+    bool  started      = false // هل غُذِّي أوّل طرف متوسط (بداية الموجة)؟
+    float refTopPrice  = na    // هبوطًا: آخر قمّة صغيرة (مرجع الكسر) — تُحدَّث مع كل قمّة لا تكسر
+    float refBotPrice  = na    // صعودًا: آخر قاع صغير (مرجع الكسر)
+    float minSincePrice = na   // هبوطًا: أدنى قاع منذ آخر تصفير (الطرف المقابل) — الأدنى لا الأخير
+    int   minSinceBar  = na
+    int   minSinceTime = na
+    float maxSincePrice = na   // صعودًا: أعلى قمّة منذ آخر تصفير
+    int   maxSinceBar  = na
+    int   maxSinceTime = na
 
 newBreakProc() =>
     BreakProc.new()
 
-method feedBreak(BreakProc self, bool isTop, float price, int bar, int tm) =>
-    bool  emitted = false
-    bool  eTop    = false
-    float eP      = na
-    int   eBar    = na
-    int   eTime   = na
-    if isTop
-        if self.dir == 0
-            self.dir         := 1                              // أوّل نقطة قمّة ⇒ موجة صاعدة، ابدأ تتبّع «قبله»
-            self.maxTopPrice := price
-            self.maxTopBar   := bar
-            self.maxTopTime  := tm
-        else if self.dir == 1
-            if na(self.maxTopPrice) or price > self.maxTopPrice  // استمرار صعود ⇒ تتبّع أعلى قمّة
-                self.maxTopPrice := price
-                self.maxTopBar   := bar
-                self.maxTopTime  := tm
-        else if not na(self.prevTopPrice) and price > self.prevTopPrice  // dir==-1: قمّة تكسر آخر قمّة للأعلى ⇒ أخرِج قاعًا
-            emitted          := true
-            eTop             := false
-            eP               := self.minBotPrice
-            eBar             := self.minBotBar
-            eTime            := self.minBotTime
-            self.dir         := 1                              // اقلب لصاعد، ابدأ «قبله» الجديدة من الكاسرة
-            self.maxTopPrice := price
-            self.maxTopBar   := bar
-            self.maxTopTime  := tm
-        self.prevTopPrice := price
+// يُرجع [n, t1,p1,b1,tm1, t2,p2,b2,tm2]: n=عدد المُخرَجات (0/1/2) · الفتحة1 = المقابل (أو البداية) · الفتحة2 = الكاسر.
+method feedBreak(BreakProc self, bool isTop, float price, int bar, int tm, int wdir) =>
+    int   n   = 0
+    bool  t1  = false
+    float p1  = na
+    int   b1  = na
+    int   tm1 = na
+    bool  t2  = false
+    float p2  = na
+    int   b2  = na
+    int   tm2 = na
+    if not self.started
+        // بداية الموجة: أوّل طرف من نوع المرجع (هبوطًا قمّة · صعودًا قاع) يُغذّى مباشرةً ويضبط المرجع (لا كسر)
+        bool firstWanted = (wdir == -1 and isTop) or (wdir == 1 and (not isTop))
+        if firstWanted
+            self.started := true
+            n   := 1
+            t1  := isTop
+            p1  := price
+            b1  := bar
+            tm1 := tm
+            if wdir == -1
+                self.refTopPrice := price
+            else
+                self.refBotPrice := price
+    else if wdir == -1
+        // هبوط: المرجع قمّة (refTop)، المقابل أدنى قاع (minSince)
+        if not isTop
+            if na(self.minSincePrice) or price < self.minSincePrice   // راكِم الأدنى الحقيقيّ (لا الأخير)
+                self.minSincePrice := price
+                self.minSinceBar   := bar
+                self.minSinceTime  := tm
+        else if not na(self.refTopPrice) and price > self.refTopPrice  // كسر قمّة سابقة ⇒ أخرِج (قاع المقابل ثم القمّة الكاسرة)، صفِّر
+            n   := 2
+            t1  := false
+            p1  := self.minSincePrice
+            b1  := self.minSinceBar
+            tm1 := self.minSinceTime
+            t2  := true
+            p2  := price
+            b2  := bar
+            tm2 := tm
+            self.refTopPrice   := na
+            self.minSincePrice := na
+            self.minSinceBar   := na
+            self.minSinceTime  := na
+        else
+            self.refTopPrice := price                                 // لا كسر ⇒ المرجع = آخر قمّة
     else
-        if self.dir == 0
-            self.dir         := -1                             // أوّل نقطة قاع ⇒ موجة هابطة
-            self.minBotPrice := price
-            self.minBotBar   := bar
-            self.minBotTime  := tm
-        else if self.dir == -1
-            if na(self.minBotPrice) or price < self.minBotPrice  // استمرار هبوط ⇒ تتبّع أدنى قاع
-                self.minBotPrice := price
-                self.minBotBar   := bar
-                self.minBotTime  := tm
-        else if not na(self.prevBotPrice) and price < self.prevBotPrice  // dir==1: قاع يكسر آخر قاع للأسفل ⇒ أخرِج قمّة
-            emitted          := true
-            eTop             := true
-            eP               := self.maxTopPrice
-            eBar             := self.maxTopBar
-            eTime            := self.maxTopTime
-            self.dir         := -1                             // اقلب لهابط، ابدأ «قبله» من الكاسرة
-            self.minBotPrice := price
-            self.minBotBar   := bar
-            self.minBotTime  := tm
-        self.prevBotPrice := price
-    [emitted, eTop, eP, eBar, eTime]
+        // صعود: المرجع قاع (refBot)، المقابل أعلى قمّة (maxSince) — مرآة
+        if isTop
+            if na(self.maxSincePrice) or price > self.maxSincePrice
+                self.maxSincePrice := price
+                self.maxSinceBar   := bar
+                self.maxSinceTime  := tm
+        else if not na(self.refBotPrice) and price < self.refBotPrice // كسر قاع سابق ⇒ أخرِج (قمّة المقابل ثم القاع الكاسر)، صفِّر
+            n   := 2
+            t1  := true
+            p1  := self.maxSincePrice
+            b1  := self.maxSinceBar
+            tm1 := self.maxSinceTime
+            t2  := false
+            p2  := price
+            b2  := bar
+            tm2 := tm
+            self.refBotPrice   := na
+            self.maxSincePrice := na
+            self.maxSinceBar   := na
+            self.maxSinceTime  := na
+        else
+            self.refBotPrice := price
+    [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
 
-// تغذية المتوسطة من نقطة صغيرة فعّالة (إن فُعِّلت في نداء feedPivot الصغيرة) — تُستدعى مرّةً عقب كلّ feedPivot صغيرة.
-//   الكائنات تُمرَّر بالإسناد (reference) ⇒ التحوّل يدوم. يمنع تكرار سطور الربط في موضعَي الكشف.
+// تغذية المتوسطة من نقطة صغيرة فعّالة (إن فُعِّلت) — تُستدعى عقب كلّ feedPivot صغيرة. الكائنات بالإسناد ⇒ التحوّل يدوم.
+//   المُخرَجات بالترتيب الزمنيّ: الفتحة1 (المقابل/البداية) قبل الفتحة2 (الكاسر).
 f_feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, int wdir) =>
     if small.justActivated
-        [emM, eTopM, ePM, eBarM, eTimeM] = bp.feedBreak(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
-        if emM
-            med.feedPivot(eTopM, ePM, eBarM, eTimeM, wdir)
+        [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreak(small.justActTop, small.justActPrice, small.justActBar, small.justActTime, wdir)
+        if n >= 1
+            med.feedPivot(t1, p1, b1, tm1, wdir)
+        if n >= 2
+            med.feedPivot(t2, p2, b2, tm2, wdir)
 
 // ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
