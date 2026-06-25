@@ -3,8 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.18.0 — [درس05] تمهيد الكشف بطلب تطرّف بداية الموجة (scanDir = -waveGeneralDir)
-//   ⇒ يُكشَف قمّة البداية (هابطة) / قاع البداية (صاعدة) التي كانت تُفوَّت · باقي التتابُع كما هو
+// الإصدار الداخليّ: v0.19.0 — ✅ إغلاق الدرس 05 (الصغيرة): حسم ق2-أ (تجاهُل شمعة لون الاتجاه، العدّاد يعدّ لون التصحيح فقط)
+//   + ق3-أ (إهمال شمعة التصحيح غير المنزاحة، انتظار منزاحة) — توثيق القرارين + تنقية تعليقات (لا تغيير منطقيّ)
+// v0.18.1 — ضبط مدخلات حجم السهم: الطول 0.4 والعرض 2 بخطوة 0.01 (العرض float يُقرَّب لإزاحة شموع)
+// v0.18.0 — [درس05] تمهيد الكشف بطلب تطرّف بداية الموجة (scanDir = -waveGeneralDir) ⇒ يُكشَف قمّة/قاع البداية
 // v0.17.0 — [درس05] إعادة عدّ الموجة: التصفير **بعد** تفعيل المعلّق القديم داخل feedPivot (النقطة الكاسرة تُرسم ثمّ تُصفَّر المراجع)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
@@ -49,8 +51,8 @@ int    minCorr   = input.int(2, "Correction candles to confirm / شموع الت
 bool   useValid  = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpSmall, tooltip = "[درس 05] النويز = ذيل أطول من الجسم ⇒ يُستبعَد.")
 color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpSmall)
 color  cBot      = input.color(#089981, "Small bottom / قاع صغير", group = grpSmall)
-float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval = 0.1, step = 0.1, group = grpSmall, tooltip = "نسبة من نطاق سعريّ أصيل (لا ATR) — حجم رسم فقط.")
-int    arrWidth  = input.int(2, "Arrow width (candles) / عرض السهم", minval = 1, maxval = 10, group = grpSmall)
+float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval = 0.1, step = 0.01, group = grpSmall, tooltip = "نسبة من نطاق سعريّ أصيل (لا ATR) — حجم رسم فقط.")
+float  arrWidth  = input.float(2.0, "Arrow width (candles) / عرض السهم", minval = 1.0, maxval = 10.0, step = 0.01, group = grpSmall)
 bool   linkSmall = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
 color  cLineS    = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
 
@@ -243,9 +245,10 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int waveDir)
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
         self.trendDir := waveDir
-    // ── [درس05] إعادة عدّ الموجة (كسر المستوى المحدِّد) — يُلتقَط **قبل** المعالجة بالمراجع القديمة ──
+    // ── [درس05] إعادة عدّ الموجة (كسر المستوى المحدِّد) — يُلتقَط **قبل** منطق المعلّق بالمراجع كما هي الآن ──
     //   هبوطًا: قمّةٌ واردة تتجاوز آخر قمّة فعّالة (تطرّف الذيل = price) · صعودًا: قاعٌ وارد ينزل تحت آخر قاع فعّال.
     //   تجاوز صارم بالذيل (price)، ولو بنقطة. بلا انعكاس اتجاه (النطاق 1-5).
+    //   ملاحظة: عند انقلاب bigDir أعلاه تكون المراجع صُفِّرت للتوّ ⇒ brokeLevel=false هنا (غير ضارّ: التصفير حصل أصلًا).
     bool brokeLevel = (self.trendDir == -1 and isTop and not na(self.lastEffTopPrice) and price > self.lastEffTopPrice) or (self.trendDir == 1 and (not isTop) and not na(self.lastEffBottomPrice) and price < self.lastEffBottomPrice)
     int currentType = isTop ? 1 : -1
     if self.pendingType == 0
@@ -277,6 +280,10 @@ method trimEffective(DegreeLaws self, int keep) =>
 // ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
 //   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله.
+//   ── قرارات محسومة (المستخدم 2026-06-25) تُحكم العدّاد: ──
+//   • العدّاد يعدّ **شموع لون التصحيح فقط** (بحث قمّة⇒حمراء · بحث قاع⇒خضراء)؛ شمعة لون الاتجاه تُتجاهَل ما لم تصنع تطرّفًا جديدًا.
+//   • [ق2-أ] شمعة لون الاتجاه (أو النويز) لا تصنع تطرّفًا ⇒ تُتجاهَل (العدّاد محفوظ، لا تصفير).
+//   • [ق3-أ] شمعة لون التصحيح صحيحة لكن جسمها غير منزاح بالكامل (ابتلاع/تداخل) ⇒ تُهمَل (ننتظر منزاحة؛ لا تصفير).
 var DegreeLaws smallDegree    = newDegreeLaws()
 var int        scanDir        = 0    // اتجاه المسح: 1 يترقّب قمّة · -1 يترقّب قاعًا · 0 غير مهيّأ
 var float      runningHighPrice = na // أعلى سعر جارٍ (مرشّح القمّة)
@@ -360,7 +367,7 @@ float arrScale = ta.highest(high, 50) - ta.lowest(low, 50)
 f_drawArrow(bool isTop, float price, int bar, color col) =>
     float shaftLen  = arrLen * 0.25 * arrScale
     float headLen   = shaftLen * 0.45                              // ارتفاع رأس السهم (متناسق)
-    int   headHalf  = math.max(1, arrWidth)                        // نصف عرض الرأس (شموع)
+    int   headHalf  = math.max(1, int(math.round(arrWidth)))       // نصف عرض الرأس (شموع — يقبل خطوة 0.01 ثمّ يُقرَّب لإزاحة شموع صحيحة)
     int   shaftHalf = math.max(1, int(math.round(headHalf * 0.45)))// نصف عرض الساق ≈ نصف الرأس
     shaftHalf := math.min(shaftHalf, math.max(1, headHalf - 1))    // الرأس أعرض من الساق دائمًا
     float yShaft  = isTop ? price + shaftLen : price - shaftLen
