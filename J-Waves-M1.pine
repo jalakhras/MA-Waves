@@ -3,8 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.23.0 — 🏛️ بناء **محدود بالموجة** عند islast: كلّ موجة في حدودها [wL..wR] باتجاهٍ ثابت (أيّ تطرّف أقدم).
-//   يستبدل البناء التدريجيّ المتدحرج (كان يقلب الاتجاه عشرات المرّات ⇒ يمسح مراجع الفعاليّة ⇒ نويز). الآن: اتجاه واحد ⇒ تعمل التصفية.
+// الإصدار الداخليّ: v0.26.0 — [درس06] فصل **التغطية** عن الفعاليّة/التتابُع: التغطية = مسحٌ خلفيّ مستقلّ (قمّة تُغطَّى بقمّة
+//   أعلى لاحقة · قاع بقاع أدنى لاحق) ⇒ 🟠 غير مُغطَّى / 🔴 مُغطَّى. الفعاليّة+التتابُع تبنيان المتوسطة افتراضيًّا (الصغيرة+الاستخراج).
+//   المُغطَّى: تعبئة حمراء/حدّ برتقاليّ · المعلّقة: رماديّة/حدّ برتقاليّ · coverInWave (OFF): التغطية للتاريخ الأقدم فقط.
+// v0.24.0 — فصل منطق الكسر (feedBreakDown/feedBreakUp) + المتوسطة خام (appendEff، بلا دمج يُسقط زوج كسر)
+// v0.23.0 — بناء محدود بالموجة عند islast: كلّ موجة في حدودها باتجاهٍ ثابت (يستبدل البناء المتدحرج)
 // v0.22.0 — اتجاه بنيويّ (hiOff/loOff) بدل الإغلاق المنزلق (خطوة جزئيّة — لم تكفِ لأنّ النافذة متدحرجة)
 // v0.21.3 — تشخيص (showDiag): جدول الموجة + لوحة حالة المحرّك (عدّادات التصفير) — كشفت السبب (تصفير الاتجاه=53)
 // v0.21.1 — [درس06] تثبيت المعمارية: المتوسطة = (الصغيرة بعد **التتابُع+الفعاليّة**) ⇒ قاعدة(ب).
@@ -68,8 +71,14 @@ color  cLineS    = input.color(color.new(color.gray, 55), "Link line / لون خ
 // ─── المدخلات: الدرجة 1 (المتوسطة) [درس 06] — دوائر برتقاليّة، نفس إعدادات الكود القديم ───
 string grpMed     = "🟠 Medium Degree / المتوسطة (درجة 1)"
 bool   showMedium = input.bool(true, "Show medium pivots / إظهار المتوسطة", group = grpMed)
-color  cMed       = input.color(color.new(#C55A11, 45), "Medium fill / تعبئة المتوسطة (فعّالة)", group = grpMed)
+color  cMed       = input.color(color.new(#C55A11, 45), "Medium fill (effective) / تعبئة المتوسطة (فعّالة)", group = grpMed)
 color  cMedBorder = input.color(color.new(#5A2D08, 0), "Medium border / حدّ المتوسطة", group = grpMed)
+bool   showCovered  = input.bool(true, "Show covered medium in red (lesson06 n4) / إظهار المُغطَّاة بالأحمر (تاريخ التاريخ، ن4)", group = grpMed)
+bool   coverInWave  = input.bool(false, "Apply coverage inside historical wave / تطبيق التغطية داخل الموجة التاريخية", group = grpMed, tooltip = "افتراضيًّا: التغطية (التحمير) لا تُطبَّق على نقاط الموجة التاريخية — تبقى كلّها فعّالة برتقاليّة. التغطية للتاريخ الأقدم فقط. فعِّله ليُطبَّق داخل الموجة أيضًا.")
+color  cMedDead   = input.color(color.new(#C00000, 45), "Medium fill (covered / غير فعّالة)", group = grpMed)
+color  cMedDeadBorder = input.color(color.new(#FF9800, 0), "Medium border (covered) / حدّ المُغطَّاة (برتقاليّ)", group = grpMed)
+color  cMedPendFill   = input.color(color.new(color.gray, 30), "Medium pending fill / تعبئة المعلّقة (رماديّ)", group = grpMed)
+color  cMedPendBorder = input.color(color.new(#FF9800, 0), "Medium pending border / حدّ المعلّقة (برتقاليّ)", group = grpMed)
 string medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
 bool   linkMed    = input.bool(true, "Link medium pivots / وصل المتوسطة بخطوط", group = grpMed)
 color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / لون خطّ وصل المتوسطة", group = grpMed)
@@ -324,13 +333,18 @@ method trimEffective(DegreeLaws self, int keep) =>
         array.shift(self.effectiveIsTop)
         array.shift(self.effectiveTimes)
 
+// [درس06] إلحاق نقطة متوسطة **خام** مباشرةً (بلا قوانين تصفية/دمج) — كلّ مخرَجات قاعدة(ب) تُرسَم كما هي.
+//   🔴 لا feedPivot للمتوسطة: تمريرها عبره كان يُسقط القمّة الأدنى (تتابُع) فيَدمج زوجَي كسرٍ ⇒ تختفي نقطة كاسرة صحيحة.
+method appendEff(DegreeLaws self, bool isTop, float price, int bar, int tm) =>
+    array.push(self.effectiveBars,   bar)
+    array.push(self.effectivePrices, price)
+    array.push(self.effectiveIsTop,  isTop)
+    array.push(self.effectiveTimes,  tm)
+
 // ═════════════════════════════════════════════════════════════════════════════
-// مُولِّد الكسر المعمّم [درس 06 — قاعدة (ب)] — ينتقي قمم/قيعان صغيرة **فعّالة** ⇒ متوسطة خام بالكسر.
-//   🏛️ معماريًّا: يُغذَّى من **الصغيرة الفعّالة فقط** (بعد التتابُع+الفعاليّة في feedPivot) ⇒ القمّة الكاسرة فعّالة دومًا.
-//      ما قد يبدو «كاسرًا غير فعّال» هو في البيانات الكاملة **مُبتلَع بالتتابُع** (قمّة أعلى لاحقة تستبدله) — لا حاجة لمساره.
-//   المُحفِّز = كسر التطرّف الصغير الفعّال **السابق من نوع المرجع** (هبوطًا قمّة تتجاوز refTop · صعودًا قاع يتجاوز refBot).
-//   عند الكسر يُخرَج **زوج**: المقابل (أدنى/أعلى منذ آخر تصفير) **ثم الكاسر نفسه**، ثمّ **تصفير فوريّ** (لا متراكم).
-//   أوّل-بعد-التصفير من نوع المرجع يضبط المرجع بلا كسر. العتبة = تجاوز صارم بالفتيل («أرقام» مصعب). متناظر، معمّم.
+// مُولِّد الكسر [درس 06 — قاعدة (ب)] — منطقان **منفصلان** (هبوط/صعود) كي لا يتأثّر أحدهما بإصلاح الآخر.
+//   المُحفِّز = كسر التطرّف الصغير السابق من نوع المرجع. عند الكسر: زوج (المقابل=أدنى/أعلى منذ التصفير، ثم الكاسر) + تصفير.
+//   أوّل-بعد-التصفير يضبط المرجع بلا كسر. كلّ زوج كسر = نقطتان متوسطتان (لا دمج لاحقًا). يُرجع [n, t1..tm2].
 // ═════════════════════════════════════════════════════════════════════════════
 type BreakProc
     bool  started      = false // هل غُذِّي أوّل طرف متوسط (بداية الموجة)؟
@@ -346,8 +360,8 @@ type BreakProc
 newBreakProc() =>
     BreakProc.new()
 
-// يُرجع [n, t1,p1,b1,tm1, t2,p2,b2,tm2]: n=عدد المُخرَجات (0/1/2) · الفتحة1 = المقابل (أو البداية) · الفتحة2 = الكاسر.
-method feedBreak(BreakProc self, bool isTop, float price, int bar, int tm, int wdir) =>
+// ── هبوط: المرجع قمّة (refTop)، المقابل أدنى قاع (minSince). كسر = قمّة تتجاوز refTop ⇒ (قاع=minSince ثم قمّة=الكاسرة) ──
+method feedBreakDown(BreakProc self, bool isTop, float price, int bar, int tm) =>
     int   n   = 0
     bool  t1  = false
     float p1  = na
@@ -358,76 +372,97 @@ method feedBreak(BreakProc self, bool isTop, float price, int bar, int tm, int w
     int   b2  = na
     int   tm2 = na
     if not self.started
-        // بداية الموجة: أوّل طرف من نوع المرجع (هبوطًا قمّة · صعودًا قاع) يُغذّى مباشرةً ويضبط المرجع (لا كسر)
-        bool firstWanted = (wdir == -1 and isTop) or (wdir == 1 and (not isTop))
-        if firstWanted
+        if isTop                                                  // بداية الموجة هبوطًا = قمّة
             self.started := true
             n   := 1
-            t1  := isTop
+            t1  := true
             p1  := price
             b1  := bar
             tm1 := tm
-            if wdir == -1
-                self.refTopPrice := price
-            else
-                self.refBotPrice := price
-    else if wdir == -1
-        // هبوط: المرجع قمّة (refTop)، المقابل أدنى قاع (minSince)
-        if not isTop
-            if na(self.minSincePrice) or price < self.minSincePrice   // راكِم الأدنى الحقيقيّ (لا الأخير)
-                self.minSincePrice := price
-                self.minSinceBar   := bar
-                self.minSinceTime  := tm
-        else if not na(self.refTopPrice) and price > self.refTopPrice  // كسر قمّة سابقة ⇒ أخرِج (قاع المقابل ثم القمّة الكاسرة)، صفِّر
-            n   := 2
-            t1  := false
-            p1  := self.minSincePrice
-            b1  := self.minSinceBar
-            tm1 := self.minSinceTime
-            t2  := true
-            p2  := price
-            b2  := bar
-            tm2 := tm
-            self.refTopPrice   := na
-            self.minSincePrice := na
-            self.minSinceBar   := na
-            self.minSinceTime  := na
-        else
-            self.refTopPrice := price                                 // لا كسر ⇒ المرجع = آخر قمّة
+            self.refTopPrice := price
+    else if not isTop
+        if na(self.minSincePrice) or price < self.minSincePrice   // راكِم أدنى قاع
+            self.minSincePrice := price
+            self.minSinceBar   := bar
+            self.minSinceTime  := tm
+    else if not na(self.refTopPrice) and price > self.refTopPrice  // كسر قمّة ⇒ زوج، صفِّر
+        n   := 2
+        t1  := false
+        p1  := self.minSincePrice
+        b1  := self.minSinceBar
+        tm1 := self.minSinceTime
+        t2  := true
+        p2  := price
+        b2  := bar
+        tm2 := tm
+        self.refTopPrice   := na
+        self.minSincePrice := na
+        self.minSinceBar   := na
+        self.minSinceTime  := na
     else
-        // صعود: المرجع قاع (refBot)، المقابل أعلى قمّة (maxSince) — مرآة
-        if isTop
-            if na(self.maxSincePrice) or price > self.maxSincePrice
-                self.maxSincePrice := price
-                self.maxSinceBar   := bar
-                self.maxSinceTime  := tm
-        else if not na(self.refBotPrice) and price < self.refBotPrice // كسر قاع سابق ⇒ أخرِج (قمّة المقابل ثم القاع الكاسر)، صفِّر
-            n   := 2
-            t1  := true
-            p1  := self.maxSincePrice
-            b1  := self.maxSinceBar
-            tm1 := self.maxSinceTime
-            t2  := false
-            p2  := price
-            b2  := bar
-            tm2 := tm
-            self.refBotPrice   := na
-            self.maxSincePrice := na
-            self.maxSinceBar   := na
-            self.maxSinceTime  := na
-        else
-            self.refBotPrice := price
+        self.refTopPrice := price                                 // لا كسر ⇒ المرجع = آخر قمّة
     [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
 
-// تغذية المتوسطة من نقطة صغيرة فعّالة (إن فُعِّلت) — تُستدعى عقب كلّ feedPivot صغيرة. الكائنات بالإسناد ⇒ التحوّل يدوم.
+// ── صعود (مرآة): المرجع قاع (refBot)، المقابل أعلى قمّة (maxSince). كسر = قاع تتجاوزه للأسفل ⇒ (قمّة=maxSince ثم قاع=الكاسر) ──
+method feedBreakUp(BreakProc self, bool isTop, float price, int bar, int tm) =>
+    int   n   = 0
+    bool  t1  = false
+    float p1  = na
+    int   b1  = na
+    int   tm1 = na
+    bool  t2  = false
+    float p2  = na
+    int   b2  = na
+    int   tm2 = na
+    if not self.started
+        if not isTop                                              // بداية الموجة صعودًا = قاع
+            self.started := true
+            n   := 1
+            t1  := false
+            p1  := price
+            b1  := bar
+            tm1 := tm
+            self.refBotPrice := price
+    else if isTop
+        if na(self.maxSincePrice) or price > self.maxSincePrice   // راكِم أعلى قمّة
+            self.maxSincePrice := price
+            self.maxSinceBar   := bar
+            self.maxSinceTime  := tm
+    else if not na(self.refBotPrice) and price < self.refBotPrice // كسر قاع ⇒ زوج، صفِّر
+        n   := 2
+        t1  := true
+        p1  := self.maxSincePrice
+        b1  := self.maxSinceBar
+        tm1 := self.maxSinceTime
+        t2  := false
+        p2  := price
+        b2  := bar
+        tm2 := tm
+        self.refBotPrice   := na
+        self.maxSincePrice := na
+        self.maxSinceBar   := na
+        self.maxSinceTime  := na
+    else
+        self.refBotPrice := price                                 // لا كسر ⇒ المرجع = آخر قاع
+    [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
+
+// تغذية المتوسطة من نقطة صغيرة فعّالة — تختار منطق الاتجاه (هبوط/صعود) وتُلحِق المخرَجات **خامًا** (appendEff، بلا دمج).
 //   المُخرَجات بالترتيب الزمنيّ: الفتحة1 (المقابل/البداية) قبل الفتحة2 (الكاسر).
+//   med = المتوسطة الخام (appendEff): كلّ زوج كسر يُرسَم. التغطية (التلوين) تُحسَب لاحقًا بمسحٍ خلفيّ — لا فلترة هنا.
 f_feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, int wdir) =>
     if small.justActivated
-        [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreak(small.justActTop, small.justActPrice, small.justActBar, small.justActTime, wdir)
-        if n >= 1
-            med.feedPivot(t1, p1, b1, tm1, wdir)
-        if n >= 2
-            med.feedPivot(t2, p2, b2, tm2, wdir)
+        if wdir == -1
+            [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreakDown(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
+            if n >= 1
+                med.appendEff(t1, p1, b1, tm1)
+            if n >= 2
+                med.appendEff(t2, p2, b2, tm2)
+        else
+            [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreakUp(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
+            if n >= 1
+                med.appendEff(t1, p1, b1, tm1)
+            if n >= 2
+                med.appendEff(t2, p2, b2, tm2)
 
 // ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
@@ -450,7 +485,7 @@ var float      corrPrevBLo     = na  // [فجوة05] أسفل جسم شمعة ا
 
 // ─── الدرجة 1 (المتوسطة) [درس 06]: تُشتقّ من الصغيرة الفعّالة بالكسر (مُولِّد) ثمّ نفس القوانين ───
 var BreakProc  mediumBreak    = newBreakProc()   // مُولِّد الكسر (صغيرة فعّالة ⇒ متوسطة خام)
-var DegreeLaws mediumDegree   = newDegreeLaws()  // نفس محرّك القوانين (تتابُع/فعاليّة/معلّق/إعادة عدّ)
+var DegreeLaws mediumDegree   = newDegreeLaws()  // المتوسطة **الخام**: كلّ أزواج قاعدة(ب) (appendEff)؛ التغطية تُلوّنها لاحقًا
 
 if false and barstate.isconfirmed   // [v0.23.0 معطّل] استُبدِل بالبناء المحدود بالموجة عند islast (أدناه) — البناء المتدحرج كان يقلب الاتجاه
     float bodySize      = math.abs(close - open)
@@ -638,6 +673,17 @@ if barstate.islast
                         ccD  := 0
                         cpHi := na
                         cpLo := na
+    // المعلّق المتوسط = التطرّف المقابل المتراكم الذي لم يُكسَر بعد (صعودًا أعلى قمّة · هبوطًا أدنى قاع) — يُرسَم أبهت
+    if wdir == 1 and not na(mediumBreak.maxSincePrice)
+        mediumDegree.pendingType  := 1
+        mediumDegree.pendingPrice := mediumBreak.maxSincePrice
+        mediumDegree.pendingBar   := mediumBreak.maxSinceBar
+        mediumDegree.pendingTime  := mediumBreak.maxSinceTime
+    else if wdir == -1 and not na(mediumBreak.minSincePrice)
+        mediumDegree.pendingType  := -1
+        mediumDegree.pendingPrice := mediumBreak.minSincePrice
+        mediumDegree.pendingBar   := mediumBreak.minSinceBar
+        mediumDegree.pendingTime  := mediumBreak.minSinceTime
 
 // ─── شكل السهم المملوء — منقول من الكود المثبَت (M-Waves_M1: drawSArrow) سهمًا 7 نقاط ───
 //   انحراف أمين: الارتفاع = نسبة من **نطاق سعريّ أصيل** (آخر 50 شمعة) بدل ATR — حجم رسم لا قاعدة.
@@ -667,6 +713,26 @@ f_lblSizeIn(string s) => s == "Huge" ? size.large : s == "Large" ? size.normal :
 f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bordCol) =>
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(medCircleSize)))    // الحافة (أكبر، خلف)
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(medCircleSize)))   // التعبئة (أصغر، أمام)
+
+// ── قانون التغطية (مستقلّ عن الفعاليّة/التتابُع): نقطة مُغطَّاة إن جاء لاحقًا (يمين) تطرّفٌ من نوعها يتجاوزها ──
+//   قمّة تُغطَّى بقمّة أعلى لاحقة · قاع بقاع أدنى لاحق. مسحٌ خلفيّ؛ المعلّقة (التطرّف المتراكم) تُحسَب ضمن «اللاحق».
+f_medCoverage(DegreeLaws med) =>
+    int n = array.size(med.effectiveBars)
+    array<bool> cov = array.new<bool>(n, false)
+    float maxTopR = med.pendingType == 1 ? med.pendingPrice : na
+    float minBotR = med.pendingType == -1 ? med.pendingPrice : na
+    if n > 0
+        for k = 0 to n - 1
+            int   i  = n - 1 - k                                  // من الأحدث للأقدم
+            bool  it = array.get(med.effectiveIsTop, i)
+            float pp = array.get(med.effectivePrices, i)
+            if it
+                array.set(cov, i, not na(maxTopR) and maxTopR > pp)
+                maxTopR := na(maxTopR) ? pp : math.max(maxTopR, pp)
+            else
+                array.set(cov, i, not na(minBotR) and minBotR < pp)
+                minBotR := na(minBotR) ? pp : math.min(minBotR, pp)
+    cov
 
 // ─── رسم الدرجة الصغيرة (islast): السهم المملوء على النقاط الفعّالة + خطوط الوصل بينها ───
 var array<polyline> smallArrows = array.new<polyline>()
@@ -711,20 +777,23 @@ if barstate.islast
         line.delete(ln)
     array.clear(medLinks)
     int medCount = array.size(mediumDegree.effectiveBars)
+    array<bool> medCovered = f_medCoverage(mediumDegree)   // التغطية (مستقلّة عن الفعاليّة/التتابُع)
     if medCount > 0
         int firstMed = math.max(0, medCount - 120)   // سقف labels ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الكبيرة لاحقًا
         for i = firstMed to medCount - 1
             float mPrc = array.get(mediumDegree.effectivePrices, i)
             int   mTm  = array.get(mediumDegree.effectiveTimes, i)
-            if showMedium
-                f_drawMedCircle(medCircles, mTm, mPrc, cMed, cMedBorder)
+            // التغطية لا تُطبَّق داخل الموجة التاريخية افتراضيًّا (coverInWave=OFF) ⇒ كلّها برتقاليّة؛ التاريخ الأقدم تُطبَّق عليه
+            bool  mEff = (not coverInWave) or (not array.get(medCovered, i))
+            if showMedium and (mEff or showCovered)
+                f_drawMedCircle(medCircles, mTm, mPrc, mEff ? cMed : cMedDead, mEff ? cMedBorder : cMedDeadBorder)
             if linkMed and i > firstMed
                 float pPrc = array.get(mediumDegree.effectivePrices, i - 1)
                 int   pTm  = array.get(mediumDegree.effectiveTimes, i - 1)
                 array.push(medLinks, line.new(pTm, pPrc, mTm, mPrc, xloc = xloc.bar_time, color = cLineMed, width = 1))
     // النقطة المتوسطة المعلّقة (آخر متوسطة لم تُكسَر بعد — قاعدة الانتظار درس06) — أبهت + وصلها بآخر فعّالة
     if showMedium and mediumDegree.pendingType != 0
-        f_drawMedCircle(medCircles, mediumDegree.pendingTime, mediumDegree.pendingPrice, color.new(cMed, 70), color.new(cMedBorder, 40))
+        f_drawMedCircle(medCircles, mediumDegree.pendingTime, mediumDegree.pendingPrice, cMedPendFill, cMedPendBorder)
         if linkMed and medCount > 0
             array.push(medLinks, line.new(array.get(mediumDegree.effectiveTimes, medCount - 1), array.get(mediumDegree.effectivePrices, medCount - 1), mediumDegree.pendingTime, mediumDegree.pendingPrice, xloc = xloc.bar_time, color = color.new(cLineMed, 40), width = 1))
 
@@ -744,6 +813,7 @@ if barstate.islast
         int   drow     = 1
         float prevPeak = na                                    // آخر قمّة صغيرة فعّالة في الموجة = مرجع الكسر (لشرح ترقية القمّة المتوسطة)
         bool  firstMed = false                                 // أوّل نقطة متوسطة في الموجة = بدايتها
+        array<bool> medCovD = f_medCoverage(mediumDegree)       // التغطية لكلّ نقطة متوسطة (للعرض)
         for i = 0 to sCount - 1                                // ترتيب زمنيّ: الأقدم→الأحدث (المصفوفة مرتّبة أصلًا)
             if sCount <= 0
                 break
@@ -752,20 +822,26 @@ if barstate.islast
                 float p = array.get(smallDegree.effectivePrices, i)
                 bool  t = array.get(smallDegree.effectiveIsTop, i)
                 bool isMed = array.includes(mediumDegree.effectiveBars, b) or (mediumDegree.pendingType != 0 and b == mediumDegree.pendingBar)
-                // [v0.21.3] سبب الترقية: أوّل متوسطة = بداية الموجة · قمّة متوسطة = كسرت آخر قمّة فعّالة (prevPeak) · قاع متوسط = القاع قبل الكسر
+                int  midx  = array.indexof(mediumDegree.effectiveBars, b)
+                bool mCov  = midx >= 0 and array.get(medCovD, midx)                              // مُغطَّاة؟
+                bool mEff  = (not coverInWave) or (not mCov)                                     // التغطية داخل الموجة حسب المفتاح
+                // سبب: أوّل متوسطة = بداية الموجة · قمّة متوسطة = كسرت آخر قمّة فعّالة (prevPeak) · قاع متوسط = القاع قبل الكسر
                 string rsn = ""
                 if isMed and not firstMed
                     rsn := "بداية الموجة"
                     firstMed := true
+                else if isMed and not mEff
+                    rsn := "مُغطَّاة (غير فعّالة)"
                 else if isMed and t
                     rsn := na(prevPeak) ? "كسر" : "كسر " + str.tostring(prevPeak, "#.##")
                 else if isMed
                     rsn := "القاع قبل الكسر"
+                string medMark = isMed ? (mEff ? "🟠" : "🔴") : "·"
                 table.cell(diagTbl, 0, drow, str.tostring(drow), text_color = color.gray, text_size = size.tiny)
                 table.cell(diagTbl, 1, drow, str.tostring(p, "#.##"), text_color = color.white, text_size = size.tiny)
                 table.cell(diagTbl, 2, drow, t ? "قمة" : "قاع", text_color = t ? cTop : cBot, text_size = size.tiny)
-                table.cell(diagTbl, 3, drow, isMed ? "🟠" : "·", text_color = color.white, text_size = size.tiny, bgcolor = isMed ? color.new(#C55A11, 30) : na)
-                table.cell(diagTbl, 4, drow, rsn, text_color = isMed and t ? #FFD54F : color.gray, text_size = size.tiny, text_halign = text.align_right)
+                table.cell(diagTbl, 3, drow, medMark, text_color = color.white, text_size = size.tiny, bgcolor = isMed ? color.new(mEff ? #C55A11 : #C00000, 30) : na)
+                table.cell(diagTbl, 4, drow, rsn, text_color = isMed and not mEff ? #FF6B6B : (isMed and t ? #FFD54F : color.gray), text_size = size.tiny, text_halign = text.align_right)
                 if t
                     prevPeak := p
                 drow := drow + 1
@@ -786,7 +862,13 @@ if barstate.islast
         table.cell(diagState, 1, 3, str.tostring(smallDegree.lvlResets), text_color = smallDegree.lvlResets > 3 ? #F23645 : color.white, text_size = size.tiny)
         table.cell(diagState, 0, 4, "مُغذّى/فعّال (صغيرة)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
         table.cell(diagState, 1, 4, str.tostring(smallDegree.fedCount) + " / " + str.tostring(array.size(smallDegree.effectiveBars)), text_color = color.white, text_size = size.tiny)
-        table.cell(diagState, 0, 5, "تصفير المتوسطة (اتجاه/مستوى)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 5, str.tostring(mediumDegree.dirResets) + " / " + str.tostring(mediumDegree.lvlResets), text_color = color.white, text_size = size.tiny)
-        table.cell(diagState, 0, 6, "متوسطة فعّالة", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 6, str.tostring(array.size(mediumDegree.effectiveBars)), text_color = color.white, text_size = size.tiny)
+        array<bool> medCovS = f_medCoverage(mediumDegree)
+        int medRaw  = array.size(mediumDegree.effectiveBars)
+        int medCovN = 0
+        for c in medCovS
+            if c
+                medCovN := medCovN + 1
+        table.cell(diagState, 0, 5, "متوسطة (خام)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
+        table.cell(diagState, 1, 5, str.tostring(medRaw), text_color = color.white, text_size = size.tiny)
+        table.cell(diagState, 0, 6, "🟠 فعّالة / 🔴 مُغطَّاة", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
+        table.cell(diagState, 1, 6, str.tostring(medRaw - medCovN) + " / " + str.tostring(medCovN), text_color = color.white, text_size = size.tiny)
