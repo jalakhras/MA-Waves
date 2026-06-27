@@ -3,8 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.27.1 — [درس06] إصلاح موضع القمّة/القاع المتوسط عند تساوي تطرّفين: maxSince/minSince بـ«≥/≤» بدل «>/<»
-//   ⇒ عند التساوي يُبقي الأحدث (الأقرب للكسر) فتُرسم الدائرة على الطرف الصحيح قبل الكسر مباشرةً (لا على طرفٍ أقدم بلا كسر).
+// الإصدار الداخليّ: v0.28.0 — [درس06] قانونا المتوسطة المستقلّان: تتابُع+فعاليّة عبر mediumEff (feedPivot خاصّ بالدرجة) ⇒ يُحدِّدان
+//   **الفعّالة** (برتقاليّة، عليها العمل لاحقًا) · غير الفعّالة (ما أسقطته القوانين) تُبقى **للعرض فقط**: حمراء + حدّ أصفر (دلالة الدرجة)
+//   بمفتاح showNonEff + لون + حجم مستقلّين. الخطوط تصل الفعّالة فقط. (يحلّ محلّ التغطية/coverInWave — صار الفرز بالقوانين.)
+// v0.27.1 — إصلاح موضع التطرّف المتساوي (maxSince/minSince بـ«≥/≤») ⇒ يُبقي الأحدث الأقرب للكسر.
 // v0.27.0 — 🧹 تنظيف إغلاق المتوسطة: حذف التشخيص (showDiag + الجدولان + العدّادات) + الكتلة المعطّلة
 //   (البناء التدريجيّ القديم) + متغيّراتها اليتيمة + trimEffective غير المستعمل. النواة 828→697 سطرًا، بلا مساس بالمنطق.
 // v0.26.0 — [درس06] فصل التغطية (مسحٌ خلفيّ مستقلّ: قمّة تُغطَّى بأعلى لاحقة · قاع بأدنى لاحق) عن الفعاليّة/التتابُع.
@@ -75,13 +77,14 @@ string grpMed     = "🟠 Medium Degree / المتوسطة (درجة 1)"
 bool   showMedium = input.bool(true, "Show medium pivots / إظهار المتوسطة", group = grpMed)
 color  cMed       = input.color(color.new(#C55A11, 45), "Medium fill (effective) / تعبئة المتوسطة (فعّالة)", group = grpMed)
 color  cMedBorder = input.color(color.new(#5A2D08, 0), "Medium border / حدّ المتوسطة", group = grpMed)
-bool   showCovered  = input.bool(true, "Show covered medium in red (lesson06 n4) / إظهار المُغطَّاة بالأحمر (تاريخ التاريخ، ن4)", group = grpMed)
-bool   coverInWave  = input.bool(false, "Apply coverage inside historical wave / تطبيق التغطية داخل الموجة التاريخية", group = grpMed, tooltip = "افتراضيًّا: التغطية (التحمير) لا تُطبَّق على نقاط الموجة التاريخية — تبقى كلّها فعّالة برتقاليّة. التغطية للتاريخ الأقدم فقط. فعِّله ليُطبَّق داخل الموجة أيضًا.")
-color  cMedDead   = input.color(color.new(#C00000, 45), "Medium fill (covered / غير فعّالة)", group = grpMed)
-color  cMedDeadBorder = input.color(color.new(#FF9800, 0), "Medium border (covered) / حدّ المُغطَّاة (برتقاليّ)", group = grpMed)
+string medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة (فعّالة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
+// المتوسطة **غير الفعّالة** (أسقطها قانونا التتابُع+الفعاليّة): تُبقى للعرض فقط (المراحل القادمة على الفعّالة وحدها) — مميَّزة جيّدًا
+bool   showNonEff = input.bool(true, "Show non-effective medium (display only) / إظهار المتوسطة غير الفعّالة (للعرض فقط)", group = grpMed)
+color  cMedDead   = input.color(color.new(#C00000, 45), "Non-effective fill / تعبئة غير الفعّالة (أحمر)", group = grpMed)
+color  cMedDeadBorder = input.color(color.new(#FF9800, 0), "Non-effective border / حدّ غير الفعّالة (أصفر — دلالة الدرجة)", group = grpMed)
+string nonEffCircleSize = input.string("Fine", "Non-effective circle size / حجم دائرة غير الفعّالة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
 color  cMedPendFill   = input.color(color.new(color.gray, 30), "Medium pending fill / تعبئة المعلّقة (رماديّ)", group = grpMed)
 color  cMedPendBorder = input.color(color.new(#FF9800, 0), "Medium pending border / حدّ المعلّقة (برتقاليّ)", group = grpMed)
-string medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
 bool   linkMed    = input.bool(true, "Link medium pivots / وصل المتوسطة بخطوط", group = grpMed)
 color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / لون خطّ وصل المتوسطة", group = grpMed)
 
@@ -318,8 +321,7 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int tm, int 
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
 
-// [درس06] إلحاق نقطة متوسطة **خام** مباشرةً (بلا قوانين تصفية/دمج) — كلّ مخرَجات قاعدة(ب) تُرسَم كما هي.
-//   🔴 لا feedPivot للمتوسطة: تمريرها عبره كان يُسقط القمّة الأدنى (تتابُع) فيَدمج زوجَي كسرٍ ⇒ تختفي نقطة كاسرة صحيحة.
+// [درس06] إلحاق نقطة متوسطة **خام** (مواضع الرسم: كلّ أزواج قاعدة ب). الفرز فعّال/غير فعّال يتمّ بنسخة mediumEff (feedPivot) موازيةً.
 method appendEff(DegreeLaws self, bool isTop, float price, int bar, int tm) =>
     array.push(self.effectiveBars,   bar)
     array.push(self.effectivePrices, price)
@@ -433,21 +435,26 @@ method feedBreakUp(BreakProc self, bool isTop, float price, int bar, int tm) =>
 
 // تغذية المتوسطة من نقطة صغيرة فعّالة — تختار منطق الاتجاه (هبوط/صعود) وتُلحِق المخرَجات **خامًا** (appendEff، بلا دمج).
 //   المُخرَجات بالترتيب الزمنيّ: الفتحة1 (المقابل/البداية) قبل الفتحة2 (الكاسر).
-//   med = المتوسطة الخام (appendEff): كلّ زوج كسر يُرسَم. التغطية (التلوين) تُحسَب لاحقًا بمسحٍ خلفيّ — لا فلترة هنا.
-f_feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, int wdir) =>
+//   med = الخام (appendEff): كلّ زوج كسر (مواضع الرسم). medEff = نفس قانونَي الدرجة (feedPivot: تتابُع+فعاليّة) ⇒ يُحدِّد الفعّال.
+//   ما في med ولا في medEff.effective* = **غير فعّال** (يُعرَض بالأحمر/الحدّ الأصفر، للعرض فقط).
+f_feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, DegreeLaws medEff, int wdir) =>
     if small.justActivated
         if wdir == -1
             [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreakDown(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
             if n >= 1
                 med.appendEff(t1, p1, b1, tm1)
+                medEff.feedPivot(t1, p1, b1, tm1, wdir)
             if n >= 2
                 med.appendEff(t2, p2, b2, tm2)
+                medEff.feedPivot(t2, p2, b2, tm2, wdir)
         else
             [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreakUp(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
             if n >= 1
                 med.appendEff(t1, p1, b1, tm1)
+                medEff.feedPivot(t1, p1, b1, tm1, wdir)
             if n >= 2
                 med.appendEff(t2, p2, b2, tm2)
+                medEff.feedPivot(t2, p2, b2, tm2, wdir)
 
 // ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
@@ -460,7 +467,8 @@ var DegreeLaws smallDegree    = newDegreeLaws()
 
 // ─── الدرجة 1 (المتوسطة) [درس 06]: تُشتقّ من الصغيرة الفعّالة بالكسر (مُولِّد) ثمّ نفس القوانين ───
 var BreakProc  mediumBreak    = newBreakProc()   // مُولِّد الكسر (صغيرة فعّالة ⇒ متوسطة خام)
-var DegreeLaws mediumDegree   = newDegreeLaws()  // المتوسطة **الخام**: كلّ أزواج قاعدة(ب) (appendEff)؛ التغطية تُلوّنها لاحقًا
+var DegreeLaws mediumDegree   = newDegreeLaws()  // المتوسطة **الخام**: كلّ أزواج قاعدة(ب) (appendEff) — مواضع الرسم
+var DegreeLaws mediumEff      = newDegreeLaws()  // المتوسطة بعد **قانونَي الدرجة** (تتابُع+فعاليّة عبر feedPivot) ⇒ تُحدِّد الفعّال؛ ما خرج = غير فعّال (عرض)
 
 // ═════════════════════════════════════════════════════════════════════════════
 // [v0.23.0] البناء **المحدود بالموجة التاريخية** عند islast — كلّ موجة في حدودها، باتجاهٍ ثابت من بنيتها.
@@ -488,6 +496,7 @@ if barstate.islast
     // إعادة بناء طازجة ضمن الموجة (تُلغي أيّ تراكم سابق)
     smallDegree  := newDegreeLaws()
     mediumDegree := newDegreeLaws()
+    mediumEff    := newDegreeLaws()
     mediumBreak  := newBreakProc()
     int   scD  = 0
     float rHiP = na
@@ -537,7 +546,7 @@ if barstate.islast
                         cpLo := bLo
                     if ccD >= minCorr
                         smallDegree.feedPivot(true, rHiP, rHiB, rHiT, wdir)
-                        f_feedMedium(smallDegree, mediumBreak, mediumDegree, wdir)
+                        f_feedMedium(smallDegree, mediumBreak, mediumDegree, mediumEff, wdir)
                         scD  := -1
                         rLoP := low[o]
                         rLoB := j
@@ -564,7 +573,7 @@ if barstate.islast
                         cpLo := bLo
                     if ccD >= minCorr
                         smallDegree.feedPivot(false, rLoP, rLoB, rLoT, wdir)
-                        f_feedMedium(smallDegree, mediumBreak, mediumDegree, wdir)
+                        f_feedMedium(smallDegree, mediumBreak, mediumDegree, mediumEff, wdir)
                         scD  := 1
                         rHiP := high[o]
                         rHiB := j
@@ -609,29 +618,9 @@ f_drawArrow(bool isTop, float price, int bar, color col) =>
 f_lblSize(string s)   => s == "Fine" ? size.tiny : s == "Small" ? size.small : s == "Large" ? size.large : s == "Huge" ? size.huge : size.normal
 f_lblSizeIn(string s) => s == "Huge" ? size.large : s == "Large" ? size.normal : s == "Normal" ? size.small : size.tiny
 //   تُرسم بـxloc.bar_time (الزمن) لأنّ نقاط المتوسطة قد تبعُد أكثر من حدّ bar_index عن الشمعة الحاليّة.
-f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bordCol) =>
-    array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(medCircleSize)))    // الحافة (أكبر، خلف)
-    array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(medCircleSize)))   // التعبئة (أصغر، أمام)
-
-// ── قانون التغطية (مستقلّ عن الفعاليّة/التتابُع): نقطة مُغطَّاة إن جاء لاحقًا (يمين) تطرّفٌ من نوعها يتجاوزها ──
-//   قمّة تُغطَّى بقمّة أعلى لاحقة · قاع بقاع أدنى لاحق. مسحٌ خلفيّ؛ المعلّقة (التطرّف المتراكم) تُحسَب ضمن «اللاحق».
-f_medCoverage(DegreeLaws med) =>
-    int n = array.size(med.effectiveBars)
-    array<bool> cov = array.new<bool>(n, false)
-    float maxTopR = med.pendingType == 1 ? med.pendingPrice : na
-    float minBotR = med.pendingType == -1 ? med.pendingPrice : na
-    if n > 0
-        for k = 0 to n - 1
-            int   i  = n - 1 - k                                  // من الأحدث للأقدم
-            bool  it = array.get(med.effectiveIsTop, i)
-            float pp = array.get(med.effectivePrices, i)
-            if it
-                array.set(cov, i, not na(maxTopR) and maxTopR > pp)
-                maxTopR := na(maxTopR) ? pp : math.max(maxTopR, pp)
-            else
-                array.set(cov, i, not na(minBotR) and minBotR < pp)
-                minBotR := na(minBotR) ? pp : math.min(minBotR, pp)
-    cov
+f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bordCol, string szStr) =>
+    array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(szStr)))    // الحافة (أكبر، خلف)
+    array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(szStr)))   // التعبئة (أصغر، أمام)
 
 // ─── رسم الدرجة الصغيرة (islast): السهم المملوء على النقاط الفعّالة + خطوط الوصل بينها ───
 var array<polyline> smallArrows = array.new<polyline>()
@@ -676,24 +665,28 @@ if barstate.islast
         line.delete(ln)
     array.clear(medLinks)
     int medCount = array.size(mediumDegree.effectiveBars)
-    array<bool> medCovered = f_medCoverage(mediumDegree)   // التغطية (مستقلّة عن الفعاليّة/التتابُع)
+    int   lastEffTm  = na     // آخر نقطة متوسطة **فعّالة** مرسومة — يوصَل عليها (الخطوط على الفعّالة فقط) + تُربط بها المعلّقة
+    float lastEffPrc = na
     if medCount > 0
         int firstMed = math.max(0, medCount - 120)   // سقف labels ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الكبيرة لاحقًا
         for i = firstMed to medCount - 1
             float mPrc = array.get(mediumDegree.effectivePrices, i)
             int   mTm  = array.get(mediumDegree.effectiveTimes, i)
-            // التغطية لا تُطبَّق داخل الموجة التاريخية افتراضيًّا (coverInWave=OFF) ⇒ كلّها برتقاليّة؛ التاريخ الأقدم تُطبَّق عليه
-            bool  mEff = (not coverInWave) or (not array.get(medCovered, i))
-            if showMedium and (mEff or showCovered)
-                f_drawMedCircle(medCircles, mTm, mPrc, mEff ? cMed : cMedDead, mEff ? cMedBorder : cMedDeadBorder)
-            if linkMed and i > firstMed
-                float pPrc = array.get(mediumDegree.effectivePrices, i - 1)
-                int   pTm  = array.get(mediumDegree.effectiveTimes, i - 1)
-                array.push(medLinks, line.new(pTm, pPrc, mTm, mPrc, xloc = xloc.bar_time, color = cLineMed, width = 1))
-    // النقطة المتوسطة المعلّقة (آخر متوسطة لم تُكسَر بعد — قاعدة الانتظار درس06) — أبهت + وصلها بآخر فعّالة
+            int   mBar = array.get(mediumDegree.effectiveBars, i)
+            // الفعّال = نجا من قانونَي المتوسطة (تتابُع+فعاليّة في mediumEff) — وإلّا «غير فعّال» (عرض فقط)
+            bool  mEff = array.includes(mediumEff.effectiveBars, mBar) or (mediumEff.pendingType != 0 and mBar == mediumEff.pendingBar)
+            if showMedium and mEff
+                f_drawMedCircle(medCircles, mTm, mPrc, cMed, cMedBorder, medCircleSize)
+                if linkMed and not na(lastEffTm)
+                    array.push(medLinks, line.new(lastEffTm, lastEffPrc, mTm, mPrc, xloc = xloc.bar_time, color = cLineMed, width = 1))
+                lastEffTm  := mTm
+                lastEffPrc := mPrc
+            else if showMedium and showNonEff
+                f_drawMedCircle(medCircles, mTm, mPrc, cMedDead, cMedDeadBorder, nonEffCircleSize)   // غير فعّال: أحمر + حدّ أصفر (عرض فقط)
+    // النقطة المتوسطة المعلّقة (التطرّف المتراكم لم يُكسَر بعد — قاعدة الانتظار درس06) — رماديّة + وصلها بآخر فعّالة
     if showMedium and mediumDegree.pendingType != 0
-        f_drawMedCircle(medCircles, mediumDegree.pendingTime, mediumDegree.pendingPrice, cMedPendFill, cMedPendBorder)
-        if linkMed and medCount > 0
-            array.push(medLinks, line.new(array.get(mediumDegree.effectiveTimes, medCount - 1), array.get(mediumDegree.effectivePrices, medCount - 1), mediumDegree.pendingTime, mediumDegree.pendingPrice, xloc = xloc.bar_time, color = color.new(cLineMed, 40), width = 1))
+        f_drawMedCircle(medCircles, mediumDegree.pendingTime, mediumDegree.pendingPrice, cMedPendFill, cMedPendBorder, medCircleSize)
+        if linkMed and not na(lastEffTm)
+            array.push(medLinks, line.new(lastEffTm, lastEffPrc, mediumDegree.pendingTime, mediumDegree.pendingPrice, xloc = xloc.bar_time, color = color.new(cLineMed, 40), width = 1))
 
 // ── نهاية النواة (الصغيرة + المتوسطة). التالي: الطبقة 0 (محرّك الـleg) ثمّ الكبيرة. ──
