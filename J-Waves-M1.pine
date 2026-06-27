@@ -3,9 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.26.0 — [درس06] فصل **التغطية** عن الفعاليّة/التتابُع: التغطية = مسحٌ خلفيّ مستقلّ (قمّة تُغطَّى بقمّة
-//   أعلى لاحقة · قاع بقاع أدنى لاحق) ⇒ 🟠 غير مُغطَّى / 🔴 مُغطَّى. الفعاليّة+التتابُع تبنيان المتوسطة افتراضيًّا (الصغيرة+الاستخراج).
-//   المُغطَّى: تعبئة حمراء/حدّ برتقاليّ · المعلّقة: رماديّة/حدّ برتقاليّ · coverInWave (OFF): التغطية للتاريخ الأقدم فقط.
+// الإصدار الداخليّ: v0.27.1 — [درس06] إصلاح موضع القمّة/القاع المتوسط عند تساوي تطرّفين: maxSince/minSince بـ«≥/≤» بدل «>/<»
+//   ⇒ عند التساوي يُبقي الأحدث (الأقرب للكسر) فتُرسم الدائرة على الطرف الصحيح قبل الكسر مباشرةً (لا على طرفٍ أقدم بلا كسر).
+// v0.27.0 — 🧹 تنظيف إغلاق المتوسطة: حذف التشخيص (showDiag + الجدولان + العدّادات) + الكتلة المعطّلة
+//   (البناء التدريجيّ القديم) + متغيّراتها اليتيمة + trimEffective غير المستعمل. النواة 828→697 سطرًا، بلا مساس بالمنطق.
+// v0.26.0 — [درس06] فصل التغطية (مسحٌ خلفيّ مستقلّ: قمّة تُغطَّى بأعلى لاحقة · قاع بأدنى لاحق) عن الفعاليّة/التتابُع.
 // v0.24.0 — فصل منطق الكسر (feedBreakDown/feedBreakUp) + المتوسطة خام (appendEff، بلا دمج يُسقط زوج كسر)
 // v0.23.0 — بناء محدود بالموجة عند islast: كلّ موجة في حدودها باتجاهٍ ثابت (يستبدل البناء المتدحرج)
 // v0.22.0 — اتجاه بنيويّ (hiOff/loOff) بدل الإغلاق المنزلق (خطوة جزئيّة — لم تكفِ لأنّ النافذة متدحرجة)
@@ -82,12 +84,9 @@ color  cMedPendBorder = input.color(color.new(#FF9800, 0), "Medium pending borde
 string medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
 bool   linkMed    = input.bool(true, "Link medium pivots / وصل المتوسطة بخطوط", group = grpMed)
 color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / لون خطّ وصل المتوسطة", group = grpMed)
-bool   showDiag   = input.bool(false, "🔬 Diagnostics table (effective small + medium) / جدول تشخيص", group = grpMed, tooltip = "يعرض تيّار الصغيرة الفعّال الذي يراه الكود + علامة المتوسطة، لمطابقته بجدولك ومعرفة أين يدخل النويز.")
 
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
-int SMALL_KEEP = 300   // سقف القمم/القيعان الصغيرة المحفوظة (أداء)
-int MEDIUM_KEEP = 200  // سقف القمم/القيعان المتوسطة المحفوظة (أداء)
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
 // موضع اللوحة من اختيار نصّيّ.
@@ -239,9 +238,6 @@ type DegreeLaws
     float        justActPrice       = na    // سعرها
     int          justActBar         = na    // شمعتها
     int          justActTime        = na    // زمنها
-    int          dirResets          = 0     // 🔬 تشخيص: كم مرّة صُفِّرت المراجع بتغيّر الاتجاه (waveDir != trendDir)
-    int          lvlResets          = 0     // 🔬 تشخيص: كم مرّة صُفِّرت بكسر المستوى (brokeLevel)
-    int          fedCount           = 0     // 🔬 تشخيص: كم نقطة دخلت feedPivot (خام)
 
 newDegreeLaws() =>
     DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>(), effectiveTimes = array.new<int>())
@@ -286,12 +282,10 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int tm, int 
     //   🔴 لا انقلاب على الكسر المحلّيّ/التصحيح (كان يتذبذب فيصفّر المرجع فيُبطل التصفية). الانقلاب فقط حين تنعكس
     //   الموجة التاريخية نفسها (تغيّر bigDir) ⇒ عندها تُصفَّر مراجع التغطية (الموجة الجديدة تقارن بنفسها).
     self.justActivated := false                               // [دورة2] صفّر إشارة التفعيل كل نداء
-    self.fedCount := self.fedCount + 1                        // 🔬 تشخيص
     if waveDir != self.trendDir
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
         self.trendDir := waveDir
-        self.dirResets := self.dirResets + 1                 // 🔬 تشخيص: تصفير بتغيّر الاتجاه
     // ── [درس05] إعادة عدّ الموجة (كسر المستوى المحدِّد) — يُلتقَط **قبل** منطق المعلّق بالمراجع كما هي الآن ──
     //   هبوطًا: قمّةٌ واردة تتجاوز آخر قمّة فعّالة (تطرّف الذيل = price) · صعودًا: قاعٌ وارد ينزل تحت آخر قاع فعّال.
     //   تجاوز صارم بالذيل (price)، ولو بنقطة. بلا انعكاس اتجاه (النطاق 1-5).
@@ -323,15 +317,6 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int tm, int 
     if brokeLevel
         self.lastEffTopPrice    := na
         self.lastEffBottomPrice := na
-        self.lvlResets := self.lvlResets + 1                 // 🔬 تشخيص: تصفير بكسر المستوى
-
-// قصّ النقاط الفعّالة للأحدث (أداء) — يحفظ سقفًا لكلّ درجة.
-method trimEffective(DegreeLaws self, int keep) =>
-    while array.size(self.effectiveBars) > keep
-        array.shift(self.effectiveBars)
-        array.shift(self.effectivePrices)
-        array.shift(self.effectiveIsTop)
-        array.shift(self.effectiveTimes)
 
 // [درس06] إلحاق نقطة متوسطة **خام** مباشرةً (بلا قوانين تصفية/دمج) — كلّ مخرَجات قاعدة(ب) تُرسَم كما هي.
 //   🔴 لا feedPivot للمتوسطة: تمريرها عبره كان يُسقط القمّة الأدنى (تتابُع) فيَدمج زوجَي كسرٍ ⇒ تختفي نقطة كاسرة صحيحة.
@@ -381,7 +366,7 @@ method feedBreakDown(BreakProc self, bool isTop, float price, int bar, int tm) =
             tm1 := tm
             self.refTopPrice := price
     else if not isTop
-        if na(self.minSincePrice) or price < self.minSincePrice   // راكِم أدنى قاع
+        if na(self.minSincePrice) or price <= self.minSincePrice  // راكِم أدنى قاع — «أو يساوي» ⇒ عند التساوي يُبقي الأحدث (الأقرب للكسر)
             self.minSincePrice := price
             self.minSinceBar   := bar
             self.minSinceTime  := tm
@@ -424,7 +409,7 @@ method feedBreakUp(BreakProc self, bool isTop, float price, int bar, int tm) =>
             tm1 := tm
             self.refBotPrice := price
     else if isTop
-        if na(self.maxSincePrice) or price > self.maxSincePrice   // راكِم أعلى قمّة
+        if na(self.maxSincePrice) or price >= self.maxSincePrice  // راكِم أعلى قمّة — «أو يساوي» ⇒ عند التساوي يُبقي الأحدث (الأقرب للكسر)
             self.maxSincePrice := price
             self.maxSinceBar   := bar
             self.maxSinceTime  := tm
@@ -472,96 +457,10 @@ f_feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, int wdir) =>
 //   • [ق2-أ] شمعة لون الاتجاه (أو النويز) لا تصنع تطرّفًا ⇒ تُتجاهَل (العدّاد محفوظ، لا تصفير).
 //   • [ق3-أ] شمعة لون التصحيح صحيحة لكن جسمها غير منزاح بالكامل (ابتلاع/تداخل) ⇒ تُهمَل (ننتظر منزاحة؛ لا تصفير).
 var DegreeLaws smallDegree    = newDegreeLaws()
-var int        scanDir        = 0    // اتجاه المسح: 1 يترقّب قمّة · -1 يترقّب قاعًا · 0 غير مهيّأ
-var float      runningHighPrice = na // أعلى سعر جارٍ (مرشّح القمّة)
-var int        runningHighBar = na
-var int        runningHighTime = na  // [دورة2] زمن القمّة الجارية (للرسم بالزمن)
-var float      runningLowPrice = na  // أدنى سعر جارٍ (مرشّح القاع)
-var int        runningLowBar  = na
-var int        runningLowTime = na   // [دورة2] زمن القاع الجاري
-var int        correctionCount = 0   // عدّاد شموع التصحيح الصحيحة المتدرّجة
-var float      corrPrevBHi     = na  // [فجوة05] أعلى جسم شمعة التصحيح السابقة (لشرط «الجسم منزاح»)
-var float      corrPrevBLo     = na  // [فجوة05] أسفل جسم شمعة التصحيح السابقة
 
 // ─── الدرجة 1 (المتوسطة) [درس 06]: تُشتقّ من الصغيرة الفعّالة بالكسر (مُولِّد) ثمّ نفس القوانين ───
 var BreakProc  mediumBreak    = newBreakProc()   // مُولِّد الكسر (صغيرة فعّالة ⇒ متوسطة خام)
 var DegreeLaws mediumDegree   = newDegreeLaws()  // المتوسطة **الخام**: كلّ أزواج قاعدة(ب) (appendEff)؛ التغطية تُلوّنها لاحقًا
-
-if false and barstate.isconfirmed   // [v0.23.0 معطّل] استُبدِل بالبناء المحدود بالموجة عند islast (أدناه) — البناء المتدحرج كان يقلب الاتجاه
-    float bodySize      = math.abs(close - open)
-    float upperWick     = high - math.max(close, open)
-    float lowerWick     = math.min(close, open) - low
-    bool  isValidCandle = (not useValid) or (bodySize > 0 and bodySize >= upperWick and bodySize >= lowerWick)
-    bool  isBearCandle  = close < open
-    bool  isBullCandle  = close > open
-    float bHiC          = math.max(open, close)   // أعلى جسم الشمعة الحاليّة
-    float bLoC          = math.min(open, close)   // أسفل جسم الشمعة الحاليّة
-    if scanDir == 0
-        scanDir          := waveGeneralDir != 0 ? -waveGeneralDir : 1  // [درس05] تمهيد من اتجاه الموجة: ابدأ بطلب تطرّف بداية الموجة (هابطة⇒قمّة · صاعدة⇒قاع) ليُكشَف تطرّف البداية
-        runningHighPrice := high
-        runningHighBar   := bar_index
-        runningHighTime  := time
-        runningLowPrice  := low
-        runningLowBar    := bar_index
-        runningLowTime   := time
-    else if scanDir == 1
-        // يترقّب قمّة: القمّة = أعلى سعر قبل تصحيح بشمعتين صحيحتين هابطتين «تحت بعض» (الجسم منزاح كلّه لأسفل)
-        if high > runningHighPrice
-            runningHighPrice := high
-            runningHighBar   := bar_index
-            runningHighTime  := time
-            correctionCount  := 0
-            corrPrevBHi      := na
-            corrPrevBLo      := na
-        else if isValidCandle and isBearCandle
-            if correctionCount == 0
-                correctionCount := 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            else if bHiC < corrPrevBHi and bLoC < corrPrevBLo   // [فجوة05] الجسم منزاح كلّه لأسفل (تحت بعض، لا ابتلاع)
-                correctionCount := correctionCount + 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            if correctionCount >= minCorr
-                smallDegree.feedPivot(true, runningHighPrice, runningHighBar, runningHighTime, waveGeneralDir)
-                f_feedMedium(smallDegree, mediumBreak, mediumDegree, waveGeneralDir)  // [درس06] غذِّ المتوسطة بالكسر
-                scanDir          := -1
-                runningLowPrice  := low
-                runningLowBar    := bar_index
-                runningLowTime   := time
-                correctionCount  := 0
-                corrPrevBHi      := na
-                corrPrevBLo      := na
-    else
-        // يترقّب قاعًا: القاع = أدنى سعر قبل تصحيح بشمعتين صحيحتين صاعدتين «فوق بعض» (الجسم منزاح كلّه لأعلى)
-        if low < runningLowPrice
-            runningLowPrice := low
-            runningLowBar   := bar_index
-            runningLowTime  := time
-            correctionCount := 0
-            corrPrevBHi     := na
-            corrPrevBLo     := na
-        else if isValidCandle and isBullCandle
-            if correctionCount == 0
-                correctionCount := 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            else if bHiC > corrPrevBHi and bLoC > corrPrevBLo   // [فجوة05] الجسم منزاح كلّه لأعلى (فوق بعض، لا ابتلاع)
-                correctionCount := correctionCount + 1
-                corrPrevBHi     := bHiC
-                corrPrevBLo     := bLoC
-            if correctionCount >= minCorr
-                smallDegree.feedPivot(false, runningLowPrice, runningLowBar, runningLowTime, waveGeneralDir)
-                f_feedMedium(smallDegree, mediumBreak, mediumDegree, waveGeneralDir)  // [درس06] غذِّ المتوسطة بالكسر
-                scanDir          := 1
-                runningHighPrice := high
-                runningHighBar   := bar_index
-                runningHighTime  := time
-                correctionCount  := 0
-                corrPrevBHi      := na
-                corrPrevBLo      := na
-    smallDegree.trimEffective(SMALL_KEEP)
-    mediumDegree.trimEffective(MEDIUM_KEEP)
 
 // ═════════════════════════════════════════════════════════════════════════════
 // [v0.23.0] البناء **المحدود بالموجة التاريخية** عند islast — كلّ موجة في حدودها، باتجاهٍ ثابت من بنيتها.
@@ -797,78 +696,4 @@ if barstate.islast
         if linkMed and medCount > 0
             array.push(medLinks, line.new(array.get(mediumDegree.effectiveTimes, medCount - 1), array.get(mediumDegree.effectivePrices, medCount - 1), mediumDegree.pendingTime, mediumDegree.pendingPrice, xloc = xloc.bar_time, color = color.new(cLineMed, 40), width = 1))
 
-// ─── 🔬 جدول التشخيص (showDiag): تيّار الصغيرة **الفعّال ضمن الموجة التاريخية فقط** (من الأقدم للأحدث) + علامة المتوسطة ───
-//   يكشف: هل دخل نويز (مثل 25427.04) في الفعّالة داخل الموجة؟ وأيّ نقطة عُلِّمت متوسطة؟ — تشخيص فقط، يُحذف بعد الإصلاح.
-var table diagTbl = table.new(position.bottom_right, 5, 27, bgcolor = #1E222D, border_width = 1, border_color = #2A2E39)
-if barstate.islast
-    table.clear(diagTbl, 0, 0, 4, 26)
-    if showDiag
-        table.cell(diagTbl, 0, 0, "#",           text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        table.cell(diagTbl, 1, 0, "السعر",       text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        table.cell(diagTbl, 2, 0, "نوع",         text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        table.cell(diagTbl, 3, 0, "متوسط",       text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        table.cell(diagTbl, 4, 0, "سبب الترقية", text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        int   dwL      = f_waveLeft()                          // حدّ الموجة التاريخية الأقدم — نعرض ما بعده فقط
-        int   sCount   = array.size(smallDegree.effectiveBars)
-        int   drow     = 1
-        float prevPeak = na                                    // آخر قمّة صغيرة فعّالة في الموجة = مرجع الكسر (لشرح ترقية القمّة المتوسطة)
-        bool  firstMed = false                                 // أوّل نقطة متوسطة في الموجة = بدايتها
-        array<bool> medCovD = f_medCoverage(mediumDegree)       // التغطية لكلّ نقطة متوسطة (للعرض)
-        for i = 0 to sCount - 1                                // ترتيب زمنيّ: الأقدم→الأحدث (المصفوفة مرتّبة أصلًا)
-            if sCount <= 0
-                break
-            int b = array.get(smallDegree.effectiveBars, i)
-            if b >= dwL and drow <= 26                         // ضمن الموجة التاريخية فقط
-                float p = array.get(smallDegree.effectivePrices, i)
-                bool  t = array.get(smallDegree.effectiveIsTop, i)
-                bool isMed = array.includes(mediumDegree.effectiveBars, b) or (mediumDegree.pendingType != 0 and b == mediumDegree.pendingBar)
-                int  midx  = array.indexof(mediumDegree.effectiveBars, b)
-                bool mCov  = midx >= 0 and array.get(medCovD, midx)                              // مُغطَّاة؟
-                bool mEff  = (not coverInWave) or (not mCov)                                     // التغطية داخل الموجة حسب المفتاح
-                // سبب: أوّل متوسطة = بداية الموجة · قمّة متوسطة = كسرت آخر قمّة فعّالة (prevPeak) · قاع متوسط = القاع قبل الكسر
-                string rsn = ""
-                if isMed and not firstMed
-                    rsn := "بداية الموجة"
-                    firstMed := true
-                else if isMed and not mEff
-                    rsn := "مُغطَّاة (غير فعّالة)"
-                else if isMed and t
-                    rsn := na(prevPeak) ? "كسر" : "كسر " + str.tostring(prevPeak, "#.##")
-                else if isMed
-                    rsn := "القاع قبل الكسر"
-                string medMark = isMed ? (mEff ? "🟠" : "🔴") : "·"
-                table.cell(diagTbl, 0, drow, str.tostring(drow), text_color = color.gray, text_size = size.tiny)
-                table.cell(diagTbl, 1, drow, str.tostring(p, "#.##"), text_color = color.white, text_size = size.tiny)
-                table.cell(diagTbl, 2, drow, t ? "قمة" : "قاع", text_color = t ? cTop : cBot, text_size = size.tiny)
-                table.cell(diagTbl, 3, drow, medMark, text_color = color.white, text_size = size.tiny, bgcolor = isMed ? color.new(mEff ? #C55A11 : #C00000, 30) : na)
-                table.cell(diagTbl, 4, drow, rsn, text_color = isMed and not mEff ? #FF6B6B : (isMed and t ? #FFD54F : color.gray), text_size = size.tiny, text_halign = text.align_right)
-                if t
-                    prevPeak := p
-                drow := drow + 1
-
-// ─── 🔬 لوحة حالة المحرّك (showDiag): تكشف **سبب** عدم مطابقة النظرية — أعداد التصفير + اتجاه الموجة ───
-//   إن كان «تصفير الاتجاه» كبيرًا ⇒ waveGeneralDir يتذبذب فيمسح مراجع الفعاليّة (na ⇒ تمرّ دائمًا ⇒ لا يُسقَط النويز).
-var table diagState = table.new(position.top_right, 2, 7, bgcolor = #1E222D, border_width = 1, border_color = #2A2E39)
-if barstate.islast
-    table.clear(diagState, 0, 0, 1, 6)
-    if showDiag
-        table.cell(diagState, 0, 0, "🔬 حالة المحرّك", text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        table.cell(diagState, 1, 0, "",                text_color = color.white, text_size = size.tiny, bgcolor = #2A2E39)
-        table.cell(diagState, 0, 1, "اتجاه الموجة",    text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 1, waveGeneralDir == 1 ? "صاعد +1" : waveGeneralDir == -1 ? "هابط −1" : "0", text_color = color.white, text_size = size.tiny)
-        table.cell(diagState, 0, 2, "تصفير الاتجاه (صغيرة)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 2, str.tostring(smallDegree.dirResets), text_color = smallDegree.dirResets > 3 ? #F23645 : color.white, text_size = size.tiny)
-        table.cell(diagState, 0, 3, "تصفير المستوى (صغيرة)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 3, str.tostring(smallDegree.lvlResets), text_color = smallDegree.lvlResets > 3 ? #F23645 : color.white, text_size = size.tiny)
-        table.cell(diagState, 0, 4, "مُغذّى/فعّال (صغيرة)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 4, str.tostring(smallDegree.fedCount) + " / " + str.tostring(array.size(smallDegree.effectiveBars)), text_color = color.white, text_size = size.tiny)
-        array<bool> medCovS = f_medCoverage(mediumDegree)
-        int medRaw  = array.size(mediumDegree.effectiveBars)
-        int medCovN = 0
-        for c in medCovS
-            if c
-                medCovN := medCovN + 1
-        table.cell(diagState, 0, 5, "متوسطة (خام)", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 5, str.tostring(medRaw), text_color = color.white, text_size = size.tiny)
-        table.cell(diagState, 0, 6, "🟠 فعّالة / 🔴 مُغطَّاة", text_color = color.gray, text_size = size.tiny, text_halign = text.align_right)
-        table.cell(diagState, 1, 6, str.tostring(medRaw - medCovN) + " / " + str.tostring(medCovN), text_color = color.white, text_size = size.tiny)
+// ── نهاية النواة (الصغيرة + المتوسطة). التالي: الطبقة 0 (محرّك الـleg) ثمّ الكبيرة. ──
