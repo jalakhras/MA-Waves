@@ -3,6 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.42.3 — [درس08/ط2] إرجاع منطق مستوى الكبيرة الصحيح (آخر طرف فعّال **من نوع الأساس** حسب bigDir — كان الأصل سليمًا؛
+//   الالتباس كان من الدوائر غير الفعّالة). تغيير v0.42.2 (أيّ نوع) أُلغي. levelExtend باقٍ.
+// v0.42.1 — [درس08/ط2] مستوى الكبيرة: مدى امتداد محدَّد بعد السعر الحاليّ (levelExtend، افتراضيًّا 10 شموع) بدل اللانهائيّ.
+// v0.42.0 — [درس08/ط2] الجزء1 (مستويات الاتجاه) — البداية بالكبيرة: خطّ أفقيّ عند آخر تطرّف كبير فعّال (قاع صاعدًا/قمّة
+//   هابطًا) على الجسم، يمتدّ يمينًا. مفاتيح grpLines (showLevel/cLvlB/levelWidth). التالي: المتوسط ثمّ الصغير ثمّ السيولة.
 // v0.41.1 — [تنظيف] توثيق AUTO_WAVE_LEN كاحتياطيّ عرض قبل أوّل leg (لا قاعدة منطق) — بلا تغيير سلوكيّ.
 // v0.41.0 — [درس07] المسار الثاني للكبيرة خلف useBigBreak: الكسر من المتوسطة الفعّالة (mcEff → largeBreak قاعدة ب →
 //   largeRaw/largeEffD) — نفس محرّك f_feedMedium مستوًى أعلى، اتجاه bigDir. رسم موحّد من lgBar للطريقتين. الافتراض = leg.
@@ -136,6 +141,13 @@ color  cBigDeadBorder = input.color(color.new(#2457E2, 30), "Non-effective borde
 string nonEffBigSize = input.string("Small", "Non-effective large size / حجم غير الفعّالة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpBig)
 bool   linkLarge  = input.bool(true, "Link large pivots / وصل الكبيرة بخطوط", group = grpBig)
 color  cLineBig   = input.color(color.new(#2457E2, 55), "Large link line / لون خطّ وصل الكبيرة", group = grpBig)
+
+// ─── المدخلات: ط2 — مستويات الاتجاه + السيولة [درس 08] (الجزء1: المستويات · كبيرة→متوسطة→صغيرة) ───
+string grpLines  = "📏 Levels & Liquidity / مستويات الاتجاه والسيولة (ط2)"
+bool   showLevel = input.bool(true, "Show trend levels / إظهار مستويات الاتجاه", group = grpLines)
+color  cLvlB     = input.color(color.new(#2457E2, 0), "Large trend level / مستوى الاتجاه الكبير (أزرق)", group = grpLines)
+int    levelWidth = input.int(1, "Level line width / عرض خطّ المستوى", minval = 1, maxval = 4, group = grpLines)
+int    levelExtend = input.int(10, "Level extension past now (candles) / مدى امتداد المستوى بعد السعر الحاليّ (شموع)", minval = 0, maxval = 200, group = grpLines)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
@@ -1020,6 +1032,28 @@ if barstate.islast
                         array.push(bigLinks, line.new(prevTmB, prevPrcB, t, p, xloc = xloc.bar_time, color = cLineBig, width = 2))
                     prevTmB  := t
                     prevPrcB := p
+
+// ─── ج1 [درس08]: مستوى الاتجاه الكبير — خطّ أفقيّ عند آخر تطرّف كبير فعّال (قاع صاعدًا/قمّة هابطًا) على **الجسم** ───
+//   على الجسم (لا الذيل) تمييزًا عن السيولة. اتجاه الموجة = bigDir. يمتدّ يمينًا (مستوى مرجعيّ للحظة الحاليّة).
+var line bigLevelLine = na
+if barstate.islast
+    if not na(bigLevelLine)
+        line.delete(bigLevelLine)
+        bigLevelLine := na
+    if showLevel
+        bool wantTop = bigDir == -1                        // هابط ⇒ مستوى عند آخر قمّة فعّالة · صاعد ⇒ آخر قاع فعّال
+        int  li      = array.size(lgBar) - 1
+        int  found   = -1
+        while li >= 0 and found < 0
+            if array.get(lgEff, li) and array.get(lgTop, li) == wantTop
+                found := li
+            li := li - 1
+        if found >= 0
+            int o = bar_index - array.get(lgBar, found)
+            if o >= 0
+                float body = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])
+                int rightTm = time + levelExtend * timeframe.in_seconds() * 1000   // ينتهي بعد السعر الحاليّ بعدد شموع محدَّد (لا لانهائيّ)
+                bigLevelLine := line.new(array.get(lgTm, found), body, rightTm, body, xloc = xloc.bar_time, color = cLvlB, width = levelWidth)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
