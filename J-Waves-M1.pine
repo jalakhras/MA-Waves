@@ -3,7 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.32.1 — [درس03] التواريخ المكتملة: التطرّف الطرفيّ يُحسَم فعّالًا (لا معلّق رماديّ — الانتظار للموجة الحيّة فقط).
+// الإصدار الداخليّ: v0.33.0 — [درس03] حدود الموجات **مشتركة**: طرفا كلّ موجة يُرسَيان على أطراف الـleg (legPs)
+//   ⇒ نهاية موجة = بداية التالية = نفس النقطة بالضبط (لا انزياح). مزامنة فحص الفعاليّة مع الإرساء.
+// v0.32.1 — التواريخ المكتملة: التطرّف الطرفيّ يُحسَم فعّالًا (لا معلّق رماديّ — الانتظار للموجة الحيّة فقط).
 // v0.32.0 — تحليل متعدّد الموجات: كلّ صندوق (الحالية + histDepth=7) يُحلَّل بقوانينه واتجاهه؛ التواريخ متوسطةً (الخيار ب).
 // v0.31.0 — [درس04] مرشّح فيبوناتشي للتواريخ (تجاهُل/دمج السيقان الأصغر من hohMinRatio×سعة الموجة).
 // v0.30.1 — التواريخ بنيويّة من الـleg + إرساؤها خلف الموجة (wL) فقط.
@@ -206,6 +208,7 @@ var array<box>   hohBoxes = array.new<box>()    // تواريخ متعدّدة (
 var array<label> hohLbls  = array.new<label>()
 var array<int>   segLefts  = array.new<int>()   // [درس03] مقاطع التحليل: الموجة الحالية (0) + التواريخ — تُغذّي التحليل متعدّد الموجات
 var array<int>   segRights = array.new<int>()
+var array<float> segLeftPx = array.new<float>() // سعر طرف الـleg عند يسار كلّ مقطع — لإرساء الحدود المشتركة (نهاية موجة = بداية التالية)
 if barstate.islast
     // ===== الموجة التاريخية: من الأصل (أو نافذة يدويّة) إلى الآن =====
     if not na(waveBox)
@@ -216,11 +219,13 @@ if barstate.islast
         waveLbl := na
     array.clear(segLefts)
     array.clear(segRights)
+    array.clear(segLeftPx)
     int wL = f_waveLeft()
     int wR = bar_index
     [wHi, wLo] = f_rangeHiLo(wL, wR)
     array.push(segLefts, wL)                     // المقطع 0 = الموجة الحالية (يُحلَّل دائمًا)
     array.push(segRights, wR)
+    array.push(segLeftPx, (not useHistN and array.size(legPs) > 0) ? array.get(legPs, array.size(legPs) - 1) : na)  // سعر طرف الـleg عند wL (تلقائيّ) — للإرساء
     if showHist and not na(wHi) and not na(wLo)
         color hBd = f_dark(cHist)
         waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 1, bgcolor = cHist)
@@ -261,6 +266,7 @@ if barstate.islast
                     array.push(hohLbls, label.new(legB, rl, lblTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny))
                     array.push(segLefts, legB)               // مقطع تحليل لهذا التاريخ (موجة بنيويّة)
                     array.push(segRights, rightBar)
+                    array.push(segLeftPx, array.get(legPs, idx))  // سعر طرف الـleg عند يسار هذا التاريخ — للإرساء المشترك
                     rightBar := legB
                     drawn    := drawn + 1
             idx := idx - 1
@@ -676,6 +682,15 @@ if barstate.islast
         mediumDegree.pendingPrice := mediumBreak.minSincePrice
         mediumDegree.pendingBar   := mediumBreak.minSinceBar
         mediumDegree.pendingTime  := mediumBreak.minSinceTime
+    // [درس03] إرساء بداية الموجة الحالية على طرف الـleg (الحدّ المشترك مع تاريخ التاريخ = نهايته)
+    if array.size(mediumDegree.effectiveBars) > 0 and array.size(segLeftPx) > 0 and not na(array.get(segLeftPx, 0))
+        int lo0 = bar_index - array.get(segLefts, 0)
+        if lo0 >= 0
+            array.set(mediumDegree.effectiveBars, 0, array.get(segLefts, 0))
+            array.set(mediumDegree.effectivePrices, 0, array.get(segLeftPx, 0))
+            array.set(mediumDegree.effectiveTimes, 0, time[lo0])
+            if array.size(mediumEff.effectiveBars) > 0
+                array.set(mediumEff.effectiveBars, 0, array.get(segLefts, 0))   // مزامنة فحص الفعاليّة مع الإرساء
 
 // ─── شكل السهم المملوء — منقول من الكود المثبَت (M-Waves_M1: drawSArrow) سهمًا 7 نقاط ───
 //   انحراف أمين: الارتفاع = نسبة من **نطاق سعريّ أصيل** (آخر 50 شمعة) بدل ATR — حجم رسم لا قاعدة.
@@ -892,6 +907,21 @@ if barstate.islast
                 md.pendingPrice := mb.minSincePrice
                 md.pendingBar   := mb.minSinceBar
                 md.pendingTime  := mb.minSinceTime
+            // إرساء حدّي هذا التاريخ على أطراف الـleg: البداية = legPs[s] · النهاية = legPs[s-1] (= بداية الأحدث منه ⇒ حدّ مشترك)
+            if array.size(md.effectiveBars) > 0 and not na(array.get(segLeftPx, s))
+                int loSa = bar_index - segL
+                if loSa >= 0
+                    array.set(md.effectiveBars, 0, segL)
+                    array.set(md.effectivePrices, 0, array.get(segLeftPx, s))
+                    array.set(md.effectiveTimes, 0, time[loSa])
+                    if array.size(me.effectiveBars) > 0
+                        array.set(me.effectiveBars, 0, segL)
+            if md.pendingType != 0 and not na(array.get(segLeftPx, s - 1))
+                int loRa = bar_index - segR
+                if loRa >= 0
+                    md.pendingBar   := segR
+                    md.pendingPrice := array.get(segLeftPx, s - 1)
+                    md.pendingTime  := time[loRa]
             int   medCountH = array.size(md.effectiveBars)    // رسم متوسطة هذا التاريخ (يَلحق medCircles/medLinks)
             int   lastTmH   = na
             float lastPrcH  = na
