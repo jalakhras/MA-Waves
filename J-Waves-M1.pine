@@ -3,6 +3,12 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.40.2 — [درس07] خطّ وصل الكبيرة أعرض (width=2) لتمييزه عن المتوسطة.
+// v0.40.1 — [درس07] ضبط لون الكبيرة: التعبئة الزرقاء @45 (أخفّ قليلًا من الحدّ @30 لا بفارق كبير) — منزلقا شفافيّة للضبط.
+// v0.40.0 — [درس07] الدرجة الكبيرة (طريقة leg): كلّ حدّ موجة (segLefts = أطراف الـleg) = قمّة/قاع كبير، يمرّ بنفس
+//   قوانين الدرجة (largeDeg.feedPivot، اتجاه bigDir) ⇒ دوائر زرقاء فعّالة 🔵 + غير فعّالة (عرض). تُرسَم على نفس مواضع
+//   المتوسطة (segLeftPx) ⇒ تعشيش مضمون (كبيرة ⊂ متوسطة ⊂ صغيرة). وصل الفعّالة. مفاتيح grpBig. درجات اللوحة ⇒ 3/3.
+// v0.39.3 — [درس03] إزالة حواف مستطيلات (الموجة + التواريخ) border_width=0 لئلّا تُخفي ذيول الشموع (تبقى التعبئة الشفّافة).
 // v0.39.2 — [درس03] ثلاثة مفاتيح حدود فقط: الموجة التاريخية الفعّالة (showHist) · تاريخ التاريخ (showHoh، الأقرب)
 //   · التاريخ الأقدم (showOlder، ما قبله). حُذف «حدود التاريخ» المنفصل. كلٌّ يُخفي المستطيل فقط (القمم/القيعان تبقى).
 // v0.39.0 — [درس03] مفاتيح مستطيلات منفصلة لكلّ موجة تاريخ: showTarikh (التاريخ) · showHoh (تاريخ التاريخ وحده)
@@ -114,6 +120,19 @@ color  cMedPendBorder = input.color(color.new(#FF9800, 30), "Medium pending bord
 bool   linkMed    = input.bool(true, "Link medium pivots / وصل المتوسطة بخطوط", group = grpMed)
 color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / لون خطّ وصل المتوسطة", group = grpMed)
 
+// ─── المدخلات: الدرجة الكبيرة [درس 07] (الكبيرة = حدود الموجات = أطراف الـleg، نفس قوانين الدرجة) ───
+string grpBig     = "🔵 Large Degree / الكبيرة (درجة 2)"
+bool   showLarge  = input.bool(true, "Show large pivots / إظهار الكبيرة", group = grpBig)
+color  cBig       = input.color(color.new(#2457E2, 45), "Large fill (effective) / تعبئة الكبيرة (فعّالة، أخفّ قليلًا من الحدّ)", group = grpBig)
+color  cBigBorder = input.color(color.new(#2457E2, 30), "Large border / حدّ الكبيرة (أزرق، معتم قليلًا)", group = grpBig)
+string largeCircleSize = input.string("Normal", "Large circle size / حجم دائرة الكبيرة (فعّالة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpBig)
+bool   showNonEffBig = input.bool(true, "Show non-effective large (display only) / إظهار الكبيرة غير الفعّالة", group = grpBig)
+color  cBigDead   = input.color(color.new(#3C171A, 80), "Non-effective fill / تعبئة غير الفعّالة (أحمر)", group = grpBig)
+color  cBigDeadBorder = input.color(color.new(#2457E2, 30), "Non-effective border / حدّ غير الفعّالة (أزرق — دلالة الدرجة)", group = grpBig)
+string nonEffBigSize = input.string("Small", "Non-effective large size / حجم غير الفعّالة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpBig)
+bool   linkLarge  = input.bool(true, "Link large pivots / وصل الكبيرة بخطوط", group = grpBig)
+color  cLineBig   = input.color(color.new(#2457E2, 55), "Large link line / لون خطّ وصل الكبيرة", group = grpBig)
+
 // نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
 int AUTO_WAVE_LEN = 150
 
@@ -223,6 +242,7 @@ var array<label> hohLbls  = array.new<label>()
 var array<int>   segLefts  = array.new<int>()   // [درس03] مقاطع التحليل: الموجة الحالية (0) + التواريخ — تُغذّي التحليل متعدّد الموجات
 var array<int>   segRights = array.new<int>()
 var array<float> segLeftPx = array.new<float>() // سعر طرف الـleg عند يسار كلّ مقطع — لإرساء الحدود المشتركة (نهاية موجة = بداية التالية)
+var array<bool>  segLeftTop = array.new<bool>() // [درس07] نوع طرف الـleg (قمّة/قاع) لكلّ حدّ — مصدر الكبيرة (كلّ حدّ موجة = قمّة/قاع كبير)
 if barstate.islast
     // ===== الموجة التاريخية: من الأصل (أو نافذة يدويّة) إلى الآن =====
     if not na(waveBox)
@@ -234,15 +254,17 @@ if barstate.islast
     array.clear(segLefts)
     array.clear(segRights)
     array.clear(segLeftPx)
+    array.clear(segLeftTop)
     int wL = f_waveLeft()
     int wR = bar_index
     [wHi, wLo] = f_rangeHiLo(wL, wR)
     array.push(segLefts, wL)                     // المقطع 0 = الموجة الحالية (يُحلَّل دائمًا)
     array.push(segRights, wR)
     array.push(segLeftPx, (not useHistN and array.size(legPs) > 0) ? array.get(legPs, array.size(legPs) - 1) : na)  // سعر طرف الـleg عند wL (تلقائيّ) — للإرساء
+    array.push(segLeftTop, (not useHistN and array.size(legTops) > 0) ? array.get(legTops, array.size(legTops) - 1) : true)  // نوع طرف wL (للكبيرة)
     if showHist and not na(wHi) and not na(wLo)
         color hBd = f_dark(cHist)
-        waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 1, bgcolor = cHist)
+        waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 0, bgcolor = cHist)
         string hTxt = useHistN ? "الموجة التاريخية (يدوي)" : "الموجة التاريخية (تلقائي)"
         waveLbl := label.new(wL, wHi, hTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_lower_right, color = hBd, textcolor = color.white, size = size.tiny)
     // ===== التواريخ: تلقائيّ = سيقان leg متتالية خلف الموجة (مُسقَطة على legPs، بنيويّة) · يدويّ = نافذة واحدة =====
@@ -259,7 +281,7 @@ if barstate.islast
         if hR > hL and (showHoh or showOlder)                // المستطيل اليدويّ يظهر إن فُعِّل أيّ مفتاح تاريخ
             [hHi, hLo] = f_rangeHiLo(hL, hR)
             if not na(hHi) and not na(hLo)
-                array.push(hohBoxes, box.new(hL, hHi, hR, hLo, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh))
+                array.push(hohBoxes, box.new(hL, hHi, hR, hLo, xloc = xloc.bar_index, border_color = hohBd, border_width = 0, bgcolor = cHoh))
                 array.push(hohLbls, label.new(hL, hLo, "تاريخ التاريخ (يدوي)", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny))
     else
         // التواريخ = سيقان leg خام **مُرساة على بداية الموجة (wL)**: أوّل تاريخ ينتهي عند wL بالضبط (لا فجوة).
@@ -277,9 +299,10 @@ if barstate.islast
                     array.push(segLefts, legB)                // مقطع تحليل دائمًا (القمم/القيعان لا تتأثّر بإخفاء المستطيل)
                     array.push(segRights, rightBar)
                     array.push(segLeftPx, pL)
+                    array.push(segLeftTop, array.get(legTops, li))   // نوع الحدّ (للكبيرة)
                     bool showThis = drawn == 0 ? showHoh : showOlder   // تاريخ التاريخ (الأقرب) خلف showHoh؛ ما قبله خلف showOlder
                     if showThis
-                        array.push(hohBoxes, box.new(legB, rh, rightBar, rl, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh))
+                        array.push(hohBoxes, box.new(legB, rh, rightBar, rl, xloc = xloc.bar_index, border_color = hohBd, border_width = 0, bgcolor = cHoh))
                         string lblTxt = drawn == 0 ? "تاريخ التاريخ" : "تاريخ −" + str.tostring(drawn + 1)
                         array.push(hohLbls, label.new(legB, rl, lblTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny))
                     rightBar := legB
@@ -886,9 +909,52 @@ if barstate.islast
             prevTm  := t
             prevPrc := p
 
+// ─── الكبيرة [درس07]: حدود الموجات (segLefts = أطراف الـleg) ⇒ نفس قوانين الدرجة (bigDir) ⇒ دوائر زرقاء على مواضع المتوسطة (تعشيش) ───
+//   المبدأ: كلّ بداية/نهاية موجة = قمّة/قاع كبير، وهي أصلًا قمّة/قاع متوسط (الإرساء) ⇒ كبيرة ⊂ متوسطة. الفرز بنفس feedPivot.
+var DegreeLaws   largeDeg   = newDegreeLaws()
+var array<label> bigCircles = array.new<label>()
+var array<line>  bigLinks   = array.new<line>()
+if barstate.islast
+    largeDeg := newDegreeLaws()
+    int nSegB = array.size(segLefts)
+    if nSegB > 0
+        for ci = 0 to nSegB - 1
+            int s  = nSegB - 1 - ci                       // الأقدم→الأحدث (segLefts: 0=الأحدث)
+            int b  = array.get(segLefts, s)
+            int lo = bar_index - b
+            if lo >= 0 and not na(array.get(segLeftPx, s))
+                largeDeg.feedPivot(array.get(segLeftTop, s), array.get(segLeftPx, s), b, time[lo], bigDir)
+    for lb in bigCircles
+        label.delete(lb)
+    array.clear(bigCircles)
+    for ln in bigLinks
+        line.delete(ln)
+    array.clear(bigLinks)
+    int   prevTmB  = na
+    float prevPrcB = na
+    if nSegB > 0
+        for ci = 0 to nSegB - 1
+            int s  = nSegB - 1 - ci
+            int b  = array.get(segLefts, s)
+            float p = array.get(segLeftPx, s)
+            int lo = bar_index - b
+            if lo >= 0 and not na(p)
+                int t = time[lo]
+                bool eff = array.includes(largeDeg.effectiveBars, b) or (largeDeg.pendingType != 0 and b == largeDeg.pendingBar)
+                if showLarge
+                    if eff
+                        f_drawMedCircle(bigCircles, t, p, cBig, cBigBorder, largeCircleSize)
+                    else if showNonEffBig
+                        f_drawMedCircle(bigCircles, t, p, cBigDead, cBigDeadBorder, nonEffBigSize)
+                if eff
+                    if linkLarge and not na(prevTmB)
+                        array.push(bigLinks, line.new(prevTmB, prevPrcB, t, p, xloc = xloc.bar_time, color = cLineBig, width = 2))
+                    prevTmB  := t
+                    prevPrcB := p
+
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
-    int   wpDeg  = (array.size(smallDegree.effectiveBars) > 0 ? 1 : 0) + (array.size(mediumDegree.effectiveBars) > 0 ? 1 : 0)
+    int   wpDeg  = (array.size(smallDegree.effectiveBars) > 0 ? 1 : 0) + (array.size(mediumDegree.effectiveBars) > 0 ? 1 : 0) + (array.size(largeDeg.effectiveBars) > 0 ? 1 : 0)
     int   wpMn   = array.size(mediumDegree.effectiveBars)
     int   wpImp  = 0                                                          // عدد سيقان المتوسطة باتجاه الموجة (دافعة)
     array<float> impDur = array.new<float>()                                  // مدد السيقان الدافعة (للوسيط — القديم: متين ضدّ الشذوذ)
@@ -901,4 +967,4 @@ if showFrameHelper and barstate.islast
                 array.push(impDur, (array.get(mediumDegree.effectiveTimes, i) - array.get(mediumDegree.effectiveTimes, i - 1)) / 86400000.0)
     f_drawWavePanel(wpDeg, wpImp, array.size(impDur) > 0 ? array.median(impDur) : na)
 
-// ── نهاية النواة (تحليل متعدّد الموجات: الحالية كاملةً + التواريخ متوسطةً + لوحة الموجة). التالي: الكبيرة (درس 07). ──
+// ── نهاية النواة (صغيرة + متوسطة + كبيرة + لوحة الموجة). التالي: الخطوط/التجدّد (دروس 08-09) أو طريقة الكسر للكبيرة. ──
