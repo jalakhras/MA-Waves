@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.41.1 — [تنظيف] توثيق AUTO_WAVE_LEN كاحتياطيّ عرض قبل أوّل leg (لا قاعدة منطق) — بلا تغيير سلوكيّ.
 // v0.41.0 — [درس07] المسار الثاني للكبيرة خلف useBigBreak: الكسر من المتوسطة الفعّالة (mcEff → largeBreak قاعدة ب →
 //   largeRaw/largeEffD) — نفس محرّك f_feedMedium مستوًى أعلى، اتجاه bigDir. رسم موحّد من lgBar للطريقتين. الافتراض = leg.
 // v0.40.2 — [درس07] خطّ وصل الكبيرة أعرض (width=2) لتمييزه عن المتوسطة.
@@ -136,7 +137,9 @@ string nonEffBigSize = input.string("Small", "Non-effective large size / حجم 
 bool   linkLarge  = input.bool(true, "Link large pivots / وصل الكبيرة بخطوط", group = grpBig)
 color  cLineBig   = input.color(color.new(#2457E2, 55), "Large link line / لون خطّ وصل الكبيرة", group = grpBig)
 
-// نافذة البحث عن أصل الحركة (نظير autoLen السابق). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
+// 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
+//   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
+//   ⚠️ رقم عرض لا عتبة منطق — إن أُريد اشتقاقه (مثلًا نسبة من ampLen) فهو تغيير سلوكيّ للاحتياطيّ (يُعرَض قبل التطبيق).
 int AUTO_WAVE_LEN = 150
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
