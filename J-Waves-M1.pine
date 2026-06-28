@@ -3,6 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.39.2 — [درس03] ثلاثة مفاتيح حدود فقط: الموجة التاريخية الفعّالة (showHist) · تاريخ التاريخ (showHoh، الأقرب)
+//   · التاريخ الأقدم (showOlder، ما قبله). حُذف «حدود التاريخ» المنفصل. كلٌّ يُخفي المستطيل فقط (القمم/القيعان تبقى).
+// v0.39.0 — [درس03] مفاتيح مستطيلات منفصلة لكلّ موجة تاريخ: showTarikh (التاريخ) · showHoh (تاريخ التاريخ وحده)
+//   · showOlder (الأقدم). المفتاح يُخفي **المستطيل والتسمية فقط** — segLefts (تحليل القمم/القيعان) يُملأ دائمًا.
+//   إعادة تسمية: drawn0=«التاريخ»، drawn1=«تاريخ التاريخ». (أُلغيت الخطوط العموديّة.)
 // v0.37.1 — فصل الحدّ عن التعبئة: التعبئة شفّافة (@80) + الحدّ معتم قليلًا (@30 لا صلب) ⇒ لا يطغى الحدّ على المركز
 //   (قيد Pine: الدائرة قرص مصمت، لا حلقة مجوّفة ⇒ نخفّف عتامة الحدّ بدل الإصمات). اللونان منزلقا شفافيّة قابلان للضبط.
 // الإصدار الداخليّ: v0.37.0 — ألوان معتمَدة: المتوسطة برتقاليّ #FF9800 (حدّ صلب + تعبئة 20%)، غير الفعّال #3C171A تعبئة 20%،
@@ -58,14 +63,15 @@ indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count 
 
 // ─── المدخلات: الموجة التاريخية ───
 string grpHist = "🌊 Historical Wave / الموجة التاريخية"
-bool   showHist = input.bool(true, "Show historical wave bounds / حدود الموجة التاريخية", group = grpHist)
+bool   showHist = input.bool(true, "Active historical-wave bounds / حدود الموجة التاريخية الفعّالة", group = grpHist)
 bool   useHistN = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist, tooltip = "On: bounds over the last N candles. Off: auto — current move from its origin to now.\nمفعّل: آخر N شمعة. مطفأ: تلقائيّ — الحركة الحاليّة من أصلها إلى الآن.")
 int    histBars = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
 color  cHist    = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
-bool   showHoh  = input.bool(true, "Show prior-history bounds / حدود تاريخ التاريخ", group = grpHist)
+bool   showHoh  = input.bool(true, "History-of-history bounds / حدود تاريخ التاريخ", group = grpHist, tooltip = "يُظهر/يُخفي مستطيل موجة «تاريخ التاريخ» (الأقرب خلف الفعّالة) فقط — القمم/القيعان تبقى مرسومة.")
 bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist, tooltip = "On: N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
 int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
 int    histDepth = input.int(7, "Auto history depth (legs) / عمق التواريخ التلقائيّ (سيقان)", minval = 1, maxval = 12, group = grpHist, tooltip = "في الوضع التلقائيّ: كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة. كلّ ساق = موجة واحدة (اتجاه واحد) تُحلَّل بقوانينها.")
+bool   showOlder = input.bool(true, "Older-history bounds / حدود التاريخ الأقدم", group = grpHist, tooltip = "يُظهر/يُخفي مستطيلات التاريخ الأقدم (ما قبل تاريخ التاريخ) — القمم/القيعان تبقى مرسومة.")
 color  cHoh     = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
 // [درس04] محرّك الـleg (التلقائيّ): حدود الموجة وحجمها من السعر الخام بعتبة نسبيّة (لا ATR)
 float  legMinRatio  = input.float(0.3, "Auto wave-leg size (× wave amplitude) / حجم ساق الموجة (× السعة)", minval = 0.05, maxval = 1.0, step = 0.05, group = grpHist, tooltip = "الضابط الرئيسيّ لحجم الموجة التلقائيّة: عتبة انعكاس الساق = هذه النسبة × سعة الموجة. أكبر ⇒ موجة أكبر.")
@@ -247,15 +253,15 @@ if barstate.islast
         label.delete(lb)
     array.clear(hohLbls)
     color hohBd = color.new(color.gray, 0)
-    if showHoh and useHohN
+    if useHohN
         int hR = wL                                          // يدويّ: نافذة واحدة بطول hohBars خلف الموجة
         int hL = math.max(wL - hohBars, 0)
-        if hR > hL
+        if hR > hL and (showHoh or showOlder)                // المستطيل اليدويّ يظهر إن فُعِّل أيّ مفتاح تاريخ
             [hHi, hLo] = f_rangeHiLo(hL, hR)
             if not na(hHi) and not na(hLo)
                 array.push(hohBoxes, box.new(hL, hHi, hR, hLo, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh))
                 array.push(hohLbls, label.new(hL, hLo, "تاريخ التاريخ (يدوي)", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny))
-    else if showHoh
+    else
         // التواريخ = سيقان leg خام **مُرساة على بداية الموجة (wL)**: أوّل تاريخ ينتهي عند wL بالضبط (لا فجوة).
         //   المشي من wL للخلف، كلّ ساق = [legB → rightBar]؛ يدويًّا تُقصّ الساق العابرة عند wL بدل تجاهلها (يملأ الفراغ).
         int   n        = array.size(legBars)
@@ -268,12 +274,14 @@ if barstate.islast
                 float pL = array.get(legPs, li)
                 [rh, rl] = f_rangeHiLo(legB, rightBar)        // مدى المقطع [legB → rightBar] (ساق واحدة)
                 if not na(rh) and not na(rl)
-                    array.push(hohBoxes, box.new(legB, rh, rightBar, rl, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh))
-                    string lblTxt = drawn == 0 ? "تاريخ التاريخ" : "تاريخ −" + str.tostring(drawn + 1)
-                    array.push(hohLbls, label.new(legB, rl, lblTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny))
-                    array.push(segLefts, legB)                // مقطع تحليل = هذه الساق (مُرساة، بلا فجوة)
+                    array.push(segLefts, legB)                // مقطع تحليل دائمًا (القمم/القيعان لا تتأثّر بإخفاء المستطيل)
                     array.push(segRights, rightBar)
                     array.push(segLeftPx, pL)
+                    bool showThis = drawn == 0 ? showHoh : showOlder   // تاريخ التاريخ (الأقرب) خلف showHoh؛ ما قبله خلف showOlder
+                    if showThis
+                        array.push(hohBoxes, box.new(legB, rh, rightBar, rl, xloc = xloc.bar_index, border_color = hohBd, border_width = 1, bgcolor = cHoh))
+                        string lblTxt = drawn == 0 ? "تاريخ التاريخ" : "تاريخ −" + str.tostring(drawn + 1)
+                        array.push(hohLbls, label.new(legB, rl, lblTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_upper_right, color = hohBd, textcolor = color.white, size = size.tiny))
                     rightBar := legB
                     drawn    := drawn + 1
             li := li - 1
