@@ -3,8 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار الداخليّ: v0.34.2 — [درس03] إرساء أوّل تاريخ على بداية الموجة (wL) بالقصّ: المشي من wL للخلف ⇒ لا فجوة بين
-//   الموجة وتاريخ التاريخ (يدويًّا تُقصّ الساق العابرة لـwL بدل تجاهلها). سيقان خام (تناوب نظيف) مُرساة، لا تتراكب ولا تترك فراغًا.
+// الإصدار الداخليّ: v0.35.0 — [درس03] **سلسلة متوسطة واحدة متّصلة** عبر كلّ الموجات (الأقدم→الأحدث): جمع كلّ النقاط ثمّ
+//   إزالة المتطابق عند الحدود + فرض التناوب (الأكثر تطرّفًا) ⇒ لا انقطاع ولا قمّتان/قاعان متتاليان (جاهزة للعدّ). خطّ واحد.
+//   استُخرج f_buildWave (بناء موجة واحدة، يخدم الحالية والتواريخ بلا تكرار) + f_pushMed (الجمع بالتناوب). النواة ~867 سطرًا.
+// v0.34.2 — التواريخ سيقان leg خام مُرساة على wL (لا فجوة/تراكب).
 // v0.34.0 — التواريخ = سيقان leg خام متتالية (كلّ ساق = موجة باتجاهٍ واحد)؛ حُذف hohMinRatio.
 // v0.33.1 — إصلاح وصل المتوسطة: الخطّ يمرّ بكلّ النقاط متّصلًا (فعّال/غير فعّال/مخفيّ).
 // v0.33.0 — حدود الموجات مشتركة: إرساء الأطراف على أطراف الـleg (نهاية موجة = بداية التالية).
@@ -547,34 +549,14 @@ f_feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, DegreeLaws medEff, 
                 med.appendEff(t2, p2, b2, tm2)
                 medEff.feedPivot(t2, p2, b2, tm2, wdir)
 
-// ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
-//   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
-//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله.
-//   ── قرارات محسومة (المستخدم 2026-06-25) تُحكم العدّاد: ──
-//   • العدّاد يعدّ **شموع لون التصحيح فقط** (بحث قمّة⇒حمراء · بحث قاع⇒خضراء)؛ شمعة لون الاتجاه تُتجاهَل ما لم تصنع تطرّفًا جديدًا.
-//   • [ق2-أ] شمعة لون الاتجاه (أو النويز) لا تصنع تطرّفًا ⇒ تُتجاهَل (العدّاد محفوظ، لا تصفير).
-//   • [ق3-أ] شمعة لون التصحيح صحيحة لكن جسمها غير منزاح بالكامل (ابتلاع/تداخل) ⇒ تُهمَل (ننتظر منزاحة؛ لا تصفير).
-var DegreeLaws smallDegree    = newDegreeLaws()
-
-// ─── الدرجة 1 (المتوسطة) [درس 06]: تُشتقّ من الصغيرة الفعّالة بالكسر (مُولِّد) ثمّ نفس القوانين ───
-var BreakProc  mediumBreak    = newBreakProc()   // مُولِّد الكسر (صغيرة فعّالة ⇒ متوسطة خام)
-var DegreeLaws mediumDegree   = newDegreeLaws()  // المتوسطة **الخام**: كلّ أزواج قاعدة(ب) (appendEff) — مواضع الرسم
-var DegreeLaws mediumEff      = newDegreeLaws()  // المتوسطة بعد **قانونَي الدرجة** (تتابُع+فعاليّة عبر feedPivot) ⇒ تُحدِّد الفعّال؛ ما خرج = غير فعّال (عرض)
-
-// ═════════════════════════════════════════════════════════════════════════════
-// [v0.23.0] البناء **المحدود بالموجة التاريخية** عند islast — كلّ موجة في حدودها، باتجاهٍ ثابت من بنيتها.
-//   لماذا: البناء التدريجيّ بنافذة متدحرجة كان يقلب الاتجاه عشرات المرّات (تسرّب للموجة السابقة) فيمسح مراجع الفعاليّة.
-//   هنا: حدود الموجة [wLb..wRb] معروفة وثابتة عند islast ⇒ اتجاه واحد (أيّ تطرّف أقدم) ⇒ تعمل الفعاليّة/التتابُع ويُسقَط النويز.
-// ═════════════════════════════════════════════════════════════════════════════
-if barstate.islast
-    int wLb = math.max(f_waveLeft(), 0)
-    int wRb = bar_index
-    // اتجاه الموجة من حدودها: أبعد قمّة مقابل أبعد قاع — الأقدم (الأقرب لـwLb) يحدّد الاتجاه
+// [درس03] بناء موجة واحدة [segL→segR]: اتجاهها من تطرّفاتها ثمّ الصغيرة (شمعتان) → قاعدة(ب) → المتوسطة (sd/md/me/mb). يُرجع الاتجاه.
+//   تُستدعى للموجة الحالية وكلّ تاريخ (نفس المنطق، لا تكرار). تُلحِق نقاط md/me؛ المعلّق = التطرّف الطرفيّ المتراكم.
+f_buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL, int segR) =>
     float wHiP = na
     float wLoP = na
     int   wHiB = na
     int   wLoB = na
-    for j = wLb to wRb
+    for j = segL to segR
         int o = bar_index - j
         if o >= 0
             if na(wHiP) or high[o] > wHiP
@@ -583,12 +565,7 @@ if barstate.islast
             if na(wLoP) or low[o] < wLoP
                 wLoP := low[o]
                 wLoB := j
-    int wdir = wHiB <= wLoB ? -1 : 1                       // القمّة أقدم ⇒ هابطة · القاع أقدم ⇒ صاعدة
-    // إعادة بناء طازجة ضمن الموجة (تُلغي أيّ تراكم سابق)
-    smallDegree  := newDegreeLaws()
-    mediumDegree := newDegreeLaws()
-    mediumEff    := newDegreeLaws()
-    mediumBreak  := newBreakProc()
+    int wdir = wHiB <= wLoB ? -1 : 1
     int   scD  = 0
     float rHiP = na
     int   rHiB = na
@@ -599,7 +576,7 @@ if barstate.islast
     int   ccD  = 0
     float cpHi = na
     float cpLo = na
-    for j = wLb to wRb                                     // الأقدم→الأحدث ضمن الموجة
+    for j = segL to segR
         int o = bar_index - j
         if o >= 0
             float bs   = math.abs(close[o] - open[o])
@@ -611,7 +588,7 @@ if barstate.islast
             float bHi  = math.max(open[o], close[o])
             float bLo  = math.min(open[o], close[o])
             if scD == 0
-                scD  := wdir != 0 ? -wdir : 1              // ابدأ بطلب تطرّف بداية الموجة
+                scD  := wdir != 0 ? -wdir : 1
                 rHiP := high[o]
                 rHiB := j
                 rHiT := time[o]
@@ -636,8 +613,8 @@ if barstate.islast
                         cpHi := bHi
                         cpLo := bLo
                     if ccD >= minCorr
-                        smallDegree.feedPivot(true, rHiP, rHiB, rHiT, wdir)
-                        f_feedMedium(smallDegree, mediumBreak, mediumDegree, mediumEff, wdir)
+                        sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
+                        f_feedMedium(sd, mb, md, me, wdir)
                         scD  := -1
                         rLoP := low[o]
                         rLoB := j
@@ -663,8 +640,8 @@ if barstate.islast
                         cpHi := bHi
                         cpLo := bLo
                     if ccD >= minCorr
-                        smallDegree.feedPivot(false, rLoP, rLoB, rLoT, wdir)
-                        f_feedMedium(smallDegree, mediumBreak, mediumDegree, mediumEff, wdir)
+                        sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
+                        f_feedMedium(sd, mb, md, me, wdir)
                         scD  := 1
                         rHiP := high[o]
                         rHiB := j
@@ -672,17 +649,71 @@ if barstate.islast
                         ccD  := 0
                         cpHi := na
                         cpLo := na
-    // المعلّق المتوسط = التطرّف المقابل المتراكم الذي لم يُكسَر بعد (صعودًا أعلى قمّة · هبوطًا أدنى قاع) — يُرسَم أبهت
-    if wdir == 1 and not na(mediumBreak.maxSincePrice)
-        mediumDegree.pendingType  := 1
-        mediumDegree.pendingPrice := mediumBreak.maxSincePrice
-        mediumDegree.pendingBar   := mediumBreak.maxSinceBar
-        mediumDegree.pendingTime  := mediumBreak.maxSinceTime
-    else if wdir == -1 and not na(mediumBreak.minSincePrice)
-        mediumDegree.pendingType  := -1
-        mediumDegree.pendingPrice := mediumBreak.minSincePrice
-        mediumDegree.pendingBar   := mediumBreak.minSinceBar
-        mediumDegree.pendingTime  := mediumBreak.minSinceTime
+    if wdir == 1 and not na(mb.maxSincePrice)
+        md.pendingType  := 1
+        md.pendingPrice := mb.maxSincePrice
+        md.pendingBar   := mb.maxSinceBar
+        md.pendingTime  := mb.maxSinceTime
+    else if wdir == -1 and not na(mb.minSincePrice)
+        md.pendingType  := -1
+        md.pendingPrice := mb.minSincePrice
+        md.pendingBar   := mb.minSinceBar
+        md.pendingTime  := mb.minSinceTime
+    wdir
+
+// [درس03] إضافة نقطة لسلسلة المتوسطة الموحّدة: إزالة المتطابق عند الحدّ + فرض التناوب (الأكثر تطرّفًا) ⇒ لا قمّتان/قاعان متتاليان
+var array<int>   mcBar = array.new<int>()
+var array<float> mcPrc = array.new<float>()
+var array<bool>  mcTop = array.new<bool>()
+var array<bool>  mcEff = array.new<bool>()
+var array<int>   mcTm  = array.new<int>()
+f_pushMed(int bar, float prc, bool isTop, bool eff, int tm) =>
+    int sz = array.size(mcBar)
+    if sz > 0 and array.get(mcBar, sz - 1) == bar
+        if eff
+            array.set(mcEff, sz - 1, true)                       // حدّ مشترك (نفس الشمعة) ⇒ نقطة واحدة، تبقى فعّالة إن كان أحدهما فعّالًا
+    else if sz > 0 and array.get(mcTop, sz - 1) == isTop
+        float lp = array.get(mcPrc, sz - 1)
+        if (isTop and prc > lp) or ((not isTop) and prc < lp)    // متتاليان من نوع واحد ⇒ أبقِ الأكثر تطرّفًا (تتابُع)
+            array.set(mcBar, sz - 1, bar)
+            array.set(mcPrc, sz - 1, prc)
+            array.set(mcTm,  sz - 1, tm)
+            array.set(mcEff, sz - 1, eff)
+    else
+        array.push(mcBar, bar)
+        array.push(mcPrc, prc)
+        array.push(mcTop, isTop)
+        array.push(mcEff, eff)
+        array.push(mcTm,  tm)
+
+// ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
+//   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
+//   القمّة = أعلى سعر قبل التصحيح · القاع = أدنى سعر قبله.
+//   ── قرارات محسومة (المستخدم 2026-06-25) تُحكم العدّاد: ──
+//   • العدّاد يعدّ **شموع لون التصحيح فقط** (بحث قمّة⇒حمراء · بحث قاع⇒خضراء)؛ شمعة لون الاتجاه تُتجاهَل ما لم تصنع تطرّفًا جديدًا.
+//   • [ق2-أ] شمعة لون الاتجاه (أو النويز) لا تصنع تطرّفًا ⇒ تُتجاهَل (العدّاد محفوظ، لا تصفير).
+//   • [ق3-أ] شمعة لون التصحيح صحيحة لكن جسمها غير منزاح بالكامل (ابتلاع/تداخل) ⇒ تُهمَل (ننتظر منزاحة؛ لا تصفير).
+var DegreeLaws smallDegree    = newDegreeLaws()
+
+// ─── الدرجة 1 (المتوسطة) [درس 06]: تُشتقّ من الصغيرة الفعّالة بالكسر (مُولِّد) ثمّ نفس القوانين ───
+var BreakProc  mediumBreak    = newBreakProc()   // مُولِّد الكسر (صغيرة فعّالة ⇒ متوسطة خام)
+var DegreeLaws mediumDegree   = newDegreeLaws()  // المتوسطة **الخام**: كلّ أزواج قاعدة(ب) (appendEff) — مواضع الرسم
+var DegreeLaws mediumEff      = newDegreeLaws()  // المتوسطة بعد **قانونَي الدرجة** (تتابُع+فعاليّة عبر feedPivot) ⇒ تُحدِّد الفعّال؛ ما خرج = غير فعّال (عرض)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [v0.23.0] البناء **المحدود بالموجة التاريخية** عند islast — كلّ موجة في حدودها، باتجاهٍ ثابت من بنيتها.
+//   لماذا: البناء التدريجيّ بنافذة متدحرجة كان يقلب الاتجاه عشرات المرّات (تسرّب للموجة السابقة) فيمسح مراجع الفعاليّة.
+//   هنا: حدود الموجة [wLb..wRb] معروفة وثابتة عند islast ⇒ اتجاه واحد (أيّ تطرّف أقدم) ⇒ تعمل الفعاليّة/التتابُع ويُسقَط النويز.
+// ═════════════════════════════════════════════════════════════════════════════
+if barstate.islast
+    int wLb = math.max(f_waveLeft(), 0)
+    int wRb = bar_index
+    // إعادة بناء طازجة للموجة الحالية [wLb..wRb] عبر f_buildWave (نفس منطق التواريخ)
+    smallDegree  := newDegreeLaws()
+    mediumDegree := newDegreeLaws()
+    mediumEff    := newDegreeLaws()
+    mediumBreak  := newBreakProc()
+    f_buildWave(smallDegree, mediumDegree, mediumEff, mediumBreak, wLb, wRb)
     // [درس03] إرساء بداية الموجة الحالية على طرف الـleg (الحدّ المشترك مع تاريخ التاريخ = نهايته)
     if array.size(mediumDegree.effectiveBars) > 0 and array.size(segLeftPx) > 0 and not na(array.get(segLeftPx, 0))
         int lo0 = bar_index - array.get(segLefts, 0)
@@ -754,163 +785,28 @@ if barstate.islast
             array.push(smallLinks, line.new(array.get(smallDegree.effectiveBars, effectiveCount - 1), array.get(smallDegree.effectivePrices, effectiveCount - 1), smallDegree.pendingBar, smallDegree.pendingPrice, xloc = xloc.bar_index, color = color.new(cLineS, 45), width = 1))
 
 
-// ─── رسم الدرجة المتوسطة (islast): دوائر برتقاليّة (حافة+تعبئة) على النقاط الفعّالة + خطوط الوصل ───
+// ─── المتوسطة: **سلسلة واحدة متّصلة** عبر كلّ الموجات (الأقدم→الأحدث) — تناوب صارم بلا تكرار/انقطاع (للعدّ لاحقًا) ───
 var array<label> medCircles = array.new<label>()
 var array<line>  medLinks   = array.new<line>()
 if barstate.islast
-    for lb in medCircles
-        label.delete(lb)
-    array.clear(medCircles)
-    for ln in medLinks
-        line.delete(ln)
-    array.clear(medLinks)
-    int medCount = array.size(mediumDegree.effectiveBars)
-    int   lastTm  = na     // آخر نقطة متوسطة (أيّ نوع) — 🔴 الوصل يمرّ بـ**كلّ** النقاط متّصلًا (فعّال/غير فعّال/مخفيّ) للعدّ لاحقًا
-    float lastPrc = na
-    if medCount > 0
-        int firstMed = math.max(0, medCount - 120)   // سقف labels ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الكبيرة لاحقًا
-        for i = firstMed to medCount - 1
-            float mPrc = array.get(mediumDegree.effectivePrices, i)
-            int   mTm  = array.get(mediumDegree.effectiveTimes, i)
-            int   mBar = array.get(mediumDegree.effectiveBars, i)
-            // الدائرة (مشروطة): فعّال 🟠 · غير فعّال 🔴 (إن showNonEff)
-            bool  mEff = array.includes(mediumEff.effectiveBars, mBar) or (mediumEff.pendingType != 0 and mBar == mediumEff.pendingBar)
-            if showMedium and mEff
-                f_drawMedCircle(medCircles, mTm, mPrc, cMed, cMedBorder, medCircleSize)
-            else if showMedium and showNonEff
-                f_drawMedCircle(medCircles, mTm, mPrc, cMedDead, cMedDeadBorder, nonEffCircleSize)
-            // الوصل (دائمًا، مستقلّ عن إخفاء الدائرة): سلسلة متّصلة تمرّ بكلّ نقطة
-            if linkMed and not na(lastTm)
-                array.push(medLinks, line.new(lastTm, lastPrc, mTm, mPrc, xloc = xloc.bar_time, color = cLineMed, width = 1))
-            lastTm  := mTm
-            lastPrc := mPrc
-    // النقطة المعلّقة (الموجة الحيّة) — رماديّة + وصلها متّصلًا بآخر نقطة
-    if showMedium and mediumDegree.pendingType != 0
-        f_drawMedCircle(medCircles, mediumDegree.pendingTime, mediumDegree.pendingPrice, cMedPendFill, cMedPendBorder, medCircleSize)
-    if linkMed and mediumDegree.pendingType != 0 and not na(lastTm)
-        array.push(medLinks, line.new(lastTm, lastPrc, mediumDegree.pendingTime, mediumDegree.pendingPrice, xloc = xloc.bar_time, color = color.new(cLineMed, 40), width = 1))
-
-// ═══ [درس03] تحليل الموجات التاريخية: لكلّ صندوق تاريخ (1..) متوسطته **بقوانينها واتجاهها** (الصغيرة للحالية فقط) ═══
-//   إضافيّ فوق رسم متوسطة الموجة الحالية: حالة محلّيّة طازجة لكلّ موجة، تَلحق medCircles/medLinks بلا مسح.
-if barstate.islast
-    int nSegH = array.size(segLefts)
-    if nSegH > 1
-        for s = 1 to nSegH - 1
+    array.clear(mcBar)
+    array.clear(mcPrc)
+    array.clear(mcTop)
+    array.clear(mcEff)
+    array.clear(mcTm)
+    int nSeg = array.size(segLefts)
+    // (1) التواريخ من الأقدم للأحدث: ابنِ كلّ ساق بـf_buildWave، أرسِ حدّيها، ادفعها للسلسلة
+    if nSeg > 1
+        for ci = 0 to nSeg - 2
+            int s    = nSeg - 1 - ci
             int segL = array.get(segLefts, s)
             int segR = array.get(segRights, s)
-            float hHiP = na
-            float hLoP = na
-            int   hHiB = na
-            int   hLoB = na
-            for j = segL to segR
-                int o = bar_index - j
-                if o >= 0
-                    if na(hHiP) or high[o] > hHiP
-                        hHiP := high[o]
-                        hHiB := j
-                    if na(hLoP) or low[o] < hLoP
-                        hLoP := low[o]
-                        hLoB := j
-            int wdir = hHiB <= hLoB ? -1 : 1                  // اتجاه الموجة التاريخية من تطرّفاتها
-            DegreeLaws sd = newDegreeLaws()                   // حالة محلّيّة طازجة (لا تمسّ درجات الموجة الحالية)
+            DegreeLaws sd = newDegreeLaws()
             DegreeLaws md = newDegreeLaws()
             DegreeLaws me = newDegreeLaws()
             BreakProc  mb = newBreakProc()
-            int   scD  = 0
-            float rHiP = na
-            int   rHiB = na
-            int   rHiT = na
-            float rLoP = na
-            int   rLoB = na
-            int   rLoT = na
-            int   ccD  = 0
-            float cpHi = na
-            float cpLo = na
-            for j = segL to segR                              // نفس بناء الصغيرة (شمعتان) ⇒ قاعدة(ب) ⇒ المتوسطة
-                int o = bar_index - j
-                if o >= 0
-                    float bs   = math.abs(close[o] - open[o])
-                    float uw   = high[o] - math.max(close[o], open[o])
-                    float lw   = math.min(close[o], open[o]) - low[o]
-                    bool  vc   = (not useValid) or (bs > 0 and bs >= uw and bs >= lw)
-                    bool  bear = close[o] < open[o]
-                    bool  bull = close[o] > open[o]
-                    float bHi  = math.max(open[o], close[o])
-                    float bLo  = math.min(open[o], close[o])
-                    if scD == 0
-                        scD  := wdir != 0 ? -wdir : 1
-                        rHiP := high[o]
-                        rHiB := j
-                        rHiT := time[o]
-                        rLoP := low[o]
-                        rLoB := j
-                        rLoT := time[o]
-                    else if scD == 1
-                        if high[o] > rHiP
-                            rHiP := high[o]
-                            rHiB := j
-                            rHiT := time[o]
-                            ccD  := 0
-                            cpHi := na
-                            cpLo := na
-                        else if vc and bear
-                            if ccD == 0
-                                ccD  := 1
-                                cpHi := bHi
-                                cpLo := bLo
-                            else if bHi < cpHi and bLo < cpLo
-                                ccD  := ccD + 1
-                                cpHi := bHi
-                                cpLo := bLo
-                            if ccD >= minCorr
-                                sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
-                                f_feedMedium(sd, mb, md, me, wdir)
-                                scD  := -1
-                                rLoP := low[o]
-                                rLoB := j
-                                rLoT := time[o]
-                                ccD  := 0
-                                cpHi := na
-                                cpLo := na
-                    else
-                        if low[o] < rLoP
-                            rLoP := low[o]
-                            rLoB := j
-                            rLoT := time[o]
-                            ccD  := 0
-                            cpHi := na
-                            cpLo := na
-                        else if vc and bull
-                            if ccD == 0
-                                ccD  := 1
-                                cpHi := bHi
-                                cpLo := bLo
-                            else if bHi > cpHi and bLo > cpLo
-                                ccD  := ccD + 1
-                                cpHi := bHi
-                                cpLo := bLo
-                            if ccD >= minCorr
-                                sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
-                                f_feedMedium(sd, mb, md, me, wdir)
-                                scD  := 1
-                                rHiP := high[o]
-                                rHiB := j
-                                rHiT := time[o]
-                                ccD  := 0
-                                cpHi := na
-                                cpLo := na
-            if wdir == 1 and not na(mb.maxSincePrice)
-                md.pendingType  := 1
-                md.pendingPrice := mb.maxSincePrice
-                md.pendingBar   := mb.maxSinceBar
-                md.pendingTime  := mb.maxSinceTime
-            else if wdir == -1 and not na(mb.minSincePrice)
-                md.pendingType  := -1
-                md.pendingPrice := mb.minSincePrice
-                md.pendingBar   := mb.minSinceBar
-                md.pendingTime  := mb.minSinceTime
-            // إرساء حدّي هذا التاريخ على أطراف الـleg: البداية = legPs[s] · النهاية = legPs[s-1] (= بداية الأحدث منه ⇒ حدّ مشترك)
-            if array.size(md.effectiveBars) > 0 and not na(array.get(segLeftPx, s))
+            f_buildWave(sd, md, me, mb, segL, segR)
+            if array.size(md.effectiveBars) > 0 and not na(array.get(segLeftPx, s))   // إرساء البداية على طرف الـleg
                 int loSa = bar_index - segL
                 if loSa >= 0
                     array.set(md.effectiveBars, 0, segL)
@@ -918,34 +814,56 @@ if barstate.islast
                     array.set(md.effectiveTimes, 0, time[loSa])
                     if array.size(me.effectiveBars) > 0
                         array.set(me.effectiveBars, 0, segL)
-            if md.pendingType != 0 and not na(array.get(segLeftPx, s - 1))
+            if md.pendingType != 0 and not na(array.get(segLeftPx, s - 1))             // إرساء النهاية على طرف الـleg
                 int loRa = bar_index - segR
                 if loRa >= 0
                     md.pendingBar   := segR
                     md.pendingPrice := array.get(segLeftPx, s - 1)
                     md.pendingTime  := time[loRa]
-            int   medCountH = array.size(md.effectiveBars)    // رسم متوسطة هذا التاريخ (يَلحق medCircles/medLinks)
-            int   lastTmH   = na
-            float lastPrcH  = na
-            if medCountH > 0
-                int firstH = math.max(0, medCountH - 120)
-                for i = firstH to medCountH - 1
-                    float mPrc = array.get(md.effectivePrices, i)
-                    int   mTm  = array.get(md.effectiveTimes, i)
-                    int   mBar = array.get(md.effectiveBars, i)
-                    bool  mEff = array.includes(me.effectiveBars, mBar) or (me.pendingType != 0 and mBar == me.pendingBar)
-                    if showMedium and mEff
-                        f_drawMedCircle(medCircles, mTm, mPrc, cMed, cMedBorder, medCircleSize)
-                    else if showMedium and showNonEff
-                        f_drawMedCircle(medCircles, mTm, mPrc, cMedDead, cMedDeadBorder, nonEffCircleSize)
-                    if linkMed and not na(lastTmH)               // الوصل دائمًا (يمرّ بكلّ نقطة متّصلًا حتى المخفيّة)
-                        array.push(medLinks, line.new(lastTmH, lastPrcH, mTm, mPrc, xloc = xloc.bar_time, color = cLineMed, width = 1))
-                    lastTmH  := mTm
-                    lastPrcH := mPrc
-            // التاريخ مكتمل ⇒ التطرّف الطرفيّ (نهاية الساق) فعّال (غير مُغطّى) + الوصل متّصل
-            if showMedium and md.pendingType != 0
-                f_drawMedCircle(medCircles, md.pendingTime, md.pendingPrice, cMed, cMedBorder, medCircleSize)
-            if linkMed and md.pendingType != 0 and not na(lastTmH)
-                array.push(medLinks, line.new(lastTmH, lastPrcH, md.pendingTime, md.pendingPrice, xloc = xloc.bar_time, color = cLineMed, width = 1))
+            int mch = array.size(md.effectiveBars)
+            for i = 0 to (mch > 0 ? mch - 1 : 0)
+                if mch > 0
+                    int b = array.get(md.effectiveBars, i)
+                    bool eff = array.includes(me.effectiveBars, b) or (me.pendingType != 0 and b == me.pendingBar)
+                    f_pushMed(b, array.get(md.effectivePrices, i), array.get(md.effectiveIsTop, i), eff, array.get(md.effectiveTimes, i))
+            if md.pendingType != 0
+                f_pushMed(md.pendingBar, md.pendingPrice, md.pendingType == 1, true, md.pendingTime)
+    // (2) الموجة الحالية (الأحدث) من mediumDegree/mediumEff
+    int mc0 = array.size(mediumDegree.effectiveBars)
+    for i = 0 to (mc0 > 0 ? mc0 - 1 : 0)
+        if mc0 > 0
+            int b = array.get(mediumDegree.effectiveBars, i)
+            bool eff = array.includes(mediumEff.effectiveBars, b) or (mediumEff.pendingType != 0 and b == mediumEff.pendingBar)
+            f_pushMed(b, array.get(mediumDegree.effectivePrices, i), array.get(mediumDegree.effectiveIsTop, i), eff, array.get(mediumDegree.effectiveTimes, i))
+    if mediumDegree.pendingType != 0
+        f_pushMed(mediumDegree.pendingBar, mediumDegree.pendingPrice, mediumDegree.pendingType == 1, true, mediumDegree.pendingTime)
+    // (3) الرسم: دوائر (🟠 فعّال · 🔴 غير فعّال · رماديّ للطرف الحيّ) + **خطّ واحد متواصل** بكلّ النقاط
+    for lb in medCircles
+        label.delete(lb)
+    array.clear(medCircles)
+    for ln in medLinks
+        line.delete(ln)
+    array.clear(medLinks)
+    int   mcN     = array.size(mcBar)
+    int   prevTm  = na
+    float prevPrc = na
+    for i = 0 to (mcN > 0 ? mcN - 1 : 0)
+        if mcN > 0
+            int   b   = array.get(mcBar, i)
+            float p   = array.get(mcPrc, i)
+            int   t   = array.get(mcTm, i)
+            bool  eff = array.get(mcEff, i)
+            bool  liveTip = mediumDegree.pendingType != 0 and b == mediumDegree.pendingBar and i == mcN - 1
+            if showMedium
+                if liveTip
+                    f_drawMedCircle(medCircles, t, p, cMedPendFill, cMedPendBorder, medCircleSize)
+                else if eff
+                    f_drawMedCircle(medCircles, t, p, cMed, cMedBorder, medCircleSize)
+                else if showNonEff
+                    f_drawMedCircle(medCircles, t, p, cMedDead, cMedDeadBorder, nonEffCircleSize)
+            if linkMed and not na(prevTm)
+                array.push(medLinks, line.new(prevTm, prevPrc, t, p, xloc = xloc.bar_time, color = cLineMed, width = 1))
+            prevTm  := t
+            prevPrc := p
 
 // ── نهاية النواة (تحليل متعدّد الموجات: الحالية كاملةً + التواريخ متوسطةً). التالي: الكبيرة (درس 07). ──
