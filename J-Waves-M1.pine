@@ -3,6 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.64.0 — [تعديل السيولة] تُرسَم خطوط السيولة **دائمًا** على جانب الاتجاه الفعّال (أُزيلت بوّابة م3-ب التي تحجب المتناقض) ⇒
+//   تُظهر ميلها حتى لو خالف المستوى (تباعد مفيد)؛ المكسورة تبقى متقطّعة. ⇒ سيولة الصغير/الكبير لم تعد تختفي.
+// v0.63.0 — [الصغيرة دائمًا موجودة] سلسلة صغيرة **عبر التاريخ** (scBar، كالمتوسطة): تُبنى من صغيرة كلّ مقطع + الموجة الجارية،
+//   تُرسَم عبر الشارت (آخر 90)، وتُغذّي الاستنتاج + خطوط الصغيرة. f_pushChain معمّمة (متوسطة/صغيرة). ⇒ الصغيرة لا تختفي بقِصَر الموجة.
 // v0.62.0 — [إصلاح تناقض اللوحة] (1) f_liqDirHold يستبقي اتجاه آخر خطّ بدل «غير محدّد» حين تُكسَر كلّ الخطوط (مع وجود طرفين).
 //   (2) المرحلة مربوطة بوجود خطّ السيولة (lq=0 ⇒ «—» لا «مشاركة») — لا مرحلة بلا خطّ.
 // v0.61.1 — [عرض] صفوف الدرجات: الاتجاه بالكلمات (صاعدة/هابطة) لا الرمز (▲/▼).
@@ -798,30 +802,38 @@ f_buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL,
         md.pendingTime  := mb.minSinceTime
     wdir
 
-// [درس03] إضافة نقطة لسلسلة المتوسطة الموحّدة: إزالة المتطابق عند الحدّ + فرض التناوب (الأكثر تطرّفًا) ⇒ لا قمّتان/قاعان متتاليان
+// [درس03] إضافة نقطة لسلسلة موحّدة (متوسطة/صغيرة): إزالة المتطابق عند الحدّ + فرض التناوب (الأكثر تطرّفًا) ⇒ لا قمّتان/قاعان متتاليان
 var array<int>   mcBar = array.new<int>()
 var array<float> mcPrc = array.new<float>()
 var array<bool>  mcTop = array.new<bool>()
 var array<bool>  mcEff = array.new<bool>()
 var array<int>   mcTm  = array.new<int>()
-f_pushMed(int bar, float prc, bool isTop, bool eff, int tm) =>
-    int sz = array.size(mcBar)
-    if sz > 0 and array.get(mcBar, sz - 1) == bar
+// [الصغيرة عبر التاريخ] سلسلة صغيرة موحّدة (كالمتوسطة) ⇒ الصغيرة «دائمًا موجودة» على كلّ الشارت لا الموجة الجارية فقط
+var array<int>   scBar = array.new<int>()
+var array<float> scPrc = array.new<float>()
+var array<bool>  scTop = array.new<bool>()
+var array<bool>  scEff = array.new<bool>()
+var array<int>   scTm  = array.new<int>()
+f_pushChain(array<int> cBar, array<float> cPrc, array<bool> cTop, array<bool> cEff, array<int> cTm, int bar, float prc, bool isTop, bool eff, int tm) =>
+    int sz = array.size(cBar)
+    if sz > 0 and array.get(cBar, sz - 1) == bar
         if eff
-            array.set(mcEff, sz - 1, true)                       // حدّ مشترك (نفس الشمعة) ⇒ نقطة واحدة، تبقى فعّالة إن كان أحدهما فعّالًا
-    else if sz > 0 and array.get(mcTop, sz - 1) == isTop
-        float lp = array.get(mcPrc, sz - 1)
-        if (isTop and prc > lp) or ((not isTop) and prc < lp)    // متتاليان من نوع واحد ⇒ أبقِ الأكثر تطرّفًا (تتابُع)
-            array.set(mcBar, sz - 1, bar)
-            array.set(mcPrc, sz - 1, prc)
-            array.set(mcTm,  sz - 1, tm)
-            array.set(mcEff, sz - 1, eff)
+            array.set(cEff, sz - 1, true)                       // حدّ مشترك (نفس الشمعة) ⇒ نقطة واحدة، تبقى فعّالة إن كان أحدهما فعّالًا
+    else if sz > 0 and array.get(cTop, sz - 1) == isTop
+        float lp = array.get(cPrc, sz - 1)
+        if (isTop and prc > lp) or ((not isTop) and prc < lp)   // متتاليان من نوع واحد ⇒ أبقِ الأكثر تطرّفًا (تتابُع)
+            array.set(cBar, sz - 1, bar)
+            array.set(cPrc, sz - 1, prc)
+            array.set(cTm,  sz - 1, tm)
+            array.set(cEff, sz - 1, eff)
     else
-        array.push(mcBar, bar)
-        array.push(mcPrc, prc)
-        array.push(mcTop, isTop)
-        array.push(mcEff, eff)
-        array.push(mcTm,  tm)
+        array.push(cBar, bar)
+        array.push(cPrc, prc)
+        array.push(cTop, isTop)
+        array.push(cEff, eff)
+        array.push(cTm,  tm)
+f_pushMed(int bar, float prc, bool isTop, bool eff, int tm) => f_pushChain(mcBar, mcPrc, mcTop, mcEff, mcTm, bar, prc, isTop, eff, tm)
+f_pushSmall(int bar, float prc, bool isTop, bool eff, int tm) => f_pushChain(scBar, scPrc, scTop, scEff, scTm, bar, prc, isTop, eff, tm)
 
 // ─── الدرجة 0 (الصغيرة): كشف خام بقاعدة الشمعتين [درس 05] ثمّ تمريره عبر القوانين المعمّمة ───
 //   مرشّح الضجيج الأصيل (لا ATR): شمعتان صحيحتان (الجسم ≥ كل ذيل) في اتجاه التصحيح.
@@ -891,36 +903,9 @@ f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bo
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(szStr)))    // الحافة (أكبر، خلف)
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(szStr)))   // التعبئة (أصغر، أمام)
 
-// ─── رسم الدرجة الصغيرة (islast): السهم المملوء على النقاط الفعّالة + خطوط الوصل بينها ───
+// ─── رسم الدرجة الصغيرة: مؤجَّل لما بعد بناء السلسلة الصغيرة (scBar) ليُرسَم عبر التاريخ كالمتوسطة/الكبيرة ───
 var array<polyline> smallArrows = array.new<polyline>()
 var array<line>     smallLinks  = array.new<line>()
-if barstate.islast
-    for a in smallArrows
-        polyline.delete(a)
-    array.clear(smallArrows)
-    for ln in smallLinks
-        line.delete(ln)
-    array.clear(smallLinks)
-    int effectiveCount = array.size(smallDegree.effectiveBars)
-    if effectiveCount > 0
-        int firstDrawn = math.max(0, effectiveCount - 90)   // سقف polyline=100 ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الدرجات
-        for i = firstDrawn to effectiveCount - 1
-            bool  isTop  = array.get(smallDegree.effectiveIsTop, i)
-            float price  = array.get(smallDegree.effectivePrices, i)
-            int   bar    = array.get(smallDegree.effectiveBars, i)
-            if showSmall
-                array.push(smallArrows, f_drawArrow(isTop, price, bar, isTop ? cTop : cBot))
-            if linkSmall and i > firstDrawn
-                float prevPrice = array.get(smallDegree.effectivePrices, i - 1)
-                int   prevBar   = array.get(smallDegree.effectiveBars, i - 1)
-                array.push(smallLinks, line.new(prevBar, prevPrice, bar, price, xloc = xloc.bar_index, color = cLineS, width = 1))
-    // النقطة المعلّقة (آخر قمة/قاع لم يؤكَّد بعد) — تُرسم مبدئيًّا بلون أبهت + وصلها بآخر فعّالة
-    if showSmall and smallDegree.pendingType != 0
-        bool  pTop = smallDegree.pendingType == 1
-        color pCol = color.new(pTop ? cTop : cBot, 45)
-        array.push(smallArrows, f_drawArrow(pTop, smallDegree.pendingPrice, smallDegree.pendingBar, pCol))
-        if linkSmall and effectiveCount > 0
-            array.push(smallLinks, line.new(array.get(smallDegree.effectiveBars, effectiveCount - 1), array.get(smallDegree.effectivePrices, effectiveCount - 1), smallDegree.pendingBar, smallDegree.pendingPrice, xloc = xloc.bar_index, color = color.new(cLineS, 45), width = 1))
 
 
 // ─── المتوسطة: **سلسلة واحدة متّصلة** عبر كلّ الموجات (الأقدم→الأحدث) — تناوب صارم بلا تكرار/انقطاع (للعدّ لاحقًا) ───
@@ -932,6 +917,11 @@ if barstate.islast
     array.clear(mcTop)
     array.clear(mcEff)
     array.clear(mcTm)
+    array.clear(scBar)
+    array.clear(scPrc)
+    array.clear(scTop)
+    array.clear(scEff)
+    array.clear(scTm)
     int nSeg = array.size(segLefts)
     // (1) التواريخ من الأقدم للأحدث: ابنِ كلّ ساق بـf_buildWave، أرسِ حدّيها، ادفعها للسلسلة
     if nSeg > 1
@@ -966,6 +956,13 @@ if barstate.islast
                     f_pushMed(b, array.get(md.effectivePrices, i), array.get(md.effectiveIsTop, i), eff, array.get(md.effectiveTimes, i))
             if md.pendingType != 0
                 f_pushMed(md.pendingBar, md.pendingPrice, md.pendingType == 1, true, md.pendingTime)
+            // [الصغيرة عبر التاريخ] ادفع صغيرة هذا المقطع (sd الفعّالة + المعلّق) للسلسلة الصغيرة
+            int sch = array.size(sd.effectiveBars)
+            for i = 0 to (sch > 0 ? sch - 1 : 0)
+                if sch > 0
+                    f_pushSmall(array.get(sd.effectiveBars, i), array.get(sd.effectivePrices, i), array.get(sd.effectiveIsTop, i), true, array.get(sd.effectiveTimes, i))
+            if sd.pendingType != 0
+                f_pushSmall(sd.pendingBar, sd.pendingPrice, sd.pendingType == 1, true, sd.pendingTime)
     // (2) الموجة الحالية (الأحدث) من mediumDegree/mediumEff
     int mc0 = array.size(mediumDegree.effectiveBars)
     for i = 0 to (mc0 > 0 ? mc0 - 1 : 0)
@@ -975,6 +972,13 @@ if barstate.islast
             f_pushMed(b, array.get(mediumDegree.effectivePrices, i), array.get(mediumDegree.effectiveIsTop, i), eff, array.get(mediumDegree.effectiveTimes, i))
     if mediumDegree.pendingType != 0
         f_pushMed(mediumDegree.pendingBar, mediumDegree.pendingPrice, mediumDegree.pendingType == 1, true, mediumDegree.pendingTime)
+    // [الصغيرة عبر التاريخ] صغيرة الموجة الجارية (smallDegree) ⇐ ذيل السلسلة الصغيرة
+    int sc0 = array.size(smallDegree.effectiveBars)
+    for i = 0 to (sc0 > 0 ? sc0 - 1 : 0)
+        if sc0 > 0
+            f_pushSmall(array.get(smallDegree.effectiveBars, i), array.get(smallDegree.effectivePrices, i), array.get(smallDegree.effectiveIsTop, i), true, array.get(smallDegree.effectiveTimes, i))
+    if smallDegree.pendingType != 0
+        f_pushSmall(smallDegree.pendingBar, smallDegree.pendingPrice, smallDegree.pendingType == 1, true, smallDegree.pendingTime)
     // (3) الرسم: دوائر (🟠 فعّال · 🔴 غير فعّال · رماديّ للطرف الحيّ) + **خطّ واحد متواصل** بكلّ النقاط
     for lb in medCircles
         label.delete(lb)
@@ -1003,6 +1007,32 @@ if barstate.islast
                 array.push(medLinks, line.new(prevTm, prevPrc, t, p, xloc = xloc.bar_time, color = cLineMed, width = 1))
             prevTm  := t
             prevPrc := p
+
+// ─── رسم الدرجة الصغيرة من **السلسلة الصغيرة** (scBar) — عبر التاريخ كالمتوسطة/الكبيرة (آخر 90 سقفًا للأداء) ───
+if barstate.islast
+    for a in smallArrows
+        polyline.delete(a)
+    array.clear(smallArrows)
+    for ln in smallLinks
+        line.delete(ln)
+    array.clear(smallLinks)
+    int   scN   = array.size(scBar)
+    int   firstS = math.max(0, scN - 90)                       // سقف polyline ⇒ ارسم الأحدث؛ التخزين كامل لتغذية الاستنتاج/الخطوط
+    int   prevBs = na
+    float prevPs = na
+    for i = firstS to (scN > 0 ? scN - 1 : 0)
+        if scN > 0
+            bool  isTop   = array.get(scTop, i)
+            float price   = array.get(scPrc, i)
+            int   bar     = array.get(scBar, i)
+            bool  liveTip = smallDegree.pendingType != 0 and bar == smallDegree.pendingBar and i == scN - 1
+            color ac      = liveTip ? color.new(isTop ? cTop : cBot, 45) : (isTop ? cTop : cBot)
+            if showSmall
+                array.push(smallArrows, f_drawArrow(isTop, price, bar, ac))
+            if linkSmall and not na(prevBs)
+                array.push(smallLinks, line.new(prevBs, prevPs, bar, price, xloc = xloc.bar_index, color = liveTip ? color.new(cLineS, 45) : cLineS, width = 1))
+            prevBs := bar
+            prevPs := price
 
 // ─── الكبيرة [درس07]: طريقتان خلف useBigBreak — (leg) حدود الموجات · (break) كسر المتوسطة الفعّالة (قاعدة ب) ───
 //   كلتاهما تحفظان التعشيش (كبيرة ⊂ متوسطة): leg عبر الإرساء، break بانتقاء قمّة متوسطة فعليّة. رسم موحّد من lgBar.
@@ -1427,17 +1457,9 @@ if barstate.islast
         int mActV = f_activeDir(mcBar, mcTop, mcEff, bigDir)
         bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV) : na   // الكبيرة (تُنقَل للجانب الفعّال)
         medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة (الموجة الجارية)
-        // الصغيرة: نقاطها كلّها فعّالة (مخرَج feedPivot)؛ نضمّ الطرف المعلّق ليكون آخر تطرّف متاحًا
-        array<int>  sBar = array.copy(smallDegree.effectiveBars)
-        array<bool> sTop = array.copy(smallDegree.effectiveIsTop)
-        array<int>  sTm  = array.copy(smallDegree.effectiveTimes)
-        if smallDegree.pendingType != 0
-            array.push(sBar, smallDegree.pendingBar)
-            array.push(sTop, smallDegree.pendingType == 1)
-            array.push(sTm,  smallDegree.pendingTime)
-        array<bool> sEff = array.new<bool>(array.size(sBar), true)
-        int sActV = f_activeDir(sBar, sTop, sEff, bigDir)
-        smallLevelLine := showLvlS ? f_levelLine(sBar, sTop, sEff, sTm, cLvlS, lvlWidthS, sActV) : na     // الصغيرة
+        // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة (لا الموجة الجارية فقط)
+        int sActV = f_activeDir(scBar, scTop, scEff, bigDir)
+        smallLevelLine := showLvlS ? f_levelLine(scBar, scTop, scEff, scTm, cLvlS, lvlWidthS, sActV) : na     // الصغيرة
 
 // ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
 var line bigLiqLine   = na
@@ -1454,22 +1476,14 @@ if barstate.islast
     medLiqLine   := na
     smallLiqLine := na
     if showLiq
-        // [م3-ب] لا تُرسَم سيولة درجةٍ إن خالف ميلها اتجاهها الفعّال (= bigDir منقلبًا إن كُسِر مستواها) ⇒ يختفي الخطّ المتناقض
+        // [تعديل] تُرسَم السيولة **دائمًا** على جانب الاتجاه الفعّال (تُظهر ميلها — حتى لو خالف المستوى = تباعد مفيد). المكسورة تبقى متقطّعة أدناه.
         int bActL = f_activeDir(lgBar, lgTop, lgEff, bigDir)
         int mActL = f_activeDir(mcBar, mcTop, mcEff, bigDir)
-        bigLiqLine := (showLiqB and f_liqDir(lgBar, lgTop, lgEff, bActL) == bActL) ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة (على جانب الاتجاه الفعّال)
-        medLiqLine := (showLiqM and f_liqDir(mcBar, mcTop, mcEff, mActL) == mActL) ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة (الموجة الجارية)
-        // الصغيرة: نقاطها فعّالة + ضمّ الطرف المعلّق (كمستوى الصغير)
-        array<int>  lqBar = array.copy(smallDegree.effectiveBars)
-        array<bool> lqTop = array.copy(smallDegree.effectiveIsTop)
-        array<int>  lqTm  = array.copy(smallDegree.effectiveTimes)
-        if smallDegree.pendingType != 0
-            array.push(lqBar, smallDegree.pendingBar)
-            array.push(lqTop, smallDegree.pendingType == 1)
-            array.push(lqTm,  smallDegree.pendingTime)
-        array<bool> lqEff = array.new<bool>(array.size(lqBar), true)
-        int sActL = f_activeDir(lqBar, lqTop, lqEff, bigDir)
-        smallLiqLine := (showLiqS and f_liqDir(lqBar, lqTop, lqEff, sActL) == sActL) ? f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
+        bigLiqLine := showLiqB ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة
+        medLiqLine := showLiqM ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة (الموجة الجارية)
+        // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar)
+        int sActL = f_activeDir(scBar, scTop, scEff, bigDir)
+        smallLiqLine := showLiqS ? f_liqLine(scBar, scTop, scEff, scTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
         if f_liqBroken(lgBar, lgTop, lgEff, bActL) and not na(bigLiqLine)
             if showBroken
@@ -1485,7 +1499,7 @@ if barstate.islast
             else
                 line.delete(medLiqLine)
                 medLiqLine := na
-        if f_liqBroken(lqBar, lqTop, lqEff, sActL) and not na(smallLiqLine)
+        if f_liqBroken(scBar, scTop, scEff, sActL) and not na(smallLiqLine)
             if showBroken
                 line.set_style(smallLiqLine, line.style_dashed)
                 line.set_width(smallLiqLine, brkWidthS)
@@ -1497,12 +1511,10 @@ if barstate.islast
 var table concTbl = table.new(f_pos(concPos), 2, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
-    array<int>  dB = array.copy(smallDegree.effectiveBars)
-    array<bool> dT = array.copy(smallDegree.effectiveIsTop)
-    if smallDegree.pendingType != 0
-        array.push(dB, smallDegree.pendingBar)
-        array.push(dT, smallDegree.pendingType == 1)
-    array<bool> dE = array.new<bool>(array.size(dB), true)
+    // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
+    array<int>  dB = scBar
+    array<bool> dT = scTop
+    array<bool> dE = scEff
     // [م3] الاتجاه الفعّال لكلّ درجة (latch كسر المستوى) ⇒ يقود الاتجاه/الدخول + السيولة/القوة على **جانب واحد** متّسق
     int  bigLvlDir   = f_activeDir(lgBar, lgTop, lgEff, bigDir)
     int  medLvlDir   = f_activeDir(mcBar, mcTop, mcEff, bigDir)
