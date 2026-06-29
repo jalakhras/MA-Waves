@@ -3,6 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.44.1 — [درس08/ط2] اكتمال الجزء2 (خطوط السيولة الثلاثة): المتوسط + الصغير عبر f_liqLine. ⇒ اكتمل الدرس08 الرسم
+//   (6 خطوط: 3 مستويات على الأجسام + 3 سيولة على الذيول). عرض مستقلّ لكلّ. التالي: درس09 (الكسر/التجدّد).
+// v0.44.0 — [درس08/ط2] الجزء2 (خطوط السيولة) — البداية بالكبير: وصل آخر تطرّفين فعّالين من نوع الأساس على **الذيول**
+//   (high/low) عبر f_liqLine، يمتدّ يمينًا. مفاتيح showLiq/cLiqB/liqWidthB. التالي: المتوسط ثمّ الصغير.
 // v0.43.2 — [درس08/ط2] عرض مستقلّ لكلّ مستوى (أحمر1/برتقاليّ2/أزرق3 افتراضيًّا) + امتداد موحّد افتراضيّ 24 شمعة.
 // v0.43.1 — [درس08/ط2] مستوى الاتجاه الصغير (خطوة 3/3) ⇒ اكتمل الجزء1 (3 مستويات: أزرق/برتقاليّ/أحمر). الصغيرة تضمّ المعلّق.
 // v0.43.0 — [درس08/ط2] مستوى الاتجاه المتوسط (خطوة 2/3): تعميم المنطق بدالّة f_levelLine (كبيرة+متوسطة)، لون cLvlM برتقاليّ.
@@ -155,6 +159,13 @@ int    lvlWidthM = input.int(2, "Medium level width / عرض مستوى المت
 color  cLvlS     = input.color(color.new(#F23645, 0), "Small trend level / مستوى الاتجاه الصغير (أحمر)", group = grpLines)
 int    lvlWidthS = input.int(1, "Small level width / عرض مستوى الصغير", minval = 1, maxval = 8, group = grpLines)
 int    levelExtend = input.int(24, "Level extension past now (candles) / مدى امتداد المستوى بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
+bool   showLiq   = input.bool(true, "Show liquidity lines / إظهار خطوط السيولة (على الذيول)", group = grpLines)
+color  cLiqB     = input.color(color.new(#2457E2, 0), "Large liquidity / سيولة الكبير (أزرق)", group = grpLines)
+int    liqWidthB = input.int(3, "Large liquidity width / عرض سيولة الكبير", minval = 1, maxval = 8, group = grpLines)
+color  cLiqM     = input.color(color.new(#FF9800, 0), "Medium liquidity / سيولة المتوسط (برتقاليّ)", group = grpLines)
+int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة المتوسط", minval = 1, maxval = 8, group = grpLines)
+color  cLiqS     = input.color(color.new(#F23645, 0), "Small liquidity / سيولة الصغير (أحمر)", group = grpLines)
+int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpLines)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
@@ -1058,6 +1069,30 @@ f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm,
             int rightTm = time + levelExtend * timeframe.in_seconds() * 1000   // ينتهي بعد السعر الحاليّ بعدد شموع محدَّد (لا لانهائيّ)
             ln := line.new(array.get(aTm, found), body, rightTm, body, xloc = xloc.bar_time, color = col, width = w)
     ln
+
+// ─── ج2 [درس08]: خطوط السيولة — وصل آخر تطرّفين فعّالين من نوع الأساس (قاعين صاعدًا/قمّتين هابطًا) على **الذيول** ───
+//   معمّم لكلّ درجة. على الذيول (high/low) لا الجسم. تمتدّ يمينًا (خطّ سيولة مُسقَط لرصد الكسر لاحقًا — درس09).
+f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w) =>
+    line ln = na
+    bool wantTop = bigDir == -1                            // هابط ⇒ آخر قمّتين · صاعد ⇒ آخر قاعين
+    int  i2 = -1                                            // الأحدث
+    int  i1 = -1                                            // الأسبق
+    int  li = array.size(aBar) - 1
+    while li >= 0 and i1 < 0
+        if array.get(aEff, li) and array.get(aTop, li) == wantTop
+            if i2 < 0
+                i2 := li
+            else
+                i1 := li
+        li := li - 1
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            float wp1 = wantTop ? high[o1] : low[o1]        // ذيل الطرف (لا الجسم)
+            float wp2 = wantTop ? high[o2] : low[o2]
+            ln := line.new(array.get(aTm, i1), wp1, array.get(aTm, i2), wp2, xloc = xloc.bar_time, extend = extend.right, color = col, width = w)
+    ln
 var line bigLevelLine = na
 var line medLevelLine = na
 var line smallLevelLine = na
@@ -1084,6 +1119,34 @@ if barstate.islast
             array.push(sTm,  smallDegree.pendingTime)
         array<bool> sEff = array.new<bool>(array.size(sBar), true)
         smallLevelLine := f_levelLine(sBar, sTop, sEff, sTm, cLvlS, lvlWidthS)     // الصغيرة (الموجة الحاليّة)
+
+// ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
+var line bigLiqLine   = na
+var line medLiqLine   = na
+var line smallLiqLine = na
+if barstate.islast
+    if not na(bigLiqLine)
+        line.delete(bigLiqLine)
+    if not na(medLiqLine)
+        line.delete(medLiqLine)
+    if not na(smallLiqLine)
+        line.delete(smallLiqLine)
+    bigLiqLine   := na
+    medLiqLine   := na
+    smallLiqLine := na
+    if showLiq
+        bigLiqLine := f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB)   // الكبيرة
+        medLiqLine := f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM)   // المتوسطة
+        // الصغيرة: نقاطها فعّالة + ضمّ الطرف المعلّق (كمستوى الصغير)
+        array<int>  lqBar = array.copy(smallDegree.effectiveBars)
+        array<bool> lqTop = array.copy(smallDegree.effectiveIsTop)
+        array<int>  lqTm  = array.copy(smallDegree.effectiveTimes)
+        if smallDegree.pendingType != 0
+            array.push(lqBar, smallDegree.pendingBar)
+            array.push(lqTop, smallDegree.pendingType == 1)
+            array.push(lqTm,  smallDegree.pendingTime)
+        array<bool> lqEff = array.new<bool>(array.size(lqBar), true)
+        smallLiqLine := f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS)   // الصغيرة
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
