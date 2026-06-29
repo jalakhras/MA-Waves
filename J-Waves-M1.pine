@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.45.1 — [درس09/م1→10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ Range)
+//   + اتجاه سيولة كلّ درجة. مفاتيح grpConc (showConc/concPos/concBg). عرض فقط بلا ربط (سؤال الهبوط = عرضيّ عند التعارض).
 // v0.44.2 — [درس08/ط2] مدخل امتداد خطوط السيولة (liqExtend، افتراضيًّا 24): نهاية مُسقَطة عند الآن+N شمعة (بميل الخطّ) بدل اللانهائيّ.
 // v0.44.1 — [درس08/ط2] اكتمال الجزء2 (خطوط السيولة الثلاثة): المتوسط + الصغير عبر f_liqLine. ⇒ اكتمل الدرس08 الرسم
 //   (6 خطوط: 3 مستويات على الأجسام + 3 سيولة على الذيول). عرض مستقلّ لكلّ. التالي: درس09 (الكسر/التجدّد).
@@ -168,6 +170,12 @@ int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة ال
 color  cLiqS     = input.color(color.new(#F23645, 0), "Small liquidity / سيولة الصغير (أحمر)", group = grpLines)
 int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpLines)
 int    liqExtend = input.int(24, "Liquidity extension past now (candles) / مدى امتداد السيولة بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
+
+// ─── المدخلات: لوحة الاستنتاجات [درس 10 — مبدئيًّا: اتجاه السيولة من ميل الخطوط] (تصميم القديم) ───
+string grpConc  = "🧭 Conclusions / لوحة الاستنتاجات"
+bool   showConc = input.bool(true, "Conclusions panel / لوحة الاستنتاجات", group = grpConc, tooltip = "اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ). + اتجاه سيولة كلّ درجة. عرض فقط بلا ربط بالاستخراج (درس09 م1).")
+string concPos  = input.string("Top R", "Panel position / موضع اللوحة", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpConc)
+color  concBg   = input.color(#1E222D, "Panel background / خلفية اللوحة", group = grpConc)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
@@ -1101,6 +1109,29 @@ f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, c
             int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
             ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
     ln
+
+// [درس09/م1] اتجاه السيولة = ميل خطّها (الطرف الأحدث أعلى⇒صاعد، أدنى⇒هابط) — عرض/تحقّق فقط، بلا ربط بالاستخراج
+f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+    int  dir = 0
+    bool wantTop = bigDir == -1
+    int  i2 = -1
+    int  i1 = -1
+    int  li = array.size(aBar) - 1
+    while li >= 0 and i1 < 0
+        if array.get(aEff, li) and array.get(aTop, li) == wantTop
+            if i2 < 0
+                i2 := li
+            else
+                i1 := li
+        li := li - 1
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            float wp1 = wantTop ? high[o1] : low[o1]
+            float wp2 = wantTop ? high[o2] : low[o2]
+            dir := wp2 > wp1 ? 1 : wp2 < wp1 ? -1 : 0
+    dir
 var line bigLevelLine = na
 var line medLevelLine = na
 var line smallLevelLine = na
@@ -1155,6 +1186,45 @@ if barstate.islast
             array.push(lqTm,  smallDegree.pendingTime)
         array<bool> lqEff = array.new<bool>(array.size(lqBar), true)
         smallLiqLine := f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS)   // الصغيرة
+
+// ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
+var table concTbl = table.new(f_pos(concPos), 2, 6, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+if showConc and barstate.islast
+    table.set_position(concTbl, f_pos(concPos))
+    int lqB = f_liqDir(lgBar, lgTop, lgEff)
+    int lqM = f_liqDir(mcBar, mcTop, mcEff)
+    array<int>  dB = array.copy(smallDegree.effectiveBars)
+    array<bool> dT = array.copy(smallDegree.effectiveIsTop)
+    if smallDegree.pendingType != 0
+        array.push(dB, smallDegree.pendingBar)
+        array.push(dT, smallDegree.pendingType == 1)
+    array<bool> dE = array.new<bool>(array.size(dB), true)
+    int lqS = f_liqDir(dB, dT, dE)
+    bool cDef = lqB != 0 and lqM != 0                          // الكبيرة+المتوسطة معرَّفتان
+    bool cRng = cDef and lqB != lqM                            // تعارضهما ⇒ عرضيّ (Range)
+    int  cLiq = (cDef and not cRng) ? lqM : 0
+    color pHdr  = color.new(color.rgb(color.r(concBg) * 0.72, color.g(concBg) * 0.72, color.b(concBg) * 0.72), color.t(concBg))
+    color pMain = #D1D4DC
+    color pMute = #787B86
+    color cUp   = #089981
+    color cDn   = #F23645
+    color cRngC = #FF9800
+    string histTxt = bigDir == 1 ? "صاعدة ▲" : bigDir == -1 ? "هابطة ▼" : "—"
+    color  histCol = bigDir == 1 ? cUp : bigDir == -1 ? cDn : pMute
+    string liqTxt  = not cDef ? "غير محدّد" : cRng ? "عرضيّ (Range)" : cLiq == 1 ? "صاعدة" : "هابطة"
+    color  liqCol  = not cDef ? pMute : cRng ? cRngC : cLiq == 1 ? cUp : cDn
+    table.cell(concTbl, 0, 0, "لوحة الاستنتاجات", text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(concTbl, 1, 0, "", bgcolor = pHdr)
+    table.cell(concTbl, 0, 1, "اتجاه الموجة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 1, histTxt, text_color = color.white, bgcolor = histCol, text_size = size.small)
+    table.cell(concTbl, 0, 2, "اتجاه السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
+    table.cell(concTbl, 0, 3, "سيولة الكبيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 3, lqB == 1 ? "صاعد ↑" : lqB == -1 ? "هابط ↓" : "—", text_color = color.white, bgcolor = lqB == 0 ? pMute : lqB == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 4, "سيولة المتوسطة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 4, lqM == 1 ? "صاعد ↑" : lqM == -1 ? "هابط ↓" : "—", text_color = color.white, bgcolor = lqM == 0 ? pMute : lqM == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 5, "سيولة الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 5, lqS == 1 ? "صاعد ↑" : lqS == -1 ? "هابط ↓" : "—", text_color = color.white, bgcolor = lqS == 0 ? pMute : lqS == 1 ? cUp : cDn, text_size = size.small)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
