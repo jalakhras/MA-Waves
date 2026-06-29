@@ -3,6 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.58.0 — [درس07] الكبيرة هجين (خلف legLiveBreak، مشغَّل): الـleg يجهّز الكبيرة **التاريخيّة** (حدود الموجات، ثابتة) +
+//   محرّك الكسر يستخرج الكبيرة **الجديدة** للموجة الجارية (بعد segLefts[0]) من كسر المتوسطة، مُهيَّأً من نقطة الوصل (تناوب نظيف).
+// v0.57.0 — [درس09 م3-أ] الاتجاه الفعّال **ملتقَط** (f_activeDir بدل f_levelBroken اللحظيّ): ينقلب عند كسر مؤكَّد (شمعتان خلف
+//   جسم آخر تطرّف فعّال) **ويثبت حتى كسر معاكس** — الارتداد بلا كسر لا يقلب. عرض فقط (لا يمسّ القمم/القيعان). يقود المستوى/السيولة/اللوحة/الدخول.
 // v0.56.0 — [إصلاح نقل المستوى] حالتان: (1) كسر الآن ⇒ ينقلب للجانب المعاكس · (2) قمم/قيعان جديدة بلا كسر ⇒ يتحدّث لأحدث
 //   تطرّف من جانبه. كسر المستوى = **اللحظة الحاليّة فقط** (شمعتان الآن خلف آخر تطرّف فعّال)، لا التقاط تاريخيّ (كان يقلب الصغيرة بلا وصول السعر).
 // v0.55.0 — [درس09 م3-ج] توحيد الاتجاه الفعّال: السيولة + المستوى + الاستنتاجات + القوة كلّها على **جانب واحد** لكلّ درجة
@@ -166,6 +170,7 @@ color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / لو
 string grpBig     = "🔵 Large Degree / الكبيرة (درجة 2)"
 bool   showLarge  = input.bool(true, "Show large pivots / إظهار الكبيرة", group = grpBig)
 bool   useBigBreak = input.bool(false, "Large by break-from-medium (else leg) / استخراج الكبيرة بالكسر من المتوسطة (وإلّا leg)", group = grpBig, tooltip = "مطفأ: الكبيرة = حدود الموجات (أطراف الـleg). مفعّل: الكبيرة = قمم/قيعان متوسطة فعّالة يُنتقى منها بالكسر (قاعدة ب) ⇒ تعشيش أصرم.")
+bool   legLiveBreak = input.bool(true, "  ↳ leg: live wave by break / في وضع leg: الموجة الجارية بالكسر", group = grpBig, tooltip = "يعمل فقط في وضع leg (useBigBreak مطفأ). مشغَّل: الكبيرة التاريخيّة من حدود الـleg (ثابتة)، والموجة الجارية (بعد آخر حدّ leg) تُستخرَج كبيرتها بالكسر من المتوسطة للأمام. مطفأ: leg نقيّ (الموجة الجارية = حدّها فقط).")
 color  cBig       = input.color(color.new(#2457E2, 45), "Large fill (effective) / تعبئة الكبيرة (فعّالة، أخفّ قليلًا من الحدّ)", group = grpBig)
 color  cBigBorder = input.color(color.new(#2457E2, 30), "Large border / حدّ الكبيرة (أزرق، معتم قليلًا)", group = grpBig)
 string largeCircleSize = input.string("Normal", "Large circle size / حجم دائرة الكبيرة (فعّالة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpBig)
@@ -1069,6 +1074,47 @@ if barstate.islast
                     array.push(lgTop, array.get(segLeftTop, s))
                     array.push(lgTm,  time[lo])
                     array.push(lgEff, array.includes(largeDeg.effectiveBars, b) or (largeDeg.pendingType != 0 and b == largeDeg.pendingBar))
+        // [leg+كسر] الموجة الجارية (بعد آخر حدّ leg = segLefts[0]): الكبيرة الجديدة بالكسر من المتوسطة للأمام (محرّك الكسر مسؤول عن الجديدة)
+        if legLiveBreak and nSegB > 0
+            int  curStart = array.get(segLefts, 0)                 // بداية الموجة الجارية = آخر حدّ leg (نقطة الوصل)
+            int  curDir   = array.get(segLeftTop, 0) ? -1 : 1      // حدّ قمّة ⇒ الموجة بعده هابطة · حدّ قاع ⇒ صاعدة
+            largeBreak.started := true                             // هيّئ الكسر من نقطة الوصل ⇒ تناوب نظيف
+            if curDir == -1
+                largeBreak.refTopPrice := array.get(segLeftPx, 0)
+            else
+                largeBreak.refBotPrice := array.get(segLeftPx, 0)
+            int nmcL = array.size(mcBar)
+            for i = 0 to (nmcL > 0 ? nmcL - 1 : 0)
+                if nmcL > 0 and array.get(mcEff, i) and array.get(mcBar, i) > curStart   // متوسطات الموجة الجارية الفعّالة فقط
+                    bool  it = array.get(mcTop, i)
+                    float pp = array.get(mcPrc, i)
+                    int   bb = array.get(mcBar, i)
+                    int   tt = array.get(mcTm, i)
+                    if curDir == -1
+                        [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
+                        if n >= 1
+                            largeRaw.appendEff(t1, p1, b1, tm1)
+                            largeEffD.feedPivot(t1, p1, b1, tm1, curDir)
+                        if n >= 2
+                            largeRaw.appendEff(t2, p2, b2, tm2)
+                            largeEffD.feedPivot(t2, p2, b2, tm2, curDir)
+                    else
+                        [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakUp(it, pp, bb, tt)
+                        if n >= 1
+                            largeRaw.appendEff(t1, p1, b1, tm1)
+                            largeEffD.feedPivot(t1, p1, b1, tm1, curDir)
+                        if n >= 2
+                            largeRaw.appendEff(t2, p2, b2, tm2)
+                            largeEffD.feedPivot(t2, p2, b2, tm2, curDir)
+            int nrL = array.size(largeRaw.effectiveBars)
+            for i = 0 to (nrL > 0 ? nrL - 1 : 0)
+                if nrL > 0
+                    int b = array.get(largeRaw.effectiveBars, i)
+                    array.push(lgBar, b)                            // تُلحَق بعد حدود الـleg (الوصل من segLefts[0] فالأحدث)
+                    array.push(lgPrc, array.get(largeRaw.effectivePrices, i))
+                    array.push(lgTop, array.get(largeRaw.effectiveIsTop, i))
+                    array.push(lgTm,  array.get(largeRaw.effectiveTimes, i))
+                    array.push(lgEff, array.includes(largeEffD.effectiveBars, b) or (largeEffD.pendingType != 0 and b == largeEffD.pendingBar))
     // ===== الرسم الموحّد: دوائر (🔵 فعّال · 🔴 غير فعّال) + وصل الفعّالة =====
     for lb in bigCircles
         label.delete(lb)
@@ -1208,27 +1254,42 @@ f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                 st := high[o1] <= low[o2] ? 1 : -1         // القمّة بقيت تحت/عند القاع المرجع ⇒ قويّة
     st
 
-// [درس09/م2] رصد كسر مستوى الاتجاه: دعم (صعود) يُكسَر للأسفل · مقاومة (هبوط) يُكسَر للأعلى. الوضع: ذيل واحد أو شمعتان إغلاقًا
-f_levelBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
-    bool broken = false
-    bool wantTop = bigDir == -1
-    int  li = array.size(aBar) - 1
-    int  found = -1
-    while li >= 0 and found < 0
-        if array.get(aEff, li) and array.get(aTop, li) == wantTop
-            found := li
-        li := li - 1
-    if found >= 0
-        int o = bar_index - array.get(aBar, found)
-        if o >= 0
-            float lvlP = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // المستوى على جسم الطرف
-            bool  twoC = lvlBreakMode == "2 candles"
-            // الكسر باللحظة الحاليّة فقط (الشمعتان الأخيرتان خلف المستوى) — لا التقاط تاريخيّ (كان يقلب من كسر قديم رغم أنّ السعر لم يصله الآن)
-            if wantTop                                        // مقاومة ⇒ كسر للأعلى
-                broken := twoC ? (close > lvlP and close[1] > lvlP) : high > lvlP
-            else                                              // دعم ⇒ كسر للأسفل
-                broken := twoC ? (close < lvlP and close[1] < lvlP) : low < lvlP
-    broken
+// [درس09/م3-أ] الاتجاه الفعّال **الملتقَط** (latch) — عرض فقط، لا يمسّ القمم/القيعان (الماضي ثابت):
+//   يبدأ startDir، وينقلب عند كلّ **كسر مؤكَّد** = شمعتان إغلاقًا خلف **جسم** آخر تطرّف فعّال من الجانب الحاليّ (مقاومة هبوطًا/دعم صعودًا)،
+//   ويثبت حتى **كسر معاكس**. (الكسر شرط الانقلاب؛ الارتداد بلا كسر لا يقلب.) يُحاكي تطوّر الاتجاه عبر الموجة دفعةً واحدةً في islast.
+f_activeDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =>
+    int dir   = startDir
+    int n     = array.size(aBar)
+    int first = -1
+    int fi    = 0
+    while fi < n and first < 0                             // أوّل تطرّف فعّال (بداية المحاكاة)
+        if array.get(aEff, fi)
+            first := array.get(aBar, fi)
+        fi := fi + 1
+    if first >= 0
+        bool  twoC    = lvlBreakMode == "2 candles"
+        float topBody = na                                 // جسم آخر قمّة فعّالة حتى البار الحاليّ في المحاكاة
+        float botBody = na                                 // جسم آخر قاع فعّال
+        int   pi      = 0
+        for j = first to bar_index
+            int o = bar_index - j
+            if o >= 0
+                while pi < n and array.get(aBar, pi) <= j   // فعّل كلّ تطرّف بلغ الباره ⇒ حدّث جسم القمّة/القاع المرجع
+                    if array.get(aEff, pi)
+                        int po = bar_index - array.get(aBar, pi)
+                        if po >= 0
+                            if array.get(aTop, pi)
+                                topBody := math.max(open[po], close[po])
+                            else
+                                botBody := math.min(open[po], close[po])
+                    pi := pi + 1
+                if dir == -1 and not na(topBody)            // هابط ⇒ كسر المقاومة (شمعتان فوق الجسم) ⇒ انقلاب لصاعد
+                    if twoC ? (o + 1 <= bar_index and close[o] > topBody and close[o + 1] > topBody) : high[o] > topBody
+                        dir := 1
+                else if dir == 1 and not na(botBody)        // صاعد ⇒ كسر الدعم (شمعتان تحت الجسم) ⇒ انقلاب لهابط
+                    if twoC ? (o + 1 <= bar_index and close[o] < botBody and close[o + 1] < botBody) : low[o] < botBody
+                        dir := -1
+    dir
 
 // [درس09/م2] رصد كسر خطّ السيولة المائل = **شمعتان** إغلاقًا خلف الخطّ المُسقَط (دعم أسفل · مقاومة أعلى)
 f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
@@ -1278,8 +1339,8 @@ if barstate.islast
     smallLevelLine := na
     if showLevel
         // [م3-ج] المستوى يُنقَل لجانب الاتجاه الفعّال (كُسِر مستواه ⇒ ينقلب ⇒ يُرسَم عند تطرّف الجانب الجديد). لا تقطيع — نقلٌ.
-        int bActV = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
-        int mActV = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
+        int bActV = f_activeDir(lgBar, lgTop, lgEff, bigDir)
+        int mActV = f_activeDir(mcBar, mcTop, mcEff, bigDir)
         bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV) : na   // الكبيرة (تُنقَل للجانب الفعّال)
         medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة
         // الصغيرة: نقاطها كلّها فعّالة (مخرَج feedPivot)؛ نضمّ الطرف المعلّق ليكون آخر تطرّف متاحًا
@@ -1291,7 +1352,7 @@ if barstate.islast
             array.push(sTop, smallDegree.pendingType == 1)
             array.push(sTm,  smallDegree.pendingTime)
         array<bool> sEff = array.new<bool>(array.size(sBar), true)
-        int sActV = f_levelBroken(sBar, sTop, sEff) ? -bigDir : bigDir
+        int sActV = f_activeDir(sBar, sTop, sEff, bigDir)
         smallLevelLine := showLvlS ? f_levelLine(sBar, sTop, sEff, sTm, cLvlS, lvlWidthS, sActV) : na     // الصغيرة
 
 // ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
@@ -1310,8 +1371,8 @@ if barstate.islast
     smallLiqLine := na
     if showLiq
         // [م3-ب] لا تُرسَم سيولة درجةٍ إن خالف ميلها اتجاهها الفعّال (= bigDir منقلبًا إن كُسِر مستواها) ⇒ يختفي الخطّ المتناقض
-        int bActL = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
-        int mActL = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
+        int bActL = f_activeDir(lgBar, lgTop, lgEff, bigDir)
+        int mActL = f_activeDir(mcBar, mcTop, mcEff, bigDir)
         bigLiqLine := (showLiqB and f_liqDir(lgBar, lgTop, lgEff, bActL) == bActL) ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة (على جانب الاتجاه الفعّال)
         medLiqLine := (showLiqM and f_liqDir(mcBar, mcTop, mcEff, mActL) == mActL) ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة
         // الصغيرة: نقاطها فعّالة + ضمّ الطرف المعلّق (كمستوى الصغير)
@@ -1323,7 +1384,7 @@ if barstate.islast
             array.push(lqTop, smallDegree.pendingType == 1)
             array.push(lqTm,  smallDegree.pendingTime)
         array<bool> lqEff = array.new<bool>(array.size(lqBar), true)
-        int sActL = f_levelBroken(lqBar, lqTop, lqEff) ? -bigDir : bigDir
+        int sActL = f_activeDir(lqBar, lqTop, lqEff, bigDir)
         smallLiqLine := (showLiqS and f_liqDir(lqBar, lqTop, lqEff, sActL) == sActL) ? f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
         if f_liqBroken(lgBar, lgTop, lgEff, bActL) and not na(bigLiqLine)
@@ -1359,9 +1420,9 @@ if showConc and barstate.islast
         array.push(dT, smallDegree.pendingType == 1)
     array<bool> dE = array.new<bool>(array.size(dB), true)
     // [م3] الاتجاه الفعّال لكلّ درجة (latch كسر المستوى) ⇒ يقود الاتجاه/الدخول + السيولة/القوة على **جانب واحد** متّسق
-    int  bigLvlDir   = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
-    int  medLvlDir   = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
-    int  smallLvlDir = f_levelBroken(dB, dT, dE) ? -bigDir : bigDir
+    int  bigLvlDir   = f_activeDir(lgBar, lgTop, lgEff, bigDir)
+    int  medLvlDir   = f_activeDir(mcBar, mcTop, mcEff, bigDir)
+    int  smallLvlDir = f_activeDir(dB, dT, dE, bigDir)
     int lqB = f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)
     int lqM = f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
     int lqS = f_liqDir(dB, dT, dE, smallLvlDir)
