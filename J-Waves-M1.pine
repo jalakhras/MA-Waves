@@ -3,6 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.46.2 — [درس09/م2] الخطّ المكسور: عرض مستقلّ لكلّ درجة (brkWidth 3/2/1) + مفتاح إظهار/إخفاء (showBroken، افتراضيًّا ظهور).
+// v0.46.1 — [درس09/م2] رصد كسر خطّ السيولة المائل (K1 = شمعتان إغلاقًا خلف الخطّ المُسقَط) ⇒ متقطّع. اكتمل رصد الكسرين
+//   (K1 سيولة شمعتان · K2 مستوى ذيل/شمعتان). التالي م3: نقل المستوى + انقلاب الموجة + حالة السوق (الاتجاه←السيولة، الصفقة←المستوى).
+// v0.46.0 — [درس09/م2] رصد كسر مستوى الاتجاه (K2): مفتاح lvlBreakMode (ذيل واحد افتراضيًّا · أو شمعتان إغلاقًا) ⇒ المستوى
+//   المكسور يصير خطًّا متقطّعًا (تعليم بصريّ). دعم يُكسَر للأسفل · مقاومة للأعلى. النقل/الانقلاب في م3.
 // v0.45.1 — [درس09/م1→10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ Range)
 //   + اتجاه سيولة كلّ درجة. مفاتيح grpConc (showConc/concPos/concBg). عرض فقط بلا ربط (سؤال الهبوط = عرضيّ عند التعارض).
 // v0.44.2 — [درس08/ط2] مدخل امتداد خطوط السيولة (liqExtend، افتراضيًّا 24): نهاية مُسقَطة عند الآن+N شمعة (بميل الخطّ) بدل اللانهائيّ.
@@ -162,6 +167,11 @@ int    lvlWidthM = input.int(2, "Medium level width / عرض مستوى المت
 color  cLvlS     = input.color(color.new(#F23645, 0), "Small trend level / مستوى الاتجاه الصغير (أحمر)", group = grpLines)
 int    lvlWidthS = input.int(1, "Small level width / عرض مستوى الصغير", minval = 1, maxval = 8, group = grpLines)
 int    levelExtend = input.int(24, "Level extension past now (candles) / مدى امتداد المستوى بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
+string lvlBreakMode = input.string("Wick (1)", "Level break mode / معيار كسر المستوى", options = ["Wick (1)", "2 candles"], group = grpLines, tooltip = "ذيل شمعة واحدة (أسماء) أو شمعتان إغلاقًا (الكتاب/القائمة). الكسر ⇒ يصير الخطّ متقطّعًا (تعليم؛ النقل/الانقلاب في م3).")
+int    brkWidthB = input.int(3, "Broken-line width — large / عرض الخطّ المكسور — كبير", minval = 1, maxval = 8, group = grpLines)
+int    brkWidthM = input.int(2, "Broken-line width — medium / عرض الخطّ المكسور — متوسط", minval = 1, maxval = 8, group = grpLines)
+int    brkWidthS = input.int(1, "Broken-line width — small / عرض الخطّ المكسور — صغير", minval = 1, maxval = 8, group = grpLines)
+bool   showBroken = input.bool(true, "Show broken lines (else hide) / إظهار الخطوط المكسورة (وإلّا تُخفى)", group = grpLines)
 bool   showLiq   = input.bool(true, "Show liquidity lines / إظهار خطوط السيولة (على الذيول)", group = grpLines)
 color  cLiqB     = input.color(color.new(#2457E2, 0), "Large liquidity / سيولة الكبير (أزرق)", group = grpLines)
 int    liqWidthB = input.int(3, "Large liquidity width / عرض سيولة الكبير", minval = 1, maxval = 8, group = grpLines)
@@ -1132,6 +1142,58 @@ f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
             float wp2 = wantTop ? high[o2] : low[o2]
             dir := wp2 > wp1 ? 1 : wp2 < wp1 ? -1 : 0
     dir
+
+// [درس09/م2] رصد كسر مستوى الاتجاه: دعم (صعود) يُكسَر للأسفل · مقاومة (هبوط) يُكسَر للأعلى. الوضع: ذيل واحد أو شمعتان إغلاقًا
+f_levelBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+    bool broken = false
+    bool wantTop = bigDir == -1
+    int  li = array.size(aBar) - 1
+    int  found = -1
+    while li >= 0 and found < 0
+        if array.get(aEff, li) and array.get(aTop, li) == wantTop
+            found := li
+        li := li - 1
+    if found >= 0
+        int o = bar_index - array.get(aBar, found)
+        if o >= 0
+            float lvlP = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])
+            bool  twoC = lvlBreakMode == "2 candles"
+            if wantTop                                        // مقاومة ⇒ كسر للأعلى
+                broken := twoC ? (close > lvlP and close[1] > lvlP) : high > lvlP
+            else                                              // دعم ⇒ كسر للأسفل
+                broken := twoC ? (close < lvlP and close[1] < lvlP) : low < lvlP
+    broken
+
+// [درس09/م2] رصد كسر خطّ السيولة المائل = **شمعتان** إغلاقًا خلف الخطّ المُسقَط (دعم أسفل · مقاومة أعلى)
+f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+    bool broken = false
+    bool wantTop = bigDir == -1
+    int  i2 = -1
+    int  i1 = -1
+    int  li = array.size(aBar) - 1
+    while li >= 0 and i1 < 0
+        if array.get(aEff, li) and array.get(aTop, li) == wantTop
+            if i2 < 0
+                i2 := li
+            else
+                i1 := li
+        li := li - 1
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            float wp1 = wantTop ? high[o1] : low[o1]
+            float wp2 = wantTop ? high[o2] : low[o2]
+            int   b1  = array.get(aBar, i1)
+            int   b2  = array.get(aBar, i2)
+            float slope = (wp2 - wp1) / (b2 - b1)
+            float lp0 = wp1 + slope * (bar_index - b1)        // سعر الخطّ عند الشمعة الحاليّة
+            float lp1 = wp1 + slope * (bar_index - 1 - b1)    // وعند السابقة
+            if wantTop                                        // مقاومة ⇒ إغلاقان فوق الخطّ
+                broken := close > lp0 and close[1] > lp1
+            else                                              // دعم ⇒ إغلاقان تحت الخطّ
+                broken := close < lp0 and close[1] < lp1
+    broken
 var line bigLevelLine = na
 var line medLevelLine = na
 var line smallLevelLine = na
@@ -1158,6 +1220,28 @@ if barstate.islast
             array.push(sTm,  smallDegree.pendingTime)
         array<bool> sEff = array.new<bool>(array.size(sBar), true)
         smallLevelLine := f_levelLine(sBar, sTop, sEff, sTm, cLvlS, lvlWidthS)     // الصغيرة (الموجة الحاليّة)
+        // [م2] المستوى المكسور ⇒ متقطّع بعرض الخطّ المكسور لدرجته (أو يُخفى عند showBroken=false). النقل/الانقلاب في م3
+        if f_levelBroken(lgBar, lgTop, lgEff) and not na(bigLevelLine)
+            if showBroken
+                line.set_style(bigLevelLine, line.style_dashed)
+                line.set_width(bigLevelLine, brkWidthB)
+            else
+                line.delete(bigLevelLine)
+                bigLevelLine := na
+        if f_levelBroken(mcBar, mcTop, mcEff) and not na(medLevelLine)
+            if showBroken
+                line.set_style(medLevelLine, line.style_dashed)
+                line.set_width(medLevelLine, brkWidthM)
+            else
+                line.delete(medLevelLine)
+                medLevelLine := na
+        if f_levelBroken(sBar, sTop, sEff) and not na(smallLevelLine)
+            if showBroken
+                line.set_style(smallLevelLine, line.style_dashed)
+                line.set_width(smallLevelLine, brkWidthS)
+            else
+                line.delete(smallLevelLine)
+                smallLevelLine := na
 
 // ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
 var line bigLiqLine   = na
@@ -1186,6 +1270,28 @@ if barstate.islast
             array.push(lqTm,  smallDegree.pendingTime)
         array<bool> lqEff = array.new<bool>(array.size(lqBar), true)
         smallLiqLine := f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS)   // الصغيرة
+        // [م2] خطّ السيولة المكسور (شمعتان) ⇒ متقطّع بعرض درجته (أو يُخفى عند showBroken=false). حالة السوق درس10، التجدّد م3
+        if f_liqBroken(lgBar, lgTop, lgEff) and not na(bigLiqLine)
+            if showBroken
+                line.set_style(bigLiqLine, line.style_dashed)
+                line.set_width(bigLiqLine, brkWidthB)
+            else
+                line.delete(bigLiqLine)
+                bigLiqLine := na
+        if f_liqBroken(mcBar, mcTop, mcEff) and not na(medLiqLine)
+            if showBroken
+                line.set_style(medLiqLine, line.style_dashed)
+                line.set_width(medLiqLine, brkWidthM)
+            else
+                line.delete(medLiqLine)
+                medLiqLine := na
+        if f_liqBroken(lqBar, lqTop, lqEff) and not na(smallLiqLine)
+            if showBroken
+                line.set_style(smallLiqLine, line.style_dashed)
+                line.set_width(smallLiqLine, brkWidthS)
+            else
+                line.delete(smallLiqLine)
+                smallLiqLine := na
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var table concTbl = table.new(f_pos(concPos), 2, 6, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
