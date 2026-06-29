@@ -3,6 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.49.0 — [درس09 خ1] خطّ السيولة لا يُولَد مكسورًا: يُزاح ليمرّ على الذيول بين طرفيه (f_liqAdj، أعلى اختراقب b1..b2)
+//   — في الرسم والكسر معًا (اتّساق). الإزاحة بين الطرفين فقط (الإسقاط بعدهما يبقى للكسر).
+// v0.48.0 — [درس10] قوة السيولة + الدخول المتاح: القوة = تداخل تطرّفات الدرجة (آخر قاع↔القمّة قبله بـ3؛ بقي فوقها⇒قويّة،
+//   توغّل⇒ضعيفة، على الذيول) — العامّة من الصغيرة، ولكلّ درجة من درجتها. الدخول = اتجاه مستوى المتوسطة+الكبيرة (كلاهما
+//   صاعد⇒شراء · هابط⇒بيع · مختلفان⇒بيع/شراء). f_liqStrength. (المعيار ثنائيّ؛ «متوسّطة» أسماء لاحقًا.)
 // v0.46.2 — [درس09/م2] الخطّ المكسور: عرض مستقلّ لكلّ درجة (brkWidth 3/2/1) + مفتاح إظهار/إخفاء (showBroken، افتراضيًّا ظهور).
 // v0.46.1 — [درس09/م2] رصد كسر خطّ السيولة المائل (K1 = شمعتان إغلاقًا خلف الخطّ المُسقَط) ⇒ متقطّع. اكتمل رصد الكسرين
 //   (K1 سيولة شمعتان · K2 مستوى ذيل/شمعتان). التالي م3: نقل المستوى + انقلاب الموجة + حالة السوق (الاتجاه←السيولة، الصفقة←المستوى).
@@ -1092,6 +1097,16 @@ f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm,
 
 // ─── ج2 [درس08]: خطوط السيولة — وصل آخر تطرّفين فعّالين من نوع الأساس (قاعين صاعدًا/قمّتين هابطًا) على **الذيول** ───
 //   معمّم لكلّ درجة. على الذيول (high/low) لا الجسم. تمتدّ يمينًا (خطّ سيولة مُسقَط لرصد الكسر لاحقًا — درس09).
+// [درس09 req] إزاحة خطّ السيولة ليمرّ على الذيول بين طرفيه (لا يُولَد مكسورًا): أعلى اختراق بين b1..b2 (مقاومة لأعلى/دعم لأسفل)
+f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
+    float adj = 0.0
+    for k = b1 to b2
+        int ok = bar_index - k
+        if ok >= 0
+            float lv = wp1 + slope * (k - b1)
+            adj := math.max(adj, wantTop ? high[ok] - lv : lv - low[ok])
+    adj
+
 f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w) =>
     line ln = na
     bool wantTop = bigDir == -1                            // هابط ⇒ آخر قمّتين · صاعد ⇒ آخر قاعين
@@ -1114,10 +1129,11 @@ f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, c
             int   b1  = array.get(aBar, i1)
             int   b2  = array.get(aBar, i2)
             float slope = (wp2 - wp1) / (b2 - b1)            // ميل خط السيولة لكلّ شمعة (b2>b1 مضمون: i2 الأحدث)
+            float wp1a = wantTop ? wp1 + f_liqAdj(b1, b2, wp1, slope, wantTop) : wp1 - f_liqAdj(b1, b2, wp1, slope, wantTop)   // إزاحة ليمرّ على الذيول
             int   targetBar = bar_index + liqExtend
-            float projP = wp1 + slope * (targetBar - b1)     // السعر المُسقَط عند الآن + liqExtend شمعة (يحافظ على الميل)
+            float projP = wp1a + slope * (targetBar - b1)    // مُسقَط من الطرف المُزاح (يحافظ على الميل)
             int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
-            ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
+            ln := line.new(array.get(aTm, i1), wp1a, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
     ln
 
 // [درس09/م1] اتجاه السيولة = ميل خطّها (الطرف الأحدث أعلى⇒صاعد، أدنى⇒هابط) — عرض/تحقّق فقط، بلا ربط بالاستخراج
@@ -1142,6 +1158,35 @@ f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
             float wp2 = wantTop ? high[o2] : low[o2]
             dir := wp2 > wp1 ? 1 : wp2 < wp1 ? -1 : 0
     dir
+
+// [درس10] قوة السيولة لكلّ درجة = مدى تداخل تطرّفاتها: المرجع = الطرف المعاكس قبل الأخير بـ3 مواضع (قاع4↔قمّة1).
+//   صعود: قاعٌ بقي ≥ القمّة المرجع ⇒ قويّة (1) · توغّل تحتها ⇒ ضعيفة (-1). هبوط: مرآة. 0 = غير محدّد (نقاط غير كافية).
+f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+    int st = 0
+    array<int>  eb = array.new<int>()
+    array<bool> et = array.new<bool>()
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i)
+            array.push(eb, array.get(aBar, i))
+            array.push(et, array.get(aTop, i))
+    int m = array.size(eb)
+    bool up = bigDir == 1
+    int  last = -1
+    int  li = m - 1
+    while li >= 0 and last < 0
+        if array.get(et, li) == (not up)                  // صعود⇒آخر قاع · هبوط⇒آخر قمّة
+            last := li
+        li := li - 1
+    if last >= 3
+        int o1 = bar_index - array.get(eb, last)
+        int o2 = bar_index - array.get(eb, last - 3)       // الطرف المعاكس قبله بـ3 (قمّة في الصعود)
+        if o1 >= 0 and o2 >= 0
+            if up
+                st := low[o1] >= high[o2] ? 1 : -1         // القاع بقي فوق/عند القمّة المرجع ⇒ قويّة
+            else
+                st := high[o1] <= low[o2] ? 1 : -1         // القمّة بقيت تحت/عند القاع المرجع ⇒ قويّة
+    st
 
 // [درس09/م2] رصد كسر مستوى الاتجاه: دعم (صعود) يُكسَر للأسفل · مقاومة (هبوط) يُكسَر للأعلى. الوضع: ذيل واحد أو شمعتان إغلاقًا
 f_levelBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
@@ -1187,8 +1232,9 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
             int   b1  = array.get(aBar, i1)
             int   b2  = array.get(aBar, i2)
             float slope = (wp2 - wp1) / (b2 - b1)
-            float lp0 = wp1 + slope * (bar_index - b1)        // سعر الخطّ عند الشمعة الحاليّة
-            float lp1 = wp1 + slope * (bar_index - 1 - b1)    // وعند السابقة
+            float wp1a = wantTop ? wp1 + f_liqAdj(b1, b2, wp1, slope, wantTop) : wp1 - f_liqAdj(b1, b2, wp1, slope, wantTop)   // نفس إزاحة الرسم (اتّساق)
+            float lp0 = wp1a + slope * (bar_index - b1)        // سعر الخطّ المُزاح عند الشمعة الحاليّة
+            float lp1 = wp1a + slope * (bar_index - 1 - b1)    // وعند السابقة
             if wantTop                                        // مقاومة ⇒ إغلاقان فوق الخطّ
                 broken := close > lp0 and close[1] > lp1
             else                                              // دعم ⇒ إغلاقان تحت الخطّ
@@ -1294,7 +1340,7 @@ if barstate.islast
                 smallLiqLine := na
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
-var table concTbl = table.new(f_pos(concPos), 2, 6, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+var table concTbl = table.new(f_pos(concPos), 2, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
     int lqB = f_liqDir(lgBar, lgTop, lgEff)
@@ -1321,16 +1367,26 @@ if showConc and barstate.islast
     color  liqCol  = not cDef ? pMute : cRng ? cRngC : cLiq == 1 ? cUp : cDn
     table.cell(concTbl, 0, 0, "لوحة الاستنتاجات", text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(concTbl, 1, 0, "", bgcolor = pHdr)
-    table.cell(concTbl, 0, 1, "اتجاه الموجة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 1, "اتجاه الموجة التاريخية", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 1, histTxt, text_color = color.white, bgcolor = histCol, text_size = size.small)
     table.cell(concTbl, 0, 2, "اتجاه السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
-    table.cell(concTbl, 0, 3, "سيولة الكبيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 3, lqB == 1 ? "صاعد ↑" : lqB == -1 ? "هابط ↓" : "—", text_color = color.white, bgcolor = lqB == 0 ? pMute : lqB == 1 ? cUp : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 4, "سيولة المتوسطة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 4, lqM == 1 ? "صاعد ↑" : lqM == -1 ? "هابط ↓" : "—", text_color = color.white, bgcolor = lqM == 0 ? pMute : lqM == 1 ? cUp : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 5, "سيولة الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 5, lqS == 1 ? "صاعد ↑" : lqS == -1 ? "هابط ↓" : "—", text_color = color.white, bgcolor = lqS == 0 ? pMute : lqS == 1 ? cUp : cDn, text_size = size.small)
+    // [درس10] قوّة لكلّ درجة (تداخل تطرّفاتها: قاع↔قمّة قبله بـ3) · العامّة من الصغيرة · الدخول من اتجاه مستوى المتوسطة+الكبيرة
+    int    stB = f_liqStrength(lgBar, lgTop, lgEff)
+    int    stM = f_liqStrength(mcBar, mcTop, mcEff)
+    int    stS = f_liqStrength(dB, dT, dE)
+    int    entry = (lqM == 0 or lqB == 0) ? 0 : (lqM == 1 and lqB == 1) ? 1 : (lqM == -1 and lqB == -1) ? -1 : 2
+    table.cell(concTbl, 0, 3, "قوة السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 3, stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—", text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : pMute, text_size = size.small)
+    table.cell(concTbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 4, entry == 1 ? "شراء فقط" : entry == -1 ? "بيع فقط" : entry == 2 ? "بيع/شراء" : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
+    // الدرجات: اتجاه الموجة (من ميل سيولتها) · قوّة السيولة (من تطرّفات درجتها)
+    table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 5, (lqS == 1 ? "صاعدة ▲" : lqS == -1 ? "هابطة ▼" : "—") + " · " + (stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—"), text_color = color.white, bgcolor = lqS == 0 ? pMute : lqS == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 6, "المتوسطة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 6, (lqM == 1 ? "صاعدة ▲" : lqM == -1 ? "هابطة ▼" : "—") + " · " + (stM == 1 ? "قويّة" : stM == -1 ? "ضعيفة" : "—"), text_color = color.white, bgcolor = lqM == 0 ? pMute : lqM == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 7, "الكبيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 7, (lqB == 1 ? "صاعدة ▲" : lqB == -1 ? "هابطة ▼" : "—") + " · " + (stB == 1 ? "قويّة" : stB == -1 ? "ضعيفة" : "—"), text_color = color.white, bgcolor = lqB == 0 ? pMute : lqB == 1 ? cUp : cDn, text_size = size.small)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
