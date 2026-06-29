@@ -1,0 +1,636 @@
+{
+  "meta": {
+    "name": "M-Waves — أطلس حالة لوحة الاستنتاجات الكاملة",
+    "name_en": "M-Waves Full Conclusions-Panel State Atlas",
+    "version": "2.0.0",
+    "source_lessons": [
+      "04",
+      "08",
+      "09",
+      "10",
+      "11",
+      "03",
+      "04_شروط_الانعكاس"
+    ],
+    "principle": "نموذج حالة كامل للوحة: حقول مجمّعة (مشتقّة) + حالة لكل درجة (اتجاه+قوّة+مرحلة+خط سيولة+مستوى اتجاه). التعداد بآلة حالة + اشتقاق، لا ضرب توافيقيّ.",
+    "panel_ref": "لوحة الاستنتاجات (الصورة المرفقة): اتجاه الموجة التاريخية · اتجاه السيولة · قوّة السيولة · الدخول المتاح · الصغيرة/المتوسطة/الكبيرة (اتجاه-قوّة-مرحلة)"
+  },
+  "panel_aggregate_fields": [
+    {
+      "key": "historical_wave_direction",
+      "ar": "اتجاه الموجة التاريخية",
+      "values": [
+        "up",
+        "down"
+      ],
+      "derived_from": "الموجة التاريخية (د04) / الدرجة الكبيرة",
+      "color_rule": "down=أحمر▼ · up=أخضر▲"
+    },
+    {
+      "key": "liquidity_direction",
+      "ar": "اتجاه السيولة",
+      "values": [
+        "up",
+        "down",
+        "range"
+      ],
+      "derived_from": "f(medium.dir, large.dir): كلاهما up⇒up · كلاهما down⇒down · متعاكسان⇒range"
+    },
+    {
+      "key": "liquidity_strength",
+      "ar": "قوّة السيولة",
+      "values": [
+        "strong",
+        "weak"
+      ],
+      "derived_from": "f(تباعد القمم/القيعان): قاع دخل نطاق القمة السابقة ⇒ weak"
+    },
+    {
+      "key": "available_entry",
+      "ar": "الدخول المتاح",
+      "values": [
+        "buy_only",
+        "sell_only",
+        "both",
+        "none"
+      ],
+      "derived_from": "f(liquidity_direction, in_zone): up⇒buy · down⇒sell · range⇒both · خارج منطقة⇒none"
+    }
+  ],
+  "degree_state_schema": {
+    "ar": "حالة كل درجة (صغيرة/متوسطة/كبيرة): الصفّ يعرض اتجاه-قوّة-مرحلة + (مخفيّ) حالة خط السيولة ومستوى الاتجاه",
+    "fields": [
+      {
+        "key": "direction",
+        "ar": "اتجاه",
+        "values": [
+          "up",
+          "down"
+        ]
+      },
+      {
+        "key": "strength",
+        "ar": "قوّة",
+        "values": [
+          "strong",
+          "weak"
+        ]
+      },
+      {
+        "key": "phase",
+        "ar": "مرحلة",
+        "values": [
+          "accumulation",
+          "markup",
+          "distribution",
+          "panic",
+          "despair"
+        ]
+      },
+      {
+        "key": "liquidity_line",
+        "ar": "خط السيولة",
+        "values": [
+          "drawn",
+          "broken",
+          "none"
+        ],
+        "note": "يُرسم على آخر قاعين (صعود)/قمتين (هبوط) من الدرجة. كسره (شمعتان) ⇒ يُمسح/يتجدّد (د09)"
+      },
+      {
+        "key": "direction_level",
+        "ar": "مستوى تحديد الاتجاه",
+        "values": [
+          "drawn",
+          "broken"
+        ],
+        "note": "خط أفقيّ عند آخر قاع (صعود)/قمّة (هبوط). كسره ⇒ انتهت الموجة بهذه الدرجة وتنعكس (د09)"
+      }
+    ]
+  },
+  "value_alphabets": {
+    "direction": {
+      "up": "صاعدة ▲",
+      "down": "هابطة ▼",
+      "range": "عرضيّ"
+    },
+    "strength": {
+      "strong": "قويّة",
+      "weak": "ضعيفة"
+    },
+    "phase": {
+      "accumulation": "تجميع",
+      "markup": "مشاركة عامة",
+      "distribution": "تصريف",
+      "panic": "زعر",
+      "despair": "يأس"
+    },
+    "liquidity_line": {
+      "drawn": "مرسوم",
+      "broken": "مكسور",
+      "none": "لا يوجد"
+    },
+    "direction_level": {
+      "drawn": "مرسوم",
+      "broken": "مكسور ⇒ انعكاس"
+    },
+    "available_entry": {
+      "buy_only": "شراء فقط",
+      "sell_only": "بيع فقط",
+      "both": "الاثنان",
+      "none": "لا دخول"
+    }
+  },
+  "phase_machine": {
+    "states": [
+      "accumulation",
+      "markup",
+      "distribution",
+      "panic",
+      "despair"
+    ],
+    "transitions_up": [
+      [
+        "despair",
+        "accumulation",
+        "حركة عرضية/تجميع"
+      ],
+      [
+        "accumulation",
+        "markup",
+        "كسر آخر قمّة اليأس (إغلاق فوق الخط >نصف الجسم)"
+      ],
+      [
+        "markup",
+        "distribution",
+        "تشكّل القمّة قُبيل كسر خط السيولة"
+      ],
+      [
+        "distribution",
+        "panic",
+        "كسر خط السيولة (شمعتان) + قاع الزعر"
+      ],
+      [
+        "panic",
+        "despair",
+        "بعد قاع الزعر (خيبة)"
+      ]
+    ],
+    "transitions_down": [
+      [
+        "despair",
+        "distribution",
+        "تصريف"
+      ],
+      [
+        "distribution",
+        "markdown",
+        "كسر آخر قاع (إغلاق تحت الخط >نصف الجسم)"
+      ],
+      [
+        "markdown",
+        "accumulation",
+        "تشكّل القاع قُبيل كسر الخط لأعلى"
+      ],
+      [
+        "accumulation",
+        "panic",
+        "كسر الخط لأعلى + زعر الشراء"
+      ],
+      [
+        "panic",
+        "despair",
+        "بعد قمّة الزعر"
+      ]
+    ],
+    "wave_boundary": "كسر مستوى تحديد الاتجاه (الأكبر) ⇒ انعكاس الموجة كاملةً وإعادة بناء كل الحقول (د09)"
+  },
+  "derivation_rules": [
+    {
+      "target": "liquidity_direction",
+      "rule": "medium.direction==large.direction ? medium.direction : 'range'"
+    },
+    {
+      "target": "liquidity_strength",
+      "rule": "weak إن دخل قاع داخل نطاق القمة السابقة (أيّ درجة متداخلة) وإلا strong"
+    },
+    {
+      "target": "historical_wave_direction",
+      "rule": "اتجاه الموجة التاريخية/الكبيرة (د04)"
+    },
+    {
+      "target": "available_entry",
+      "rule": "in_zone? (up⇒buy_only · down⇒sell_only · range⇒both) : none"
+    }
+  ],
+  "conclusions_atlas": [
+    {
+      "liquidity_direction": "up",
+      "liquidity_strength": "strong",
+      "available_entry_if_in_zone": "buy_only",
+      "market_state_ar": "ترند صاعد قويّ"
+    },
+    {
+      "liquidity_direction": "up",
+      "liquidity_strength": "weak",
+      "available_entry_if_in_zone": "buy_only",
+      "market_state_ar": "صاعد—توقّع تصحيح"
+    },
+    {
+      "liquidity_direction": "down",
+      "liquidity_strength": "strong",
+      "available_entry_if_in_zone": "sell_only",
+      "market_state_ar": "ترند هابط قويّ"
+    },
+    {
+      "liquidity_direction": "down",
+      "liquidity_strength": "weak",
+      "available_entry_if_in_zone": "sell_only",
+      "market_state_ar": "هابط—توقّع تصحيح"
+    },
+    {
+      "liquidity_direction": "range",
+      "liquidity_strength": "any",
+      "available_entry_if_in_zone": "both",
+      "market_state_ar": "عرضيّ (رينج)"
+    }
+  ],
+  "entries_atlas": [
+    {
+      "id": "E1",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "accumulation",
+      "entry": "primary_buy",
+      "action_ar": "شراء أساسيّ",
+      "risk": "low",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E2",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "markup",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E3",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "distribution",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E4",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "panic",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E5",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "despair",
+      "entry": "highrisk_buy",
+      "action_ar": "شراء عالي المخاطر",
+      "risk": "high",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E6",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "accumulation",
+      "entry": "primary_buy",
+      "action_ar": "شراء أساسيّ",
+      "risk": "low",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E7",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "markup",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E8",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "distribution",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E9",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "panic",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E10",
+      "liquidity_direction": "up",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "despair",
+      "entry": "highrisk_buy",
+      "action_ar": "شراء عالي المخاطر",
+      "risk": "high",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E11",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "accumulation",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E12",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "markup",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E13",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "distribution",
+      "entry": "primary_sell",
+      "action_ar": "بيع أساسيّ",
+      "risk": "low",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E14",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "panic",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E15",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "medium",
+      "small_phase": "despair",
+      "entry": "highrisk_sell",
+      "action_ar": "بيع عالي المخاطر",
+      "risk": "high",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E16",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "accumulation",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E17",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "markup",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E18",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "distribution",
+      "entry": "primary_sell",
+      "action_ar": "بيع أساسيّ",
+      "risk": "low",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "E19",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "panic",
+      "entry": "wait",
+      "action_ar": "انتظار (المرحلة لا تُطلِق)",
+      "risk": "none"
+    },
+    {
+      "id": "E20",
+      "liquidity_direction": "down",
+      "in_zone": true,
+      "zone_degree": "large",
+      "small_phase": "despair",
+      "entry": "highrisk_sell",
+      "action_ar": "بيع عالي المخاطر",
+      "risk": "high",
+      "confirmation": "كسر تطرّف درجة الدخول (إغلاق وراء الخط >نصف الجسم)",
+      "stop": "وراء التطرّف",
+      "target": "المنطقة/المشاركة القادمة"
+    },
+    {
+      "id": "R0",
+      "liquidity_direction": "range",
+      "in_zone": true,
+      "zone_degree": "any",
+      "small_phase": "any",
+      "entry": "both_at_bounds",
+      "action_ar": "الاثنان عند الحدود (متقدّم)",
+      "risk": "advanced"
+    },
+    {
+      "id": "N0",
+      "liquidity_direction": "any",
+      "in_zone": false,
+      "zone_degree": "none",
+      "small_phase": "any",
+      "entry": "none",
+      "action_ar": "لا دخول — احترام المناطق",
+      "risk": "none"
+    }
+  ],
+  "degree_state_alphabet": [
+    {
+      "direction": "up",
+      "strength": "strong",
+      "phase": "accumulation"
+    },
+    {
+      "direction": "up",
+      "strength": "strong",
+      "phase": "markup"
+    },
+    {
+      "direction": "up",
+      "strength": "strong",
+      "phase": "distribution"
+    },
+    {
+      "direction": "up",
+      "strength": "strong",
+      "phase": "panic"
+    },
+    {
+      "direction": "up",
+      "strength": "strong",
+      "phase": "despair"
+    },
+    {
+      "direction": "up",
+      "strength": "weak",
+      "phase": "accumulation"
+    },
+    {
+      "direction": "up",
+      "strength": "weak",
+      "phase": "markup"
+    },
+    {
+      "direction": "up",
+      "strength": "weak",
+      "phase": "distribution"
+    },
+    {
+      "direction": "up",
+      "strength": "weak",
+      "phase": "panic"
+    },
+    {
+      "direction": "up",
+      "strength": "weak",
+      "phase": "despair"
+    },
+    {
+      "direction": "down",
+      "strength": "strong",
+      "phase": "accumulation"
+    },
+    {
+      "direction": "down",
+      "strength": "strong",
+      "phase": "markup"
+    },
+    {
+      "direction": "down",
+      "strength": "strong",
+      "phase": "distribution"
+    },
+    {
+      "direction": "down",
+      "strength": "strong",
+      "phase": "panic"
+    },
+    {
+      "direction": "down",
+      "strength": "strong",
+      "phase": "despair"
+    },
+    {
+      "direction": "down",
+      "strength": "weak",
+      "phase": "accumulation"
+    },
+    {
+      "direction": "down",
+      "strength": "weak",
+      "phase": "markup"
+    },
+    {
+      "direction": "down",
+      "strength": "weak",
+      "phase": "distribution"
+    },
+    {
+      "direction": "down",
+      "strength": "weak",
+      "phase": "panic"
+    },
+    {
+      "direction": "down",
+      "strength": "weak",
+      "phase": "despair"
+    }
+  ],
+  "pruning_rules": [
+    {
+      "id": "P1",
+      "ar": "خارج منطقة ⇒ available_entry=none (يُسقِط كل تباديل المرحلة/الدرجة)"
+    },
+    {
+      "id": "P2",
+      "ar": "liquidity_direction يُشتقّ من المتوسط+الكبير فقط (الصغير مُطلِق لا مُحدِّد اتجاه)"
+    },
+    {
+      "id": "P3",
+      "ar": "اتجاه عرضيّ ⇒ المرحلة لا تُغيّر القرار العامّ"
+    },
+    {
+      "id": "P4",
+      "ar": "القوّة مُعدِّل (توقّع تصحيح) لا بوّابة دخول ⇒ تُدمَج"
+    },
+    {
+      "id": "P5",
+      "ar": "كسر مستوى الاتجاه ⇒ انعكاس ⇒ تتجدّد الحالة كلّها (لا حالة معلّقة متناقضة)"
+    }
+  ],
+  "stats": {
+    "aggregate_fields": 4,
+    "degree_state_alphabet": 20,
+    "conclusions": 5,
+    "entries": 22,
+    "actionable_entries": 8,
+    "full_panel_state": "= (small,medium,large) × (dir×str×phase×line×level) ⇒ مجمّع مشتقّ"
+  }
+}
