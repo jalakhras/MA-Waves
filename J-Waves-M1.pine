@@ -3,6 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.65.0 — [إصلاح جوهريّ للسيولة] f_liqPair: خطّ السيولة يصل آخر **دعم/مقاومة متّسق مع الاتجاه** (قاعان متصاعدان/قمّتان متنازلتان)
+//   لا «آخر طرفين حرفيًّا» (قاعا التصحيح). تستعمله f_liqLine/f_liqDir/f_liqBroken/f_phaseBreak + اللوحة ⇒ الخطّ واللوحة متّسقان
+//   (الكبيرة الصاعدة سيولتها صاعدة = دعمها الصاعد؛ التصحيح كسرٌ متقطّع). أُزيل f_liqDirHold (f_liqPair يكفي).
 // v0.64.0 — [تعديل السيولة] تُرسَم خطوط السيولة **دائمًا** على جانب الاتجاه الفعّال (أُزيلت بوّابة م3-ب التي تحجب المتناقض) ⇒
 //   تُظهر ميلها حتى لو خالف المستوى (تباعد مفيد)؛ المكسورة تبقى متقطّعة. ⇒ سيولة الصغير/الكبير لم تعد تختفي.
 // v0.63.0 — [الصغيرة دائمًا موجودة] سلسلة صغيرة **عبر التاريخ** (scBar، كالمتوسطة): تُبنى من صغيرة كلّ مقطع + الموجة الجارية،
@@ -1212,19 +1215,39 @@ f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
             adj := math.max(adj, wantTop ? high[ok] - lv : lv - low[ok])
     adj
 
+// [إصلاح] انتقاء طرفَي خطّ السيولة = آخر **دعم/مقاومة متّسق مع الاتجاه** (قاعان متصاعدان صعودًا · قمّتان متنازلتان هبوطًا) —
+//   لا «آخر طرفين حرفيًّا» (قد يكونان قاعَي تصحيح هابط في صعود ⇒ خطّ غريب يناقض الاتجاه). إن لم يوجد متّسق ⇒ آخر طرفين (احتياطيّ).
+f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    bool wantTop = wdir == -1
+    array<int>   px = array.new<int>()                      // مؤشّرات أطراف الأساس في aBar (بالترتيب)
+    array<float> pw = array.new<float>()                     // ذيلها
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop
+            int o = bar_index - array.get(aBar, i)
+            if o >= 0
+                array.push(px, i)
+                array.push(pw, wantTop ? high[o] : low[o])
+    int m  = array.size(px)
+    int r1 = -1
+    int r2 = -1
+    if m >= 2
+        for k = m - 1 to 1                                  // من الأحدث للأقدم: أوّل زوج متّسق مع الاتجاه
+            if r2 < 0
+                float w1 = array.get(pw, k - 1)
+                float w2 = array.get(pw, k)
+                if wantTop ? (w2 < w1) : (w2 > w1)           // هابط: قمّتان متنازلتان · صاعد: قاعان متصاعدان
+                    r1 := array.get(px, k - 1)
+                    r2 := array.get(px, k)
+        if r2 < 0                                            // لا زوج متّسق ⇒ آخر طرفين (تباعد/كسر)
+            r1 := array.get(px, m - 2)
+            r2 := array.get(px, m - 1)
+    [r1, r2]
+
 f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir) =>
     line ln = na
-    bool wantTop = wdir == -1                              // هابط ⇒ آخر قمّتين · صاعد ⇒ آخر قاعين (wdir = الاتجاه الفعّال)
-    int  i2 = -1                                            // الأحدث
-    int  i1 = -1                                            // الأسبق
-    int  li = array.size(aBar) - 1
-    while li >= 0 and i1 < 0
-        if array.get(aEff, li) and array.get(aTop, li) == wantTop
-            if i2 < 0
-                i2 := li
-            else
-                i1 := li
-        li := li - 1
+    bool wantTop = wdir == -1                              // هابط ⇒ قمّتان متنازلتان · صاعد ⇒ قاعان متصاعدان (دعم/مقاومة متّسق)
+    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1245,16 +1268,7 @@ f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, c
 f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     int  dir = 0
     bool wantTop = wdir == -1
-    int  i2 = -1
-    int  i1 = -1
-    int  li = array.size(aBar) - 1
-    while li >= 0 and i1 < 0
-        if array.get(aEff, li) and array.get(aTop, li) == wantTop
-            if i2 < 0
-                i2 := li
-            else
-                i1 := li
-        li := li - 1
+    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1334,16 +1348,7 @@ f_activeDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =
 f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     bool broken = false
     bool wantTop = wdir == -1
-    int  i2 = -1
-    int  i1 = -1
-    int  li = array.size(aBar) - 1
-    while li >= 0 and i1 < 0
-        if array.get(aEff, li) and array.get(aTop, li) == wantTop
-            if i2 < 0
-                i2 := li
-            else
-                i1 := li
-        li := li - 1
+    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1369,16 +1374,7 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 f_phaseBreak(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     bool broken = false
     bool wantTop = wdir == -1
-    int  i2 = -1
-    int  i1 = -1
-    int  li = array.size(aBar) - 1
-    while li >= 0 and i1 < 0
-        if array.get(aEff, li) and array.get(aTop, li) == wantTop
-            if i2 < 0
-                i2 := li
-            else
-                i1 := li
-        li := li - 1
+    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1398,46 +1394,6 @@ f_phaseBreak(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                         broken := true
     broken
 
-// [درس10/11] اتجاه السيولة **الملتقَط**: اتجاه آخر خطّ سيولة **غير مكسور**. عند كسر الخطّ يُحتفَظ بالاتجاه (صاعد/هابط)
-//   حتى يتكوّن خطّ جديد كامل (تطرّفان جديدان من نوع الأساس) **غير مكسور** ⇒ عندها يُحدَّث. (طلب المستخدم 2026-06-29.)
-f_liqDirHold(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
-    bool wantTop = wdir == -1
-    array<int>   pb = array.new<int>()                              // أطراف الأساس (قمم هبوطًا/قيعان صعودًا) بالترتيب
-    array<float> pw = array.new<float>()                            // ذيلها
-    int n = array.size(aBar)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop
-            int o = bar_index - array.get(aBar, i)
-            if o >= 0
-                array.push(pb, array.get(aBar, i))
-                array.push(pw, wantTop ? high[o] : low[o])
-    int m = array.size(pb)
-    int held = 0
-    if m >= 2
-        for k = 1 to m - 1                                          // كلّ خطّ متتالٍ (أقدم→أحدث)؛ نُثبِّت اتجاه غير المكسور
-            int   b1 = array.get(pb, k - 1)
-            int   b2 = array.get(pb, k)
-            float w1 = array.get(pw, k - 1)
-            float w2 = array.get(pw, k)
-            int   dk = w2 > w1 ? 1 : w2 < w1 ? -1 : 0
-            float slope = (w2 - w1) / (b2 - b1)
-            float wp1a  = wantTop ? w1 + f_liqAdj(b1, b2, w1, slope, wantTop) : w1 - f_liqAdj(b1, b2, w1, slope, wantTop)
-            int   rightBar = k < m - 1 ? array.get(pb, k + 1) : bar_index   // عمر الخطّ حتى الطرف التالي (أو الآن)
-            bool  brk = false
-            for j = b2 + 1 to rightBar
-                int oj = bar_index - j
-                if oj >= 0
-                    float lj  = wp1a + slope * (j - b1)
-                    float lj1 = wp1a + slope * (j - 1 - b1)
-                    if wantTop ? (close[oj] > lj and close[oj + 1] > lj1) : (close[oj] < lj and close[oj + 1] < lj1)
-                        brk := true
-            if not brk
-                held := dk                                          // خطّ غير مكسور ⇒ ثبِّت اتجاهه (المكسور يُتجاوَز فيبقى السابق)
-        if held == 0                                                // لا خطّ غير مكسور ⇒ استبقِ اتجاه **آخر** خطّ (لا «غير محدّد» مع وجود طرفين)
-            float wl1 = array.get(pw, m - 2)
-            float wl2 = array.get(pw, m - 1)
-            held := wl2 > wl1 ? 1 : wl2 < wl1 ? -1 : 0
-    held
 var line bigLevelLine = na
 var line medLevelLine = na
 var line smallLevelLine = na
@@ -1519,9 +1475,9 @@ if showConc and barstate.islast
     int  bigLvlDir   = f_activeDir(lgBar, lgTop, lgEff, bigDir)
     int  medLvlDir   = f_activeDir(mcBar, mcTop, mcEff, bigDir)
     int  smallLvlDir = f_activeDir(dB, dT, dE, bigDir)
-    int lqB = f_liqDirHold(lgBar, lgTop, lgEff, bigLvlDir)   // [طلب] اتجاه السيولة يُحتفَظ به عند الكسر حتى خطّ جديد غير مكسور
-    int lqM = f_liqDirHold(mcBar, mcTop, mcEff, medLvlDir)
-    int lqS = f_liqDirHold(dB, dT, dE, smallLvlDir)
+    int lqB = f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)   // اتجاه السيولة = ميل آخر دعم/مقاومة متّسق (f_liqPair) ⇒ يطابق خطّ السيولة المرسوم
+    int lqM = f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
+    int lqS = f_liqDir(dB, dT, dE, smallLvlDir)
     bool cDef = lqB != 0 and lqM != 0                          // الكبيرة+المتوسطة معرَّفتان
     bool cRng = cDef and lqB != lqM                            // تعارضهما ⇒ عرضيّ (Range)
     int  cLiq = (cDef and not cRng) ? lqM : 0
