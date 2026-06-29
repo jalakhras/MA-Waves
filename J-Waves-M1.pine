@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.52.0 — [درس09 م3-أ] الاتجاه الفعّال للمستوى (latch: كسر المستوى بشمعتين يقلبه ويثبت) ⇒ يقود اتجاه الموجة + الدخول في
+//   اللوحة (عرض فقط، لا يمسّ ط1/الرسم). lvlBreakMode الافتراضيّ = شمعتان (الأصحّ للانقلاب). التالي م3-ب (الرسم) ثمّ م3-ج (الاستخراج).
 // v0.51.1 — [درس09] الدخول المتاح من **المستوى** (ينقلب عند كسره: medLvlDir/bigLvlDir) لا السيولة ⇒ يعكس كسر مستوى الكبير.
 // v0.51.0 — [درس09] الخطّ المكسور للعرض فقط (متقطّع، لا يُعتمَد عليه) + إخفاؤه (showBroken). + مفاتيح إظهار/إخفاء لكلّ درجة
 //   (showLvlB/M/S · showLiqB/M/S). الكسر يُلتقَط من تاريخ الخطّ (latch، خ2). التناقض (سيولة تخالف الاتجاه) يُحَلّ في م3.
@@ -179,7 +181,7 @@ int    lvlWidthM = input.int(2, "Medium level width / عرض مستوى المت
 color  cLvlS     = input.color(color.new(#F23645, 0), "Small trend level / مستوى الاتجاه الصغير (أحمر)", group = grpLines)
 int    lvlWidthS = input.int(1, "Small level width / عرض مستوى الصغير", minval = 1, maxval = 8, group = grpLines)
 int    levelExtend = input.int(24, "Level extension past now (candles) / مدى امتداد المستوى بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
-string lvlBreakMode = input.string("Wick (1)", "Level break mode / معيار كسر المستوى", options = ["Wick (1)", "2 candles"], group = grpLines, tooltip = "ذيل شمعة واحدة (أسماء) أو شمعتان إغلاقًا (الكتاب/القائمة). الكسر ⇒ يصير الخطّ متقطّعًا (تعليم؛ النقل/الانقلاب في م3).")
+string lvlBreakMode = input.string("2 candles", "Level break mode / معيار كسر المستوى", options = ["Wick (1)", "2 candles"], group = grpLines, tooltip = "شمعتان إغلاقًا (الدرس09+الكتاب+القائمة+القديم — الأصحّ للانقلاب) أو ذيل شمعة واحدة (أسماء، للتعليم السريع). يُعتمَد للانقلاب (م3) والتعليم.")
 int    brkWidthB = input.int(3, "Broken-line width — large / عرض الخطّ المكسور — كبير", minval = 1, maxval = 8, group = grpLines)
 int    brkWidthM = input.int(2, "Broken-line width — medium / عرض الخطّ المكسور — متوسط", minval = 1, maxval = 8, group = grpLines)
 int    brkWidthS = input.int(1, "Broken-line width — small / عرض الخطّ المكسور — صغير", minval = 1, maxval = 8, group = grpLines)
@@ -1209,14 +1211,19 @@ f_levelBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
             found := li
         li := li - 1
     if found >= 0
-        int o = bar_index - array.get(aBar, found)
+        int pb = array.get(aBar, found)
+        int o  = bar_index - pb
         if o >= 0
-            float lvlP = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])
+            float lvlP = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // المستوى على جسم الطرف
             bool  twoC = lvlBreakMode == "2 candles"
-            if wantTop                                        // مقاومة ⇒ كسر للأعلى
-                broken := twoC ? (close > lvlP and close[1] > lvlP) : high > lvlP
-            else                                              // دعم ⇒ كسر للأسفل
-                broken := twoC ? (close < lvlP and close[1] < lvlP) : low < lvlP
+            // latch: يُلتقَط الكسر من تاريخ المستوى (بعد طرفه) فيثبت مكسورًا/منقلبًا حتى الكسر التالي (لا يتراجع)
+            for k = pb + 1 to bar_index
+                int ok = bar_index - k
+                if ok >= 0
+                    if wantTop                                // مقاومة ⇒ كسر للأعلى
+                        broken := broken or (twoC ? (close[ok] > lvlP and close[ok + 1] > lvlP) : high[ok] > lvlP)
+                    else                                      // دعم ⇒ كسر للأسفل
+                        broken := broken or (twoC ? (close[ok] < lvlP and close[ok + 1] < lvlP) : low[ok] < lvlP)
     broken
 
 // [درس09/م2] رصد كسر خطّ السيولة المائل = **شمعتان** إغلاقًا خلف الخطّ المُسقَط (دعم أسفل · مقاومة أعلى)
@@ -1364,6 +1371,9 @@ if showConc and barstate.islast
         array.push(dT, smallDegree.pendingType == 1)
     array<bool> dE = array.new<bool>(array.size(dB), true)
     int lqS = f_liqDir(dB, dT, dE)
+    // [م3-أ] الاتجاه الفعّال لكلّ درجة = bigDir منقلبًا إن كُسِر مستواها (latch). يقود اتجاه الموجة + الدخول (عرض، لا يمسّ ط1)
+    int  medLvlDir = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
+    int  bigLvlDir = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
     bool cDef = lqB != 0 and lqM != 0                          // الكبيرة+المتوسطة معرَّفتان
     bool cRng = cDef and lqB != lqM                            // تعارضهما ⇒ عرضيّ (Range)
     int  cLiq = (cDef and not cRng) ? lqM : 0
@@ -1373,8 +1383,8 @@ if showConc and barstate.islast
     color cUp   = #089981
     color cDn   = #F23645
     color cRngC = #FF9800
-    string histTxt = bigDir == 1 ? "صاعدة ▲" : bigDir == -1 ? "هابطة ▼" : "—"
-    color  histCol = bigDir == 1 ? cUp : bigDir == -1 ? cDn : pMute
+    string histTxt = bigLvlDir == 1 ? "صاعدة ▲" : bigLvlDir == -1 ? "هابطة ▼" : "—"   // اتجاه الموجة = الاتجاه الفعّال للكبير (ينقلب بكسر مستواه)
+    color  histCol = bigLvlDir == 1 ? cUp : bigLvlDir == -1 ? cDn : pMute
     string liqTxt  = not cDef ? "غير محدّد" : cRng ? "عرضيّ (Range)" : cLiq == 1 ? "صاعدة" : "هابطة"
     color  liqCol  = not cDef ? pMute : cRng ? cRngC : cLiq == 1 ? cUp : cDn
     table.cell(concTbl, 0, 0, "لوحة الاستنتاجات", text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
@@ -1387,9 +1397,7 @@ if showConc and barstate.islast
     int    stB = f_liqStrength(lgBar, lgTop, lgEff)
     int    stM = f_liqStrength(mcBar, mcTop, mcEff)
     int    stS = f_liqStrength(dB, dT, dE)
-    int    medLvlDir = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir   // [درس09] اتجاه مستوى المتوسط (ينقلب عند كسره)
-    int    bigLvlDir = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir   // اتجاه مستوى الكبير
-    int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من المستوى لا السيولة
+    int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير)
     table.cell(concTbl, 0, 3, "قوة السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 3, stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—", text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : pMute, text_size = size.small)
     table.cell(concTbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
