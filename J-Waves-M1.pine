@@ -3,6 +3,12 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.56.0 — [إصلاح نقل المستوى] حالتان: (1) كسر الآن ⇒ ينقلب للجانب المعاكس · (2) قمم/قيعان جديدة بلا كسر ⇒ يتحدّث لأحدث
+//   تطرّف من جانبه. كسر المستوى = **اللحظة الحاليّة فقط** (شمعتان الآن خلف آخر تطرّف فعّال)، لا التقاط تاريخيّ (كان يقلب الصغيرة بلا وصول السعر).
+// v0.55.0 — [درس09 م3-ج] توحيد الاتجاه الفعّال: السيولة + المستوى + الاستنتاجات + القوة كلّها على **جانب واحد** لكلّ درجة
+//   (f_liqLine/f_liqDir/f_liqBroken/f_liqStrength تأخذ الاتجاه الفعّال). ⇒ يختفي تنافر «سيولة على قمم + مستوى على قيعان».
+// v0.54.0 — [درس09 م3-ج] نقل المستوى: يُرسَم عند تطرّف **الجانب الفعّال** (كُسِر مستواه ⇒ ينقلب ⇒ يُنقَل لقاع/قمّة الجانب الجديد).
+//   f_levelLine تأخذ dir. أُزيل تقطيع المستوى (يُنقَل بدله). الكبير المكسور صعودًا ⇒ مستواه عند قاع (دعم). التالي: سيولة الجانب الجديد.
 // v0.53.0 — [درس09 م3-ب] لا تُرسَم سيولة درجةٍ إن خالف ميلها اتجاهها الفعّال ⇒ يختفي الخطّ المتناقض (سيولة صاعدة على قمم في
 //   إطار هابط). الخطّ على جانب يطابق الاتجاه فقط. (الكبير المنقلب: سيولته القديمة على القمم تختفي؛ الجديدة على القيعان لاحقًا.)
 // v0.52.0 — [درس09 م3-أ] الاتجاه الفعّال للمستوى (latch: كسر المستوى بشمعتين يقلبه ويثبت) ⇒ يقود اتجاه الموجة + الدخول في
@@ -1092,9 +1098,9 @@ if barstate.islast
 
 // ─── ج1 [درس08]: مستويات الاتجاه — خطّ أفقيّ عند آخر طرف فعّال من نوع الأساس (قاع صاعدًا/قمّة هابطًا) على **الجسم** ───
 //   معمّم لكلّ درجة (كبيرة→متوسطة→صغيرة). على الجسم تمييزًا عن السيولة. يمتدّ levelExtend شمعة بعد الآن.
-f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w) =>
+f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int dir) =>
     line ln = na
-    bool wantTop = bigDir == -1                            // هابط ⇒ آخر قمّة فعّالة (مقاومة) · صاعد ⇒ آخر قاع فعّال (دعم)
+    bool wantTop = dir == -1                               // هابط ⇒ آخر قمّة فعّالة (مقاومة) · صاعد ⇒ آخر قاع فعّال (دعم) — dir = الاتجاه الفعّال
     int  li    = array.size(aBar) - 1
     int  found = -1
     while li >= 0 and found < 0
@@ -1121,9 +1127,9 @@ f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
             adj := math.max(adj, wantTop ? high[ok] - lv : lv - low[ok])
     adj
 
-f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w) =>
+f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir) =>
     line ln = na
-    bool wantTop = bigDir == -1                            // هابط ⇒ آخر قمّتين · صاعد ⇒ آخر قاعين
+    bool wantTop = wdir == -1                              // هابط ⇒ آخر قمّتين · صاعد ⇒ آخر قاعين (wdir = الاتجاه الفعّال)
     int  i2 = -1                                            // الأحدث
     int  i1 = -1                                            // الأسبق
     int  li = array.size(aBar) - 1
@@ -1151,9 +1157,9 @@ f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, c
     ln
 
 // [درس09/م1] اتجاه السيولة = ميل خطّها (الطرف الأحدث أعلى⇒صاعد، أدنى⇒هابط) — عرض/تحقّق فقط، بلا ربط بالاستخراج
-f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     int  dir = 0
-    bool wantTop = bigDir == -1
+    bool wantTop = wdir == -1
     int  i2 = -1
     int  i1 = -1
     int  li = array.size(aBar) - 1
@@ -1175,7 +1181,7 @@ f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
 
 // [درس10] قوة السيولة لكلّ درجة = مدى تداخل تطرّفاتها: المرجع = الطرف المعاكس قبل الأخير بـ3 مواضع (قاع4↔قمّة1).
 //   صعود: قاعٌ بقي ≥ القمّة المرجع ⇒ قويّة (1) · توغّل تحتها ⇒ ضعيفة (-1). هبوط: مرآة. 0 = غير محدّد (نقاط غير كافية).
-f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     int st = 0
     array<int>  eb = array.new<int>()
     array<bool> et = array.new<bool>()
@@ -1185,7 +1191,7 @@ f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
             array.push(eb, array.get(aBar, i))
             array.push(et, array.get(aTop, i))
     int m = array.size(eb)
-    bool up = bigDir == 1
+    bool up = wdir == 1
     int  last = -1
     int  li = m - 1
     while li >= 0 and last < 0
@@ -1213,25 +1219,21 @@ f_levelBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
             found := li
         li := li - 1
     if found >= 0
-        int pb = array.get(aBar, found)
-        int o  = bar_index - pb
+        int o = bar_index - array.get(aBar, found)
         if o >= 0
             float lvlP = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // المستوى على جسم الطرف
             bool  twoC = lvlBreakMode == "2 candles"
-            // latch: يُلتقَط الكسر من تاريخ المستوى (بعد طرفه) فيثبت مكسورًا/منقلبًا حتى الكسر التالي (لا يتراجع)
-            for k = pb + 1 to bar_index
-                int ok = bar_index - k
-                if ok >= 0
-                    if wantTop                                // مقاومة ⇒ كسر للأعلى
-                        broken := broken or (twoC ? (close[ok] > lvlP and close[ok + 1] > lvlP) : high[ok] > lvlP)
-                    else                                      // دعم ⇒ كسر للأسفل
-                        broken := broken or (twoC ? (close[ok] < lvlP and close[ok + 1] < lvlP) : low[ok] < lvlP)
+            // الكسر باللحظة الحاليّة فقط (الشمعتان الأخيرتان خلف المستوى) — لا التقاط تاريخيّ (كان يقلب من كسر قديم رغم أنّ السعر لم يصله الآن)
+            if wantTop                                        // مقاومة ⇒ كسر للأعلى
+                broken := twoC ? (close > lvlP and close[1] > lvlP) : high > lvlP
+            else                                              // دعم ⇒ كسر للأسفل
+                broken := twoC ? (close < lvlP and close[1] < lvlP) : low < lvlP
     broken
 
 // [درس09/م2] رصد كسر خطّ السيولة المائل = **شمعتان** إغلاقًا خلف الخطّ المُسقَط (دعم أسفل · مقاومة أعلى)
-f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff) =>
+f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     bool broken = false
-    bool wantTop = bigDir == -1
+    bool wantTop = wdir == -1
     int  i2 = -1
     int  i1 = -1
     int  li = array.size(aBar) - 1
@@ -1275,8 +1277,11 @@ if barstate.islast
     medLevelLine := na
     smallLevelLine := na
     if showLevel
-        bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB) : na   // الكبيرة (حدود الموجات / الكسر)
-        medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM) : na   // المتوسطة (سلسلة المتوسطة الفعّالة)
+        // [م3-ج] المستوى يُنقَل لجانب الاتجاه الفعّال (كُسِر مستواه ⇒ ينقلب ⇒ يُرسَم عند تطرّف الجانب الجديد). لا تقطيع — نقلٌ.
+        int bActV = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
+        int mActV = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
+        bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV) : na   // الكبيرة (تُنقَل للجانب الفعّال)
+        medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة
         // الصغيرة: نقاطها كلّها فعّالة (مخرَج feedPivot)؛ نضمّ الطرف المعلّق ليكون آخر تطرّف متاحًا
         array<int>  sBar = array.copy(smallDegree.effectiveBars)
         array<bool> sTop = array.copy(smallDegree.effectiveIsTop)
@@ -1286,29 +1291,8 @@ if barstate.islast
             array.push(sTop, smallDegree.pendingType == 1)
             array.push(sTm,  smallDegree.pendingTime)
         array<bool> sEff = array.new<bool>(array.size(sBar), true)
-        smallLevelLine := showLvlS ? f_levelLine(sBar, sTop, sEff, sTm, cLvlS, lvlWidthS) : na     // الصغيرة (الموجة الحاليّة)
-        // [م2] المستوى المكسور ⇒ متقطّع بعرض الخطّ المكسور لدرجته (أو يُخفى عند showBroken=false). النقل/الانقلاب في م3
-        if f_levelBroken(lgBar, lgTop, lgEff) and not na(bigLevelLine)
-            if showBroken
-                line.set_style(bigLevelLine, line.style_dashed)
-                line.set_width(bigLevelLine, brkWidthB)
-            else
-                line.delete(bigLevelLine)
-                bigLevelLine := na
-        if f_levelBroken(mcBar, mcTop, mcEff) and not na(medLevelLine)
-            if showBroken
-                line.set_style(medLevelLine, line.style_dashed)
-                line.set_width(medLevelLine, brkWidthM)
-            else
-                line.delete(medLevelLine)
-                medLevelLine := na
-        if f_levelBroken(sBar, sTop, sEff) and not na(smallLevelLine)
-            if showBroken
-                line.set_style(smallLevelLine, line.style_dashed)
-                line.set_width(smallLevelLine, brkWidthS)
-            else
-                line.delete(smallLevelLine)
-                smallLevelLine := na
+        int sActV = f_levelBroken(sBar, sTop, sEff) ? -bigDir : bigDir
+        smallLevelLine := showLvlS ? f_levelLine(sBar, sTop, sEff, sTm, cLvlS, lvlWidthS, sActV) : na     // الصغيرة
 
 // ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
 var line bigLiqLine   = na
@@ -1328,8 +1312,8 @@ if barstate.islast
         // [م3-ب] لا تُرسَم سيولة درجةٍ إن خالف ميلها اتجاهها الفعّال (= bigDir منقلبًا إن كُسِر مستواها) ⇒ يختفي الخطّ المتناقض
         int bActL = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
         int mActL = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
-        bigLiqLine := (showLiqB and f_liqDir(lgBar, lgTop, lgEff) == bActL) ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB) : na   // الكبيرة
-        medLiqLine := (showLiqM and f_liqDir(mcBar, mcTop, mcEff) == mActL) ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM) : na   // المتوسطة
+        bigLiqLine := (showLiqB and f_liqDir(lgBar, lgTop, lgEff, bActL) == bActL) ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة (على جانب الاتجاه الفعّال)
+        medLiqLine := (showLiqM and f_liqDir(mcBar, mcTop, mcEff, mActL) == mActL) ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة
         // الصغيرة: نقاطها فعّالة + ضمّ الطرف المعلّق (كمستوى الصغير)
         array<int>  lqBar = array.copy(smallDegree.effectiveBars)
         array<bool> lqTop = array.copy(smallDegree.effectiveIsTop)
@@ -1340,23 +1324,23 @@ if barstate.islast
             array.push(lqTm,  smallDegree.pendingTime)
         array<bool> lqEff = array.new<bool>(array.size(lqBar), true)
         int sActL = f_levelBroken(lqBar, lqTop, lqEff) ? -bigDir : bigDir
-        smallLiqLine := (showLiqS and f_liqDir(lqBar, lqTop, lqEff) == sActL) ? f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS) : na   // الصغيرة
+        smallLiqLine := (showLiqS and f_liqDir(lqBar, lqTop, lqEff, sActL) == sActL) ? f_liqLine(lqBar, lqTop, lqEff, lqTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
-        if f_liqBroken(lgBar, lgTop, lgEff) and not na(bigLiqLine)
+        if f_liqBroken(lgBar, lgTop, lgEff, bActL) and not na(bigLiqLine)
             if showBroken
                 line.set_style(bigLiqLine, line.style_dashed)
                 line.set_width(bigLiqLine, brkWidthB)
             else
                 line.delete(bigLiqLine)
                 bigLiqLine := na
-        if f_liqBroken(mcBar, mcTop, mcEff) and not na(medLiqLine)
+        if f_liqBroken(mcBar, mcTop, mcEff, mActL) and not na(medLiqLine)
             if showBroken
                 line.set_style(medLiqLine, line.style_dashed)
                 line.set_width(medLiqLine, brkWidthM)
             else
                 line.delete(medLiqLine)
                 medLiqLine := na
-        if f_liqBroken(lqBar, lqTop, lqEff) and not na(smallLiqLine)
+        if f_liqBroken(lqBar, lqTop, lqEff, sActL) and not na(smallLiqLine)
             if showBroken
                 line.set_style(smallLiqLine, line.style_dashed)
                 line.set_width(smallLiqLine, brkWidthS)
@@ -1368,18 +1352,19 @@ if barstate.islast
 var table concTbl = table.new(f_pos(concPos), 2, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
-    int lqB = f_liqDir(lgBar, lgTop, lgEff)
-    int lqM = f_liqDir(mcBar, mcTop, mcEff)
     array<int>  dB = array.copy(smallDegree.effectiveBars)
     array<bool> dT = array.copy(smallDegree.effectiveIsTop)
     if smallDegree.pendingType != 0
         array.push(dB, smallDegree.pendingBar)
         array.push(dT, smallDegree.pendingType == 1)
     array<bool> dE = array.new<bool>(array.size(dB), true)
-    int lqS = f_liqDir(dB, dT, dE)
-    // [م3-أ] الاتجاه الفعّال لكلّ درجة = bigDir منقلبًا إن كُسِر مستواها (latch). يقود اتجاه الموجة + الدخول (عرض، لا يمسّ ط1)
-    int  medLvlDir = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
-    int  bigLvlDir = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
+    // [م3] الاتجاه الفعّال لكلّ درجة (latch كسر المستوى) ⇒ يقود الاتجاه/الدخول + السيولة/القوة على **جانب واحد** متّسق
+    int  bigLvlDir   = f_levelBroken(lgBar, lgTop, lgEff) ? -bigDir : bigDir
+    int  medLvlDir   = f_levelBroken(mcBar, mcTop, mcEff) ? -bigDir : bigDir
+    int  smallLvlDir = f_levelBroken(dB, dT, dE) ? -bigDir : bigDir
+    int lqB = f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)
+    int lqM = f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
+    int lqS = f_liqDir(dB, dT, dE, smallLvlDir)
     bool cDef = lqB != 0 and lqM != 0                          // الكبيرة+المتوسطة معرَّفتان
     bool cRng = cDef and lqB != lqM                            // تعارضهما ⇒ عرضيّ (Range)
     int  cLiq = (cDef and not cRng) ? lqM : 0
@@ -1400,9 +1385,9 @@ if showConc and barstate.islast
     table.cell(concTbl, 0, 2, "اتجاه السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
     // [درس10] قوّة لكلّ درجة (تداخل تطرّفاتها: قاع↔قمّة قبله بـ3) · العامّة من الصغيرة · الدخول من اتجاه مستوى المتوسطة+الكبيرة
-    int    stB = f_liqStrength(lgBar, lgTop, lgEff)
-    int    stM = f_liqStrength(mcBar, mcTop, mcEff)
-    int    stS = f_liqStrength(dB, dT, dE)
+    int    stB = f_liqStrength(lgBar, lgTop, lgEff, bigLvlDir)
+    int    stM = f_liqStrength(mcBar, mcTop, mcEff, medLvlDir)
+    int    stS = f_liqStrength(dB, dT, dE, smallLvlDir)
     int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير)
     table.cell(concTbl, 0, 3, "قوة السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 3, stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—", text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : pMute, text_size = size.small)
