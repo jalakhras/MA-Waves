@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.44.2 — [درس08/ط2] مدخل امتداد خطوط السيولة (liqExtend، افتراضيًّا 24): نهاية مُسقَطة عند الآن+N شمعة (بميل الخطّ) بدل اللانهائيّ.
 // v0.44.1 — [درس08/ط2] اكتمال الجزء2 (خطوط السيولة الثلاثة): المتوسط + الصغير عبر f_liqLine. ⇒ اكتمل الدرس08 الرسم
 //   (6 خطوط: 3 مستويات على الأجسام + 3 سيولة على الذيول). عرض مستقلّ لكلّ. التالي: درس09 (الكسر/التجدّد).
 // v0.44.0 — [درس08/ط2] الجزء2 (خطوط السيولة) — البداية بالكبير: وصل آخر تطرّفين فعّالين من نوع الأساس على **الذيول**
@@ -166,6 +167,7 @@ color  cLiqM     = input.color(color.new(#FF9800, 0), "Medium liquidity / سيو
 int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة المتوسط", minval = 1, maxval = 8, group = grpLines)
 color  cLiqS     = input.color(color.new(#F23645, 0), "Small liquidity / سيولة الصغير (أحمر)", group = grpLines)
 int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpLines)
+int    liqExtend = input.int(24, "Liquidity extension past now (candles) / مدى امتداد السيولة بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
@@ -1091,7 +1093,13 @@ f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, c
         if o1 >= 0 and o2 >= 0
             float wp1 = wantTop ? high[o1] : low[o1]        // ذيل الطرف (لا الجسم)
             float wp2 = wantTop ? high[o2] : low[o2]
-            ln := line.new(array.get(aTm, i1), wp1, array.get(aTm, i2), wp2, xloc = xloc.bar_time, extend = extend.right, color = col, width = w)
+            int   b1  = array.get(aBar, i1)
+            int   b2  = array.get(aBar, i2)
+            float slope = (wp2 - wp1) / (b2 - b1)            // ميل خط السيولة لكلّ شمعة (b2>b1 مضمون: i2 الأحدث)
+            int   targetBar = bar_index + liqExtend
+            float projP = wp1 + slope * (targetBar - b1)     // السعر المُسقَط عند الآن + liqExtend شمعة (يحافظ على الميل)
+            int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
+            ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
     ln
 var line bigLevelLine = na
 var line medLevelLine = na
