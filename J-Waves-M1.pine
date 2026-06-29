@@ -3,6 +3,15 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.62.0 — [إصلاح تناقض اللوحة] (1) f_liqDirHold يستبقي اتجاه آخر خطّ بدل «غير محدّد» حين تُكسَر كلّ الخطوط (مع وجود طرفين).
+//   (2) المرحلة مربوطة بوجود خطّ السيولة (lq=0 ⇒ «—» لا «مشاركة») — لا مرحلة بلا خطّ.
+// v0.61.1 — [عرض] صفوف الدرجات: الاتجاه بالكلمات (صاعدة/هابطة) لا الرمز (▲/▼).
+// v0.61.0 — [طلب] اتجاه السيولة **ملتقَط** (f_liqDirHold): عند كسر خطّ السيولة يُحتفَظ بالاتجاه (صاعد/هابط) حتى يُبنى خطّ جديد
+//   كامل (تطرّفان جديدان) غير مكسور ⇒ عندها يُحدَّث. يقود اتجاه السيولة + صفوف الدرجات في اللوحة (عرض فقط).
+// v0.60.0 — [درس11 م-أ] المرحلة **بجانب كلّ درجة** (خليّة مدمجة: اتجاه·قوّة·مرحلة) بدل الصفّ المفرد — مشاركة⟷ذعر لكلّ درجة.
+//   التصميم الموحّد (حالة الدرجة + المراحل + الانعكاس + الاستنتاجات + الفرص): docs/build/spec_unified_states_entries.md
+// v0.59.0 — [درس11 م11-أ] المراحل (نواة): صفّ «المرحلة» في اللوحة — مشاركة عامّة ⟷ ذعر، بكسر السيولة **نصف الجسم** (f_phaseBreak)
+//   للدرجة المختارة (phaseDegree). يأس/تجميع/تصريف لاحقًا (م11-ب/ج). عرض فقط (يقرأ من السيولة + الاتجاه الفعّال).
 // v0.58.0 — [درس07] الكبيرة هجين (خلف legLiveBreak، مشغَّل): الـleg يجهّز الكبيرة **التاريخيّة** (حدود الموجات، ثابتة) +
 //   محرّك الكسر يستخرج الكبيرة **الجديدة** للموجة الجارية (بعد segLefts[0]) من كسر المتوسطة، مُهيَّأً من نقطة الوصل (تناوب نظيف).
 // v0.57.0 — [درس09 م3-أ] الاتجاه الفعّال **ملتقَط** (f_activeDir بدل f_levelBroken اللحظيّ): ينقلب عند كسر مؤكَّد (شمعتان خلف
@@ -1324,6 +1333,81 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                     if wantTop ? (close[ok] > lk and close[ok + 1] > lk1) : (close[ok] < lk and close[ok + 1] < lk1)
                         broken := true
     broken
+
+// [درس11/م11-أ] كسر السيولة لانتقال المرحلة = **نصف الجسم** (منتصف جسم شمعة خلف الخطّ المُسقَط) — يبدأ الذعر.
+//   wdir = الاتجاه الفعّال للدرجة؛ الخطّ على جانب الأساس؛ الكسر عكس الاتجاه (دعم↓ صعودًا · مقاومة↑ هبوطًا). latch من تاريخ الخطّ.
+f_phaseBreak(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    bool broken = false
+    bool wantTop = wdir == -1
+    int  i2 = -1
+    int  i1 = -1
+    int  li = array.size(aBar) - 1
+    while li >= 0 and i1 < 0
+        if array.get(aEff, li) and array.get(aTop, li) == wantTop
+            if i2 < 0
+                i2 := li
+            else
+                i1 := li
+        li := li - 1
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            float wp1 = wantTop ? high[o1] : low[o1]
+            float wp2 = wantTop ? high[o2] : low[o2]
+            int   b1  = array.get(aBar, i1)
+            int   b2  = array.get(aBar, i2)
+            float slope = (wp2 - wp1) / (b2 - b1)
+            float wp1a = wantTop ? wp1 + f_liqAdj(b1, b2, wp1, slope, wantTop) : wp1 - f_liqAdj(b1, b2, wp1, slope, wantTop)
+            for k = b2 + 1 to bar_index
+                int ok = bar_index - k
+                if ok >= 0
+                    float lk  = wp1a + slope * (k - b1)
+                    float mid = (open[ok] + close[ok]) / 2          // منتصف الجسم ⇒ أكثر من نصف الجسم خلف الخطّ
+                    if wantTop ? mid > lk : mid < lk
+                        broken := true
+    broken
+
+// [درس10/11] اتجاه السيولة **الملتقَط**: اتجاه آخر خطّ سيولة **غير مكسور**. عند كسر الخطّ يُحتفَظ بالاتجاه (صاعد/هابط)
+//   حتى يتكوّن خطّ جديد كامل (تطرّفان جديدان من نوع الأساس) **غير مكسور** ⇒ عندها يُحدَّث. (طلب المستخدم 2026-06-29.)
+f_liqDirHold(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    bool wantTop = wdir == -1
+    array<int>   pb = array.new<int>()                              // أطراف الأساس (قمم هبوطًا/قيعان صعودًا) بالترتيب
+    array<float> pw = array.new<float>()                            // ذيلها
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop
+            int o = bar_index - array.get(aBar, i)
+            if o >= 0
+                array.push(pb, array.get(aBar, i))
+                array.push(pw, wantTop ? high[o] : low[o])
+    int m = array.size(pb)
+    int held = 0
+    if m >= 2
+        for k = 1 to m - 1                                          // كلّ خطّ متتالٍ (أقدم→أحدث)؛ نُثبِّت اتجاه غير المكسور
+            int   b1 = array.get(pb, k - 1)
+            int   b2 = array.get(pb, k)
+            float w1 = array.get(pw, k - 1)
+            float w2 = array.get(pw, k)
+            int   dk = w2 > w1 ? 1 : w2 < w1 ? -1 : 0
+            float slope = (w2 - w1) / (b2 - b1)
+            float wp1a  = wantTop ? w1 + f_liqAdj(b1, b2, w1, slope, wantTop) : w1 - f_liqAdj(b1, b2, w1, slope, wantTop)
+            int   rightBar = k < m - 1 ? array.get(pb, k + 1) : bar_index   // عمر الخطّ حتى الطرف التالي (أو الآن)
+            bool  brk = false
+            for j = b2 + 1 to rightBar
+                int oj = bar_index - j
+                if oj >= 0
+                    float lj  = wp1a + slope * (j - b1)
+                    float lj1 = wp1a + slope * (j - 1 - b1)
+                    if wantTop ? (close[oj] > lj and close[oj + 1] > lj1) : (close[oj] < lj and close[oj + 1] < lj1)
+                        brk := true
+            if not brk
+                held := dk                                          // خطّ غير مكسور ⇒ ثبِّت اتجاهه (المكسور يُتجاوَز فيبقى السابق)
+        if held == 0                                                // لا خطّ غير مكسور ⇒ استبقِ اتجاه **آخر** خطّ (لا «غير محدّد» مع وجود طرفين)
+            float wl1 = array.get(pw, m - 2)
+            float wl2 = array.get(pw, m - 1)
+            held := wl2 > wl1 ? 1 : wl2 < wl1 ? -1 : 0
+    held
 var line bigLevelLine = na
 var line medLevelLine = na
 var line smallLevelLine = na
@@ -1342,7 +1426,7 @@ if barstate.islast
         int bActV = f_activeDir(lgBar, lgTop, lgEff, bigDir)
         int mActV = f_activeDir(mcBar, mcTop, mcEff, bigDir)
         bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV) : na   // الكبيرة (تُنقَل للجانب الفعّال)
-        medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة
+        medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: نقاطها كلّها فعّالة (مخرَج feedPivot)؛ نضمّ الطرف المعلّق ليكون آخر تطرّف متاحًا
         array<int>  sBar = array.copy(smallDegree.effectiveBars)
         array<bool> sTop = array.copy(smallDegree.effectiveIsTop)
@@ -1374,7 +1458,7 @@ if barstate.islast
         int bActL = f_activeDir(lgBar, lgTop, lgEff, bigDir)
         int mActL = f_activeDir(mcBar, mcTop, mcEff, bigDir)
         bigLiqLine := (showLiqB and f_liqDir(lgBar, lgTop, lgEff, bActL) == bActL) ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة (على جانب الاتجاه الفعّال)
-        medLiqLine := (showLiqM and f_liqDir(mcBar, mcTop, mcEff, mActL) == mActL) ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة
+        medLiqLine := (showLiqM and f_liqDir(mcBar, mcTop, mcEff, mActL) == mActL) ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: نقاطها فعّالة + ضمّ الطرف المعلّق (كمستوى الصغير)
         array<int>  lqBar = array.copy(smallDegree.effectiveBars)
         array<bool> lqTop = array.copy(smallDegree.effectiveIsTop)
@@ -1423,9 +1507,9 @@ if showConc and barstate.islast
     int  bigLvlDir   = f_activeDir(lgBar, lgTop, lgEff, bigDir)
     int  medLvlDir   = f_activeDir(mcBar, mcTop, mcEff, bigDir)
     int  smallLvlDir = f_activeDir(dB, dT, dE, bigDir)
-    int lqB = f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)
-    int lqM = f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
-    int lqS = f_liqDir(dB, dT, dE, smallLvlDir)
+    int lqB = f_liqDirHold(lgBar, lgTop, lgEff, bigLvlDir)   // [طلب] اتجاه السيولة يُحتفَظ به عند الكسر حتى خطّ جديد غير مكسور
+    int lqM = f_liqDirHold(mcBar, mcTop, mcEff, medLvlDir)
+    int lqS = f_liqDirHold(dB, dT, dE, smallLvlDir)
     bool cDef = lqB != 0 and lqM != 0                          // الكبيرة+المتوسطة معرَّفتان
     bool cRng = cDef and lqB != lqM                            // تعارضهما ⇒ عرضيّ (Range)
     int  cLiq = (cDef and not cRng) ? lqM : 0
@@ -1454,13 +1538,20 @@ if showConc and barstate.islast
     table.cell(concTbl, 1, 3, stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—", text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : pMute, text_size = size.small)
     table.cell(concTbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 4, entry == 1 ? "شراء فقط" : entry == -1 ? "بيع فقط" : entry == 2 ? "بيع/شراء" : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
-    // الدرجات: اتجاه الموجة (من ميل سيولتها) · قوّة السيولة (من تطرّفات درجتها)
+    // [درس11/م-أ] المرحلة **بجانب كلّ درجة** (خليّة مدمجة): مشاركة عامّة (السيولة محترَمة) ⟷ ذعر (كُسِرت بنصف الجسم). يأس/تجميع/تصريف = م11-ب
+    bool   phS   = f_phaseBreak(dB, dT, dE, smallLvlDir)
+    bool   phM   = f_phaseBreak(mcBar, mcTop, mcEff, medLvlDir)
+    bool   phB   = f_phaseBreak(lgBar, lgTop, lgEff, bigLvlDir)
+    string phsS  = lqS == 0 ? "—" : phS ? "ذعر ⚠" : "مشاركة"   // المرحلة مُعرَّفة نسبةً لخطّ السيولة ⇒ بلا خطّ (lq=0) لا مرحلة
+    string phsM  = lqM == 0 ? "—" : phM ? "ذعر ⚠" : "مشاركة"
+    string phsB  = lqB == 0 ? "—" : phB ? "ذعر ⚠" : "مشاركة"
+    // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 5, (lqS == 1 ? "صاعدة ▲" : lqS == -1 ? "هابطة ▼" : "—") + " · " + (stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—"), text_color = color.white, bgcolor = lqS == 0 ? pMute : lqS == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 1, 5, (lqS == 1 ? "صاعدة" : lqS == -1 ? "هابطة" : "—") + " · " + (stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—") + " · " + phsS, text_color = color.white, bgcolor = lqS == 0 ? pMute : lqS == 1 ? cUp : cDn, text_size = size.small)
     table.cell(concTbl, 0, 6, "المتوسطة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 6, (lqM == 1 ? "صاعدة ▲" : lqM == -1 ? "هابطة ▼" : "—") + " · " + (stM == 1 ? "قويّة" : stM == -1 ? "ضعيفة" : "—"), text_color = color.white, bgcolor = lqM == 0 ? pMute : lqM == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 1, 6, (lqM == 1 ? "صاعدة" : lqM == -1 ? "هابطة" : "—") + " · " + (stM == 1 ? "قويّة" : stM == -1 ? "ضعيفة" : "—") + " · " + phsM, text_color = color.white, bgcolor = lqM == 0 ? pMute : lqM == 1 ? cUp : cDn, text_size = size.small)
     table.cell(concTbl, 0, 7, "الكبيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 7, (lqB == 1 ? "صاعدة ▲" : lqB == -1 ? "هابطة ▼" : "—") + " · " + (stB == 1 ? "قويّة" : stB == -1 ? "ضعيفة" : "—"), text_color = color.white, bgcolor = lqB == 0 ? pMute : lqB == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 1, 7, (lqB == 1 ? "صاعدة" : lqB == -1 ? "هابطة" : "—") + " · " + (stB == 1 ? "قويّة" : stB == -1 ? "ضعيفة" : "—") + " · " + phsB, text_color = color.white, bgcolor = lqB == 0 ? pMute : lqB == 1 ? cUp : cDn, text_size = size.small)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
