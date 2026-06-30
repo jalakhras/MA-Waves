@@ -3,6 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.68.1 — [تصحيح قاعدة] ما لم تُكسَر السيولة ⇒ **مشاركة** دائمًا (أُسقِط تصريف-بأيّ-ضعف الذي خالف القاعدة: ظهر تصريف في مشاركة عاديّة).
+//   تصريف الحقيقيّ (تجمّع قمم متقارب قُبيل الكسر) مؤجَّل لتعريف دقيق. المراحل العاملة: مشاركة · ذعر · يأس · تجميع.
+// v0.68.0 — [درس11 م11-ج] إكمال دورة داو الخماسية: + تجميع (ارتداد عن الأعمق بعد الكسر) + تصريف (ضعف تطرّف الاتجاه قُبيل الكسر).
+//   ⇒ المراحل الخمس كاملة: مشاركة · تصريف · ذعر · يأس · تجميع. (الدرس 11 مكتمل.)
 // v0.67.0 — [درس11 م11-ب] آلة المراحل الكاملة f_phase (داو/إليوت ABC، الاتجاهان): مشاركة → ذعر(A، كسر خطّ السيولة المائل، latch)
 //   → يأس(C، تطرّف أعمق بعد ارتداد B). الانقلاب لمشاركة معاكسة بكسر المستوى (f_activeDir). صفّ الدرجة: اتجاه(مستوى)·قوّة·مرحلة.
 // v0.66.1 — [إصلاح① تكميل] المرحلة بالحالة الحاليّة (لا latch تاريخيّ) ⇒ إن تعافى السعر فوق الدعم يرجع مشاركة (لا ذعر عالق في صعود متعافٍ).
@@ -1379,8 +1383,9 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 //   • مشاركة عامّة: السعر يحترم خطّ السيولة (الدعم المائل من f_liqPair).
 //   • ذعر (A): **كُسِر خطّ السيولة** (نزل ذيل السعر تحت الخطّ المُسقَط) — latch من بار الكسر حتى تطرّفين/تعافٍ.
 //   • يأس (C): تطرّف مضادّ **أعمق** بعد ارتداد B (قاع أدنى صعودًا / قمّة أعلى هبوطًا) بعد بار الكسر.
+//   • تجميع: ارتداد عن الأعمق بعد الكسر (تبَنٍّ عرضيّ قبل استئناف المشاركة). • تصريف: تطرّف الاتجاه يضعف (قمّة أدنى صعودًا) والسيولة سليمة (قُبيل الكسر).
 //   الانقلاب (مشاركة معاكسة) يقوده كسر المستوى (f_activeDir يقلب wdir ⇒ زوج/سيولة جديدة ⇒ مشاركة جديدة). wdir = الاتجاه الفعّال للدرجة.
-//   يُرجِع: 0 مشاركة · 1 ذعر · 2 يأس · -1 لا سيولة (—).
+//   يُرجِع: 0 مشاركة · 1 ذعر · 2 يأس · 3 تجميع · 4 تصريف · -1 لا سيولة (—).
 f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     int  ph = -1
     bool wantTop = wdir == -1
@@ -1405,8 +1410,9 @@ f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                         brkBar := k
             if brkBar >= 0
                 ph := 1                                              // ذعر (كُسِرت السيولة)
-                float firstExt = na                                  // أوّل تطرّف مضادّ بعد الكسر (قاع الذعر A)
-                float lastExt  = na
+                float aExt    = na                                   // قاع الذعر A (أوّل تطرّف مضادّ بعد الكسر)
+                float deepExt = na                                   // الأعمق (قاع أدنى صعودًا / قمّة أعلى هبوطًا)
+                float lastExt = na
                 int   cnt = 0
                 int   n = array.size(aBar)
                 for j = 0 to (n > 0 ? n - 1 : 0)
@@ -1414,11 +1420,18 @@ f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                         int oj = bar_index - array.get(aBar, j)
                         if oj >= 0
                             float wj = wantTop ? high[oj] : low[oj]
-                            firstExt := na(firstExt) ? wj : firstExt
-                            lastExt  := wj
+                            aExt    := na(aExt) ? wj : aExt
+                            deepExt := na(deepExt) ? wj : (wantTop ? math.max(deepExt, wj) : math.min(deepExt, wj))
+                            lastExt := wj
                             cnt := cnt + 1
-                if cnt >= 2 and (wantTop ? lastExt > firstExt : lastExt < firstExt)
-                    ph := 2                                          // يأس (تطرّف أعمق بعد ارتداد B = C)
+                if cnt >= 2
+                    bool recovered = wantTop ? (lastExt < deepExt) : (lastExt > deepExt)   // ارتداد عن الأعمق ⇒ تبَنٍّ
+                    bool deepened  = wantTop ? (deepExt > aExt) : (deepExt < aExt)           // تطرّف أعمق من A (C)
+                    if recovered
+                        ph := 3                                      // تجميع (عرضيّ بعد القاع/القمّة، قبل استئناف المشاركة)
+                    else if deepened
+                        ph := 2                                      // يأس (C، تطرّف أعمق بعد ارتداد B)
+            // [قاعدة المستخدم] ما لم تُكسَر السيولة ⇒ **مشاركة** (ph يبقى 0). تصريف (تجمّع قمم قُبيل الكسر) مؤجَّل لتعريف دقيق.
     ph
 
 var line bigLevelLine = na
@@ -1537,9 +1550,9 @@ if showConc and barstate.islast
     int    phS   = f_phase(dB, dT, dE, smallLvlDir)            // 0 مشاركة · 1 ذعر · 2 يأس · -1 لا سيولة
     int    phM   = f_phase(mcBar, mcTop, mcEff, medLvlDir)
     int    phB   = f_phase(lgBar, lgTop, lgEff, bigLvlDir)
-    string phsS  = phS == -1 ? "—" : phS == 2 ? "يأس ⚠" : phS == 1 ? "ذعر ⚠" : "مشاركة"
-    string phsM  = phM == -1 ? "—" : phM == 2 ? "يأس ⚠" : phM == 1 ? "ذعر ⚠" : "مشاركة"
-    string phsB  = phB == -1 ? "—" : phB == 2 ? "يأس ⚠" : phB == 1 ? "ذعر ⚠" : "مشاركة"
+    string phsS  = phS == -1 ? "—" : phS == 4 ? "تصريف" : phS == 3 ? "تجميع" : phS == 2 ? "يأس ⚠" : phS == 1 ? "ذعر ⚠" : "مشاركة"
+    string phsM  = phM == -1 ? "—" : phM == 4 ? "تصريف" : phM == 3 ? "تجميع" : phM == 2 ? "يأس ⚠" : phM == 1 ? "ذعر ⚠" : "مشاركة"
+    string phsB  = phB == -1 ? "—" : phB == 4 ? "تصريف" : phB == 3 ? "تجميع" : phB == 2 ? "يأس ⚠" : phB == 1 ? "ذعر ⚠" : "مشاركة"
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? "صاعدة" : smallLvlDir == -1 ? "هابطة" : "—") + " · " + (stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—") + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
