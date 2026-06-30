@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.88.1 — [شكل الإشارة من القديم] وسم رئيسيّ «✦/⚠ شراء/بيع» (✦ أساسيّة · ⚠ مخاطرة) بألوان القديم (#089981/#F23645) + **شارة RR منفصلة على الجهة المقابلة ملوّنة بقيمتها** (أخضر≥2·أصفر1-2·أحمر<1) + tooltip كامل.
 // v0.88.0 — [ط4-ج-1 تصنيف الفرص أساسيّة/مخاطرة] الإشارة التاريخيّة تُصنَّف من تسلسل تطرّفات الصغيرة (تعريف الدرس): ارتداد (قاع أعلى/قمّة أدنى) = **أساسيّة** (تجميع/تصريف)
 //   · ما زال يتطرّف = **مخاطرة** (ذعر/يأس). شراء عند الدعم/بيع عند المقاومة باتجاه المستوى. الوقف=حافّة المنطقة · الهدف=التالية · RR + tooltip. أساسيّة لون صريح · مخاطرة أفتح.
 // v0.87.0 — [ط4-ب-1 عرض المرحلة direction-relative] اكتمال التصحيح (code 3) يُعرَض **تجميع** صعودًا (قاع) · **تصريف** هبوطًا (قمّة) — كما في الدرس (f_phTxt). + مواصفة L2-03/04.
@@ -1973,7 +1974,6 @@ if barstate.islast
                                     break
                         // أساسيّة = ارتداد (قاع أعلى صعودًا / قمّة أدنى هبوطًا) = تجميع/تصريف اكتمل · مخاطرة = ما زال يتطرّف (ذعر/يأس)
                         bool   basic = wantBot ? (not na(prevP) and pp > prevP) : (not na(prevP) and pp < prevP)
-                        string knd   = basic ? "أساسية" : "مخاطرة ⚠"
                         if wantBot                                   // شراء عند الدعم
                             float e = pp
                             float s = zbC                            // الوقف = أسفل منطقة الدخول
@@ -1982,9 +1982,12 @@ if barstate.islast
                                 if array.get(zBot, zi) > pp
                                     t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
                             float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
-                            string tx = "شراء " + knd + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
-                            string tp = "الهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick)
-                            array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
+                            string mk = basic ? "✦" : "⚠"                // ✦ أساسيّة · ⚠ عالية مخاطرة
+                            string tp = "نوع: " + (basic ? "أساسية" : "عالية مخاطرة") + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+                            array.push(sigLabels, label.new(array.get(scBar, si), pp, mk + "شراء", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tp))
+                            if not na(rr)                                // شارة RR منفصلة على الجهة المقابلة، ملوّنة بقيمتها (أخضر≥2 · أصفر1-2 · أحمر<1)
+                                color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
+                                array.push(sigLabels, label.new(array.get(scBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
                         else                                         // بيع عند المقاومة
                             float e = pp
                             float s = ztC                            // الوقف = أعلى منطقة الدخول
@@ -1993,9 +1996,12 @@ if barstate.islast
                                 if array.get(zTop, zi) < pp
                                     t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
                             float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
-                            string tx = "بيع " + knd + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
-                            string tp = "الوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick))
-                            array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = basic ? #F23645 : #EF9A9A, textcolor = color.white, size = size.small, tooltip = tp))
+                            string mk = basic ? "✦" : "⚠"
+                            string tp = "نوع: " + (basic ? "أساسية" : "عالية مخاطرة") + "\nالوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+                            array.push(sigLabels, label.new(array.get(scBar, si), pp, mk + "بيع", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tp))
+                            if not na(rr)
+                                color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
+                                array.push(sigLabels, label.new(array.get(scBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
