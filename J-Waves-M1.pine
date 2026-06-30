@@ -3,6 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.71.0 — [ط4-أ-2 / الدرس L2-02] **المناطق — المستطيلات**: منطقة = مستطيل بين مستويين متقاربين من **نفس المرحلة** (قمّتان/قاعان)
+//   في الموجة العاملة (mcBar ≥ segLefts[0]): greedy الأقرب سعريًّا + منع الاحتواء + منع مستوى ثالث بينهما (مبسَّط من المنطق القديم).
+//   تُخزَّن حدود zTop/zBot للتصنيف وin_zone (ط4-أ-3). مفاتيح showZoneBox/cZoneFill/cZoneBorder.
 // v0.70.1 — [إصلاح] حلقة مسح خطوط المناطق: حارس `if size>0` (Pine: `for 0 to -1` على مصفوفة فارغة يُنفّذ index 0 ⇒ out of bounds).
 // v0.70.0 — [ط4-أ-1 / الدرس L2-02] **المناطق — مستويات م.A**: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال (قمّة=أعلى الجسم · قاع=أسفله).
 //   المدخل = المتوسطة الفعّالة فقط (mcEff). مجموعة Zones + showZones/showZoneLvl/cZoneLvl/zoneExtend. التالي ط4-أ-2: قَرن المتقاربين ⇒ مستطيلات (greedy الأقرب + منع احتواء/تصحيح/مستوى ثالث، من المنطق القديم).
@@ -250,6 +253,9 @@ string grpZone     = "🟦 Zones / المناطق (ط4)"
 bool   showZones   = input.bool(true, "Show zones module / إظهار وحدة المناطق", group = grpZone)
 bool   showZoneLvl = input.bool(true, "Show M.A level lines / خطوط مستويات م.A (على الأجسام)", group = grpZone, tooltip = "خطّ أفقيّ على جسم كلّ قمّة/قاع متوسط فعّال: القمّة من أعلى الجسم · القاع من أسفله (الدرس L2-02). الموجة العاملة فقط.")
 color  cZoneLvl    = input.color(color.new(#D1D4DC, 0), "M.A level color / لون مستويات م.A", group = grpZone)
+bool   showZoneBox = input.bool(true, "Show zone boxes / مستطيلات المناطق", group = grpZone, tooltip = "مستطيل بين كلّ مستويين متقاربين من نفس المرحلة (قمّتان/قاعان) في الموجة العاملة: greedy الأقرب سعريًّا + منع الاحتواء + منع مستوى ثالث بينهما (الدرس L2-02).")
+color  cZoneFill   = input.color(color.new(#2E75B6, 80), "Zone fill / تعبئة المنطقة", group = grpZone)
+color  cZoneBorder = input.color(color.new(#2E75B6, 40), "Zone border / حدّ المنطقة", group = grpZone)
 int    zoneExtend  = input.int(24, "Zone extension past now (candles) / مدى امتداد المنطقة بعد السعر (شموع)", minval = 0, maxval = 500, group = grpZone)
 
 // ─── المدخلات: لوحة الاستنتاجات [درس 10 — مبدئيًّا: اتجاه السيولة من ميل الخطوط] (تصميم القديم) ───
@@ -1548,6 +1554,91 @@ if barstate.islast
                 if o >= 0
                     float lvl = array.get(mcTop, i) ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // قمّة=أعلى الجسم · قاع=أسفله
                     array.push(zoneLvlLines, line.new(array.get(mcTm, i), lvl, rightTmZ, lvl, xloc = xloc.bar_time, color = cZoneLvl, width = 1))
+
+// ─── [ط4-أ-2 / الدرس L2-02] المناطق = مستطيل بين مستويين متقاربين من **نفس المرحلة** (قمّتان/قاعان) في الموجة العاملة ───
+//   greedy الأقرب سعريًّا + بوّابات (لا احتواء · لا مستوى ثالث بينهما سعريًّا) — مبسَّط من المنطق القديم. الموجة العاملة = mcBar ≥ segLefts[0].
+var array<box>   zoneBoxes = array.new<box>()
+var array<float> zTop = array.new<float>()                                  // حدود المناطق (للتصنيف وin_zone لاحقًا — ط4-أ-3)
+var array<float> zBot = array.new<float>()
+if barstate.islast
+    if array.size(zoneBoxes) > 0
+        for zi = 0 to array.size(zoneBoxes) - 1
+            box.delete(array.get(zoneBoxes, zi))
+    array.clear(zoneBoxes)
+    array.clear(zTop)
+    array.clear(zBot)
+    if showZones and showZoneBox
+        int histLeft = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
+        // (1) أطراف الموجة العاملة الفعّالة: الفهرس (في mcBar) + مستوى الجسم + النوع
+        array<int>   eIdx = array.new<int>()
+        array<float> eLvl = array.new<float>()
+        array<bool>  eTp  = array.new<bool>()
+        int nz2 = array.size(mcBar)
+        for i = 0 to (nz2 > 0 ? nz2 - 1 : 0)
+            if nz2 > 0 and array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
+                int o = bar_index - array.get(mcBar, i)
+                if o >= 0
+                    array.push(eIdx, i)
+                    array.push(eLvl, array.get(mcTop, i) ? math.max(open[o], close[o]) : math.min(open[o], close[o]))
+                    array.push(eTp, array.get(mcTop, i))
+        int en = array.size(eIdx)
+        if en >= 2
+            array<bool> usedZ = array.new<bool>(en, false)
+            // (2) المرشّحات = كلّ زوج من **نفس النوع** (قمّتان/قاعان). المسافة = فرق المستوى (الأقرب سعريًّا أوّلًا)
+            array<int>   pAi = array.new<int>()
+            array<int>   pBi = array.new<int>()
+            array<float> pD  = array.new<float>()
+            for a = 0 to en - 2
+                for b = a + 1 to en - 1
+                    if array.get(eTp, a) == array.get(eTp, b)                // نفس المرحلة فقط (لا «تصحيح معًا»)
+                        array.push(pAi, a)
+                        array.push(pBi, b)
+                        array.push(pD, math.abs(array.get(eLvl, a) - array.get(eLvl, b)))
+            int np = array.size(pD)
+            if np > 0
+                array<bool> pDone = array.new<bool>(np, false)
+                // (3) greedy: أصغر مسافة وطرفاها غير مستهلَكين ⇒ منطقة (إن نجت البوّابات)
+                for _it = 1 to np
+                    int   best = -1
+                    float bd   = 1e18
+                    for x = 0 to np - 1
+                        if not array.get(pDone, x) and not array.get(usedZ, array.get(pAi, x)) and not array.get(usedZ, array.get(pBi, x))
+                            if array.get(pD, x) < bd
+                                bd := array.get(pD, x)
+                                best := x
+                    if best < 0
+                        break
+                    array.set(pDone, best, true)
+                    int aa = array.get(pAi, best)
+                    int bb = array.get(pBi, best)
+                    float cT = math.max(array.get(eLvl, aa), array.get(eLvl, bb))
+                    float cB = math.min(array.get(eLvl, aa), array.get(eLvl, bb))
+                    // بوّابة الاحتواء: مرشّحة داخل منطقة موجودة أو تحتويها
+                    bool contain = false
+                    int zc = array.size(zTop)
+                    if zc > 0
+                        for k = 0 to zc - 1
+                            float zt = array.get(zTop, k)
+                            float zb = array.get(zBot, k)
+                            if (cT <= zt and cB >= zb) or (zt <= cT and zb >= cB)
+                                contain := true
+                    // بوّابة المجاورة: لا مستوى فعّال ثالث بين الحدّين سعريًّا
+                    bool thirdBetween = false
+                    for k = 0 to en - 1
+                        if k != aa and k != bb
+                            float lk = array.get(eLvl, k)
+                            if lk > cB and lk < cT
+                                thirdBetween := true
+                    if not contain and not thirdBetween
+                        array.set(usedZ, aa, true)
+                        array.set(usedZ, bb, true)
+                        array.push(zTop, cT)
+                        array.push(zBot, cB)
+                        int leftBar  = math.min(array.get(mcBar, array.get(eIdx, aa)), array.get(mcBar, array.get(eIdx, bb)))
+                        int loL      = bar_index - leftBar
+                        int leftTm2  = loL >= 0 ? time[loL] : time
+                        int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
+                        array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = cZoneFill))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var table concTbl = table.new(f_pos(concPos), 2, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
