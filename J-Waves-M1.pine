@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.78.0 — [ط4-ب بداية القرار] صفّ «القرار» في اللوحة بقاعدة الأطلس: داخل منطقة ؟ (اتجاه المتوسطة+الكبيرة ⇒ شراء/بيع/كلاهما) : انتظار.
+//   أوّل دمج للحالة (اتجاه + موضع) ⇒ قرار. الفرصة عالية الثقة (اكتمال المرحلة) + الوقف/الهدف = دورات تالية.
 // v0.77.0 — [ط4-أ-3 تصنيف + in_zone] تلوين المناطق حسب موضع السعر: فوق المنطقة⇒دعم(أخضر) · تحتها⇒مقاومة(أحمر) · داخلها⇒نشطة. + صفّ «موضع السعر» في اللوحة (داخل/خارج منطقة).
 // v0.76.0 — [ط4-أ-2 مرحلة ثالثة] تزويج خطوط الماضي (تاريخ/تاريخ-التاريخ) بينها بنفس الطريقة ⇒ لا يبقى خطّ بلا منطقة. حارس «المستوى الثالث» صار يشمل كلّ الطبقات.
 // v0.75.0 — [ط4-أ-2 تصحيح التزويج] greedy **الأصغر مسافةً عالميًّا** داخل كلّ مرحلة (بدل «الأحدث أوّلًا» الذي قد يزوّج الأحدث بشريك بعيد ⇒ منطقة كبيرة).
@@ -1692,7 +1694,7 @@ if barstate.islast
                             array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
-var table concTbl = table.new(f_pos(concPos), 2, 9, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+var table concTbl = table.new(f_pos(concPos), 2, 10, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
     // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
@@ -1757,6 +1759,11 @@ if showConc and barstate.islast
     string zTxt   = inZone ? "داخل منطقة ✓" : nzc == 0 ? "—" : "خارج منطقة"
     table.cell(concTbl, 0, 8, "موضع السعر", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
+    // [ط4-ب بداية القرار] قاعدة الأطلس: القرار = داخل منطقة ؟ (اتجاه المتوسطة+الكبيرة) : انتظار. (الفرصة عالية الثقة باكتمال المرحلة = لاحقًا.)
+    string decTxt = not inZone ? "انتظار (خارج منطقة)" : entry == 1 ? "شراء" : entry == -1 ? "بيع" : entry == 2 ? "بيع/شراء" : "—"
+    color  decBg  = not inZone ? pMute : entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute
+    table.cell(concTbl, 0, 9, "القرار", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
