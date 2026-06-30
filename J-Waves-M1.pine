@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.85.0 — [ط4-ج إشارات تاريخيّة] كتلة مستقلّة (showSignals، بلا اللوحة): علامة ▲/▼ عند كلّ تطرّف صغير فعّال **داخل منطقة باتجاه الموجة** عبر الموجة العاملة
+//   (دخول الانخفاض عند الدعم / الارتداد عند المقاومة). تظهر الإشارات عبر الشارت لا الحاضر فقط. الإشارة المؤكَّدة بالـRR (entryLbl) تبقى للحاضر.
 // v0.84.0 — [L2-04 التأكيد بدرجة الصفقة] درجة الصفقة (متوسطة/صغيرة) تحدّد التأكيد: متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF). مفتاح tradeDeg.
 // v0.83.0 — [ط4-ج إشارة الدخول] وسم «شراء/بيع + RR» على الشارت عند الفرصة المؤكَّدة (دخول ✓) — بشكل الكود القديم (label_up/down + لون الاتجاه). مفتاح showSignals.
 // v0.82.0 — [ط4-ج الوقف/الهدف] صفّا «الوقف» و«الهدف» في اللوحة (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة.
@@ -1919,6 +1921,34 @@ if showConc and barstate.islast
         float  rr    = (not na(stp) and not na(tgt) and close != stp) ? math.abs(tgt - close) / math.abs(close - stp) : na
         string sigTx = (up ? "شراء" : "بيع") + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
         entryLbl := label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = up ? cUp : cDn, textcolor = color.white, size = size.small)
+
+// ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
+//   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
+//   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
+var array<label> sigLabels = array.new<label>()
+if barstate.islast
+    if array.size(sigLabels) > 0
+        for li = 0 to array.size(sigLabels) - 1
+            label.delete(array.get(sigLabels, li))
+    array.clear(sigLabels)
+    int histLs = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
+    int nzs    = array.size(zTop)
+    int nsps   = array.size(scBar)
+    if showSignals and nzs > 0 and bigDir != 0
+        for si = 0 to (nsps > 0 ? nsps - 1 : 0)
+            if nsps > 0 and array.get(scEff, si) and array.get(scBar, si) >= histLs
+                float pp = array.get(scPrc, si)
+                bool  inZs = false
+                for zi = 0 to nzs - 1
+                    if pp <= array.get(zTop, zi) and pp >= array.get(zBot, zi)
+                        inZs := true
+                if inZs
+                    bool isT = array.get(scTop, si)
+                    int  ob  = bar_index - array.get(scBar, si)
+                    if bigDir == 1 and not isT and ob >= 0          // صعود + قاع صغير داخل منطقة ⇒ شراء
+                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▲", xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = cUp, textcolor = color.white, size = size.tiny))
+                    else if bigDir == -1 and isT and ob >= 0        // هبوط + قمّة صغيرة داخل منطقة ⇒ بيع
+                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▼", xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = cDn, textcolor = color.white, size = size.tiny))
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
