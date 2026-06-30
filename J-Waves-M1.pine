@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.93.0 — [بحث الأطلس] التحقّق من مطابقة القرارات للأطلس (side=الدخول · decision=القرار · stop/target موجودان · القوّة 3 أوسع من ثنائيّ الأطلس) + صفّ «الكتلة (أطلس)» A–E في اللوحة.
 // v0.92.1 — [تحقّق شامل — إصلاح②] الإشارات تستثني النقاط **المُغطّاة** (f_coveredAt) — اتّساق مع المناطق/خطوط m.A (كان يُطلِق إشارة عند متوسطة/كبيرة مغطّاة حمراء).
 // v0.92.0 — [تحقّق شامل — إصلاح] لا إشارة (تاريخيّة أو حيّة) **بلا هدف** (المنطقة التالية شرطٌ في الدرس) — كان يُرسَم شراء عند المنطقة العليا/بيع عند السفلى بلا اتّجاه ربح.
 // v0.91.1 — [توسيع التنبيه + ألوان المخاطرة] التنبيه/الوسم الحيّ يشمل الآن **عالية المخاطرة** (ذعر/يأس + تأكيد) مع الأساسيّة. ألوان المخاطرة أفتح (شراء #66BB6A · بيع #E57373).
@@ -1845,7 +1846,7 @@ if barstate.islast
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var label entryLbl = na
-var table concTbl = table.new(f_pos(concPos), 2, 12, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+var table concTbl = table.new(f_pos(concPos), 2, 13, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
     // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
@@ -1955,6 +1956,10 @@ if showConc and barstate.islast
     table.cell(concTbl, 1, 10, na(stp) ? "—" : str.tostring(stp, format.mintick), text_color = color.white, bgcolor = na(stp) ? pMute : cDn, text_size = size.small)
     table.cell(concTbl, 0, 11, "الهدف", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 11, na(tgt) ? "—" : str.tostring(tgt, format.mintick), text_color = color.white, bgcolor = na(tgt) ? pMute : cUp, text_size = size.small)
+    // [بحث الأطلس] الكتلة (السياق): A ك↑م↑(شراء) · B ك↑م↓(تعارض) · C ك↓م↓(بيع) · D ك↓م↑(تعارض) · E خاصّة (ذعر/يأس كبير)
+    string blk = (phB == 1 or phB == 2) ? "E · خاصّة (ذعر/يأس كبير)" : (bigLvlDir == 1 and medLvlDir == 1) ? "A · ك↑م↑ (شراء)" : (bigLvlDir == -1 and medLvlDir == -1) ? "C · ك↓م↓ (بيع)" : (bigLvlDir == 1 and medLvlDir == -1) ? "B · ك↑م↓ (تعارض)" : (bigLvlDir == -1 and medLvlDir == 1) ? "D · ك↓م↑ (تعارض)" : "—"
+    table.cell(concTbl, 0, 12, "الكتلة (أطلس)", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» عند الفرصة المؤكَّدة (دخول ✓): داخل منطقة + اتجاه + تجميع + تأكيد الرابعة
     if not na(entryLbl)
         label.delete(entryLbl)
