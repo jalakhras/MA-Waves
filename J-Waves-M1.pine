@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.87.0 — [ط4-ب-1 عرض المرحلة direction-relative] اكتمال التصحيح (code 3) يُعرَض **تجميع** صعودًا (قاع) · **تصريف** هبوطًا (قمّة) — كما في الدرس (f_phTxt). + مواصفة L2-03/04.
 // v0.86.1 — [إصلاح تناقض اللوحة↔الإشارة] الإشارة تتبع اتجاه **المستوى** (المتوسطة+الكبيرة = entry) نفسه الذي تستعمله اللوحة، لا bigDir الخام
 //   (كانا يتعارضان بعد كسر المستوى: لوحة شراء/إشارة بيع). التوقيت سليم أصلًا: الإشارة عند تطرّف الصغيرة (التصحيح) داخل المنطقة قبل المشاركة الجديدة.
 // v0.86.0 — [إشارات شكل القديم] الإشارة التاريخيّة = وسم «شراء/بيع» + **RR تحته** + **tooltip** (شراء: الهدف/الدخول/الوقف · بيع: الوقف/الدخول/الهدف). الوقف=حافّة المنطقة · الهدف=المنطقة التالية.
@@ -1391,6 +1392,10 @@ f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 f_stTxt(int st) =>
     st == 1 ? "قويّة" : st == 2 ? "متوسطة" : st == -1 ? "ضعيفة" : "—"
 
+// [درس11/L2] نصّ المرحلة direction-relative: اكتمال التصحيح (code 3) = **تجميع** صعودًا (قاع) · **تصريف** هبوطًا (قمّة) — كما في الدرس.
+f_phTxt(int ph, int dir) =>
+    ph == -1 ? "—" : ph == 3 ? (dir == -1 ? "تصريف" : "تجميع") : ph == 2 ? "يأس ⚠" : ph == 1 ? "ذعر ⚠" : "مشاركة"
+
 // [درس09/م3-أ] الاتجاه الفعّال **الملتقَط** (latch) — عرض فقط، لا يمسّ القمم/القيعان (الماضي ثابت):
 //   يبدأ startDir، وينقلب عند كلّ **كسر مؤكَّد** = شمعتان إغلاقًا خلف **جسم** آخر تطرّف فعّال من الجانب الحاليّ (مقاومة هبوطًا/دعم صعودًا)،
 //   ويثبت حتى **كسر معاكس**. (الكسر شرط الانقلاب؛ الارتداد بلا كسر لا يقلب.) يُحاكي تطوّر الاتجاه عبر الموجة دفعةً واحدةً في islast.
@@ -1851,9 +1856,9 @@ if showConc and barstate.islast
     int    phS   = f_phase(dB, dT, dE, smallLvlDir)            // 0 مشاركة · 1 ذعر · 2 يأس · -1 لا سيولة
     int    phM   = f_phase(mcBar, mcTop, mcEff, medLvlDir)
     int    phB   = f_phase(lgBar, lgTop, lgEff, bigLvlDir)
-    string phsS  = phS == -1 ? "—" : phS == 4 ? "تصريف" : phS == 3 ? "تجميع" : phS == 2 ? "يأس ⚠" : phS == 1 ? "ذعر ⚠" : "مشاركة"
-    string phsM  = phM == -1 ? "—" : phM == 4 ? "تصريف" : phM == 3 ? "تجميع" : phM == 2 ? "يأس ⚠" : phM == 1 ? "ذعر ⚠" : "مشاركة"
-    string phsB  = phB == -1 ? "—" : phB == 4 ? "تصريف" : phB == 3 ? "تجميع" : phB == 2 ? "يأس ⚠" : phB == 1 ? "ذعر ⚠" : "مشاركة"
+    string phsS  = f_phTxt(phS, smallLvlDir)
+    string phsM  = f_phTxt(phM, medLvlDir)
+    string phsB  = f_phTxt(phB, bigLvlDir)
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? "صاعدة" : smallLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stS) + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
