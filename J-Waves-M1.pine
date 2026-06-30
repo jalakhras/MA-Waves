@@ -3,6 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.97.1 — [UI/UX — مجموعة إظهار مستقلّة للّوحات] فصل «👁️ إظهار · اللوحات» (لوحة القرار showConc + اختبار الموجة showFrameHelper) عن مجموعة الإشارات ⇒ مفتاح مستقلّ واضح لكلّ لوحة. (المفتاحان كانا موجودَين وعاملَين أصلًا — هذا تنظيم/وضوح فقط، صفر أثر على المنطق.)
+// v0.97.0 — [UI/UX — تنظيم الإعدادات بمجموعات فرعيّة مرتّبة] 25 مجموعة تحت بعضها بتسلسل: ① ضبط/منطق (الموجة·المساعد·الصغيرة·الكبيرة·الخطوط·التغطية·الإشارات·اللوحة) ② إظهار 👁️ (الدرجات·حدود الموجة·المستويات·السيولة·المناطق·الإشارات+اللوحات) ③ ألوان 🎨 (صغيرة·متوسطة·كبيرة·مستويات·سيولة·مناطق·موجة+لوحات) ④ أحجام 📐 (النقاط+الدوائر·عرض الخطوط·الامتداد). كلّ اسم يشرح محتواه. إعادة ترتيب أسطر المدخلات + تسمية المجموعات فقط — صفر أثر على المنطق (نفس المتغيّرات/القيم/الكود؛ 106 مدخلًا كما هي).
+// v0.96.0 — [تنظيم الإعدادات — إلهام القديم] مجموعات عرضيّة مشتركة: 👁️ الإظهار · 🎨 الألوان · 📐 الأحجام (كلّ البصريّ في مكانه). مجموعات المنطق نظيفة (الموجة/الدرجات/الخطوط/المناطق/الإشارات/اللوحة = منطق فقط). تغيير group= فقط + تبسيط بعض المسمّيات + حذف grpMed (المتوسطة كلّها بصريّة). صفر أثر على المنطق (لا أسماء متغيّرات/قيم/كود).
 // v0.95.0 — [ثنائيّة اللغة — عرض فقط] مفتاح Language (AR/EN) + f_t(ar,en): تبديل نصّ اللوحة + الإشارات + المساعد + الكتلة + الوحدات. صفر أثر على المنطق (لم تُلمَس خيارات الإعدادات/المقارنات). أسماء الإعدادات تبقى ثنائيّة النصّ.
 // v0.94.1 — [إصلاح لوحة اختبار الموجة] الحقول الفارغة (نوع التداول/الفريم/الوسيط) عند غياب سيقان متوسطة دافعة ⇒ احتياطيّ بزمن الموجة الكاملة «(الموجة)».
 // v0.94.0 — [تنظيم الإعدادات + أطلس مُركَّب] مجموعات بأدوار واضحة (الكبيرة—الاتجاه · المتوسطة—المناطق · الصغيرة—الدخول…) + docs/build/MWaves_Atlas_synthesized.md.
@@ -116,7 +119,7 @@
 // v0.46.0 — [درس09/م2] رصد كسر مستوى الاتجاه (K2): مفتاح lvlBreakMode (ذيل واحد افتراضيًّا · أو شمعتان إغلاقًا) ⇒ المستوى
 //   المكسور يصير خطًّا متقطّعًا (تعليم بصريّ). دعم يُكسَر للأسفل · مقاومة للأعلى. النقل/الانقلاب في م3.
 // v0.45.1 — [درس09/م1→10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ Range)
-//   + اتجاه سيولة كلّ درجة. مفاتيح grpConc (showConc/concPos/concBg). عرض فقط بلا ربط (سؤال الهبوط = عرضيّ عند التعارض).
+//   + اتجاه سيولة كلّ درجة. مفاتيح لوحة القرار (showConc/concPos/concBg). عرض فقط بلا ربط (سؤال الهبوط = عرضيّ عند التعارض).
 // v0.44.2 — [درس08/ط2] مدخل امتداد خطوط السيولة (liqExtend، افتراضيًّا 24): نهاية مُسقَطة عند الآن+N شمعة (بميل الخطّ) بدل اللانهائيّ.
 // v0.44.1 — [درس08/ط2] اكتمال الجزء2 (خطوط السيولة الثلاثة): المتوسط + الصغير عبر f_liqLine. ⇒ اكتمل الدرس08 الرسم
 //   (6 خطوط: 3 مستويات على الأجسام + 3 سيولة على الذيول). عرض مستقلّ لكلّ. التالي: درس09 (الكسر/التجدّد).
@@ -137,7 +140,7 @@
 // v0.40.1 — [درس07] ضبط لون الكبيرة: التعبئة الزرقاء @45 (أخفّ قليلًا من الحدّ @30 لا بفارق كبير) — منزلقا شفافيّة للضبط.
 // v0.40.0 — [درس07] الدرجة الكبيرة (طريقة leg): كلّ حدّ موجة (segLefts = أطراف الـleg) = قمّة/قاع كبير، يمرّ بنفس
 //   قوانين الدرجة (largeDeg.feedPivot، اتجاه bigDir) ⇒ دوائر زرقاء فعّالة 🔵 + غير فعّالة (عرض). تُرسَم على نفس مواضع
-//   المتوسطة (segLeftPx) ⇒ تعشيش مضمون (كبيرة ⊂ متوسطة ⊂ صغيرة). وصل الفعّالة. مفاتيح grpBig. درجات اللوحة ⇒ 3/3.
+//   المتوسطة (segLeftPx) ⇒ تعشيش مضمون (كبيرة ⊂ متوسطة ⊂ صغيرة). وصل الفعّالة. مفاتيح الكبيرة. درجات اللوحة ⇒ 3/3.
 // v0.39.3 — [درس03] إزالة حواف مستطيلات (الموجة + التواريخ) border_width=0 لئلّا تُخفي ذيول الشموع (تبقى التعبئة الشفّافة).
 // v0.39.2 — [درس03] ثلاثة مفاتيح حدود فقط: الموجة التاريخية الفعّالة (showHist) · تاريخ التاريخ (showHoh، الأقرب)
 //   · التاريخ الأقدم (showOlder، ما قبله). حُذف «حدود التاريخ» المنفصل. كلٌّ يُخفي المستطيل فقط (القمم/القيعان تبقى).
@@ -197,145 +200,197 @@ indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count 
 // ط0 — الأساس: الموجة التاريخية + تاريخ التاريخ   [درس 03-04]
 // ════════════════════════════════════════════════════════════════════════════
 
-// ─── المدخلات: عامّ — لغة العرض (عرض فقط، لا يمسّ المنطق) ───
+// ════════════ المدخلات — مُنظَّمة UI/UX: ① ضبط/منطق ② إظهار 👁️ ③ ألوان 🎨 ④ أحجام 📐 ════════════
+// تنظيم/عرض فقط — صفر أثر على المنطق: نفس المتغيّرات والقيم تمامًا؛ تغيّر group= والترتيب والمسمّيات فقط.
+
+// ─── 🌐 عامّ ───
 string grpGen  = "🌐 General / عامّ"
 string uiLang  = input.string("AR / عربيّة", "Display language / لغة العرض", options = ["AR / عربيّة", "EN / English"], group = grpGen, tooltip = "لغة النصّ المعروض (اللوحة · الإشارات · المساعد). أسماء الإعدادات تبقى ثنائيّة. عرض فقط — صفر أثر على المنطق.")
 f_t(string ar, string en) => uiLang == "AR / عربيّة" ? ar : en   // مبدِّل نصّ عرض بحت
 
-// ─── المدخلات: الموجة التاريخية ───
-string grpHist = "🌊 Wave & Frame / الموجة والإطار (ابدأ هنا)"
-bool   showHist = input.bool(true, "Active historical-wave bounds / حدود الموجة التاريخية الفعّالة", group = grpHist)
-bool   useHistN = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpHist, tooltip = "On: bounds over the last N candles. Off: auto — current move from its origin to now.\nمفعّل: آخر N شمعة. مطفأ: تلقائيّ — الحركة الحاليّة من أصلها إلى الآن.")
-int    histBars = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpHist)
-color  cHist    = input.color(color.new(#607D8B, 82), "Historical wave color / لون الموجة التاريخية", group = grpHist)
-bool   showHoh  = input.bool(true, "History-of-history bounds / حدود تاريخ التاريخ", group = grpHist, tooltip = "يُظهر/يُخفي مستطيل موجة «تاريخ التاريخ» (الأقرب خلف الفعّالة) فقط — القمم/القيعان تبقى مرسومة.")
-bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpHist, tooltip = "On: N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
-int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpHist)
-int    histDepth = input.int(7, "Auto history depth (legs) / عمق التواريخ التلقائيّ (سيقان)", minval = 1, maxval = 12, group = grpHist, tooltip = "في الوضع التلقائيّ: كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة. كلّ ساق = موجة واحدة (اتجاه واحد) تُحلَّل بقوانينها.")
-bool   showOlder = input.bool(true, "Older-history bounds / حدود التاريخ الأقدم", group = grpHist, tooltip = "يُظهر/يُخفي مستطيلات التاريخ الأقدم (ما قبل تاريخ التاريخ) — القمم/القيعان تبقى مرسومة.")
-color  cHoh     = input.color(color.new(#808080, 88), "Prior-history color / لون تاريخ التاريخ", group = grpHist)
-// [درس04] محرّك الـleg (التلقائيّ): حدود الموجة وحجمها من السعر الخام بعتبة نسبيّة (لا ATR)
-float  legMinRatio  = input.float(0.45, "Auto wave-leg size (× wave amplitude) / حجم ساق الموجة (× السعة)", minval = 0.05, maxval = 1.0, step = 0.05, group = grpHist, tooltip = "الضابط الرئيسيّ لحجم الموجة التلقائيّة: عتبة انعكاس الساق = هذه النسبة × سعة الموجة. أكبر ⇒ موجة أكبر.")
-int    ampLen       = input.int(500, "Amplitude reference window / نافذة مرجع السعة", minval = 50, group = grpHist, tooltip = "نافذة حساب سعة الموجة (المقياس فقط، لا حدود الموجة) + الاتجاه. سخيّة لتغطّي الموجة.")
-int    bigMinSwings = input.int(2, "Min candles per leg / أدنى شموع للساق", minval = 1, maxval = 10, group = grpHist, tooltip = "يكبح السيقان الصغيرة جدًّا.")
+// ═══════════════ القسم ① — الضبط والمنطق (Setup & Logic) ═══════════════
+// ─── 🌊 الموجة والإطار · الضبط (ابدأ هنا) ───
+string grpWave = "🌊 Wave & Frame · Setup / الموجة والإطار · الضبط (ابدأ هنا)"
+bool   useHistN = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpWave, tooltip = "On: bounds over the last N candles. Off: auto — current move from its origin to now.\nمفعّل: آخر N شمعة. مطفأ: تلقائيّ — الحركة الحاليّة من أصلها إلى الآن.")
+int    histBars = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpWave)
+bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpWave, tooltip = "On: N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
+int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpWave)
+int    histDepth = input.int(7, "Auto history depth (legs) / عمق التواريخ التلقائيّ (سيقان)", minval = 1, maxval = 12, group = grpWave, tooltip = "في الوضع التلقائيّ: كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة. كلّ ساق = موجة واحدة (اتجاه واحد) تُحلَّل بقوانينها.")
+float  legMinRatio  = input.float(0.45, "Auto wave-leg size (× wave amplitude) / حجم ساق الموجة (× السعة)", minval = 0.05, maxval = 1.0, step = 0.05, group = grpWave, tooltip = "الضابط الرئيسيّ لحجم الموجة التلقائيّة: عتبة انعكاس الساق = هذه النسبة × سعة الموجة. أكبر ⇒ موجة أكبر.")
+int    ampLen       = input.int(500, "Amplitude reference window / نافذة مرجع السعة", minval = 50, group = grpWave, tooltip = "نافذة حساب سعة الموجة (المقياس فقط، لا حدود الموجة) + الاتجاه. سخيّة لتغطّي الموجة.")
+int    bigMinSwings = input.int(2, "Min candles per leg / أدنى شموع للساق", minval = 1, maxval = 10, group = grpWave, tooltip = "يكبح السيقان الصغيرة جدًّا.")
 
-// ─── المدخلات: لوحة اختبار الموجة (تصميم الكود السابق) ───
-string grpFH = "🧪 Frame Helper / مساعد اختيار الإطار"
-bool   showFrameHelper = input.bool(true, "Wave-test panel (wave time ⇒ trading type) / لوحة اختبار الموجة", group = grpFH)
-string fhPos        = input.string("Top L", "Panel position / موضع اللوحة", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpFH)
+// ─── 🧪 مساعد الإطار · الضبط ───
+string grpFH = "🧪 Frame Helper · Setup / مساعد الإطار · الضبط"
 float  swingMinDays = input.float(2.0, "Swing lower bound (days/wave) — below = Scalp / حدّ السوينغ الأدنى", minval = 0.1, step = 0.5, group = grpFH, tooltip = "زمن الموجة أقلّ من هذا ⇒ مضاربة ⇒ اصعد فريمًا.")
 float  swingMaxDays = input.float(10.0, "Swing upper bound (days/wave) — above = Invest / حدّ السوينغ الأعلى", minval = 0.5, step = 0.5, group = grpFH, tooltip = "زمن الموجة أكثر من هذا ⇒ استثمار ⇒ انزل فريمًا.")
-color  fhBg         = input.color(#1E222D, "Panel background / خلفية اللوحة", group = grpFH)
+string fhPos        = input.string("Top L", "Frame-helper position / موضع مساعد الإطار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpFH)
 
-// ─── المدخلات: الدرجة 0 (الصغيرة) ───
-string grpSmall = "🔴 Small — Market State & Entry / الصغيرة — حالة السوق والدخول"
-bool   showSmall = input.bool(true, "Show small pivots / إظهار القمم والقيعان الصغيرة", group = grpSmall)
+// ─── 🔴 الصغيرة · المنطق (حالة السوق والدخول) ───
+string grpSmall = "🔴 Small · Logic / الصغيرة · المنطق (حالة السوق والدخول)"
 int    minCorr   = input.int(2, "Correction candles to confirm / شموع التصحيح للتأكيد", minval = 1, maxval = 5, group = grpSmall, tooltip = "[درس 05] شمعتان صحيحتان في اتجاه التصحيح.")
 bool   useValid  = input.bool(true, "Require valid candle (body ≥ each wick) / اشتراط الشمعة الصحيحة", group = grpSmall, tooltip = "[درس 05] النويز = ذيل أطول من الجسم ⇒ يُستبعَد.")
-color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpSmall)
-color  cBot      = input.color(#4CAF50, "Small bottom / قاع صغير", group = grpSmall)
-float  arrLen    = input.float(0.4, "Arrow length / طول السهم", minval = 0.1, step = 0.01, group = grpSmall, tooltip = "نسبة من نطاق سعريّ أصيل (لا ATR) — حجم رسم فقط.")
-float  arrWidth  = input.float(2.0, "Arrow width (candles) / عرض السهم", minval = 1.0, maxval = 10.0, step = 0.01, group = grpSmall)
-bool   linkSmall = input.bool(true, "Link small pivots / وصل القمم والقيعان بخطوط", group = grpSmall)
-color  cLineS    = input.color(color.new(color.gray, 55), "Link line / لون خطّ الوصل", group = grpSmall)
 
-// ─── المدخلات: الدرجة 1 (المتوسطة) [درس 06] — دوائر برتقاليّة، نفس إعدادات الكود القديم ───
-string grpMed     = "🟠 Medium — Zones / المتوسطة — صناعة المناطق"
-bool   showMedium = input.bool(true, "Show medium pivots / إظهار المتوسطة", group = grpMed)
-color  cMed       = input.color(color.new(#FF9800, 80), "Medium fill (effective) / تعبئة المتوسطة (فعّالة، شفافيّة 20%)", group = grpMed)
-color  cMedBorder = input.color(color.new(#FF9800, 30), "Medium border / حدّ المتوسطة (برتقاليّ، معتم قليلًا)", group = grpMed)
-string medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة (فعّالة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
-// المتوسطة **غير الفعّالة** (أسقطها قانونا التتابُع+الفعاليّة): تُبقى للعرض فقط (المراحل القادمة على الفعّالة وحدها) — مميَّزة جيّدًا
-bool   showNonEff = input.bool(true, "Show non-effective medium (display only) / إظهار المتوسطة غير الفعّالة (للعرض فقط)", group = grpMed)
-color  cMedDead   = input.color(color.new(#3C171A, 80), "Non-effective fill / تعبئة غير الفعّالة (أحمر، شفافيّة 20%)", group = grpMed)
-color  cMedDeadBorder = input.color(color.new(#FF9800, 30), "Non-effective border / حدّ غير الفعّالة (برتقاليّ، معتم قليلًا — دلالة الدرجة)", group = grpMed)
-string nonEffCircleSize = input.string("Fine", "Non-effective circle size / حجم دائرة غير الفعّالة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpMed)
-color  cMedPendFill   = input.color(color.new(color.gray, 30), "Medium pending fill / تعبئة المعلّقة (رماديّ)", group = grpMed)
-color  cMedPendBorder = input.color(color.new(#FF9800, 30), "Medium pending border / حدّ المعلّقة (برتقاليّ، معتم قليلًا)", group = grpMed)
-bool   linkMed    = input.bool(true, "Link medium pivots / وصل المتوسطة بخطوط", group = grpMed)
-color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / لون خطّ وصل المتوسطة", group = grpMed)
+// ─── 🔵 الكبيرة · المنطق (الاتجاه العامّ) ───
+string grpLarge = "🔵 Large · Logic / الكبيرة · المنطق (الاتجاه العامّ)"
+bool   useBigBreak = input.bool(false, "Large by break-from-medium (else leg) / استخراج الكبيرة بالكسر من المتوسطة (وإلّا leg)", group = grpLarge, tooltip = "مطفأ: الكبيرة = حدود الموجات (أطراف الـleg). مفعّل: الكبيرة = قمم/قيعان متوسطة فعّالة يُنتقى منها بالكسر (قاعدة ب) ⇒ تعشيش أصرم.")
+bool   legLiveBreak = input.bool(true, "  ↳ leg: live wave by break / في وضع leg: الموجة الجارية بالكسر", group = grpLarge, tooltip = "يعمل فقط في وضع leg (useBigBreak مطفأ). مشغَّل: الكبيرة التاريخيّة من حدود الـleg (ثابتة)، والموجة الجارية (بعد آخر حدّ leg) تُستخرَج كبيرتها بالكسر من المتوسطة للأمام. مطفأ: leg نقيّ (الموجة الجارية = حدّها فقط).")
 
-// ─── المدخلات: الدرجة الكبيرة [درس 07] (الكبيرة = حدود الموجات = أطراف الـleg، نفس قوانين الدرجة) ───
-string grpBig     = "🔵 Large — Trend / الكبيرة — الاتجاه العامّ"
-bool   showLarge  = input.bool(true, "Show large pivots / إظهار الكبيرة", group = grpBig)
-bool   useBigBreak = input.bool(false, "Large by break-from-medium (else leg) / استخراج الكبيرة بالكسر من المتوسطة (وإلّا leg)", group = grpBig, tooltip = "مطفأ: الكبيرة = حدود الموجات (أطراف الـleg). مفعّل: الكبيرة = قمم/قيعان متوسطة فعّالة يُنتقى منها بالكسر (قاعدة ب) ⇒ تعشيش أصرم.")
-bool   legLiveBreak = input.bool(true, "  ↳ leg: live wave by break / في وضع leg: الموجة الجارية بالكسر", group = grpBig, tooltip = "يعمل فقط في وضع leg (useBigBreak مطفأ). مشغَّل: الكبيرة التاريخيّة من حدود الـleg (ثابتة)، والموجة الجارية (بعد آخر حدّ leg) تُستخرَج كبيرتها بالكسر من المتوسطة للأمام. مطفأ: leg نقيّ (الموجة الجارية = حدّها فقط).")
-color  cBig       = input.color(color.new(#2457E2, 45), "Large fill (effective) / تعبئة الكبيرة (فعّالة، أخفّ قليلًا من الحدّ)", group = grpBig)
-color  cBigBorder = input.color(color.new(#2457E2, 30), "Large border / حدّ الكبيرة (أزرق، معتم قليلًا)", group = grpBig)
-string largeCircleSize = input.string("Normal", "Large circle size / حجم دائرة الكبيرة (فعّالة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpBig)
-bool   showNonEffBig = input.bool(true, "Show non-effective large (display only) / إظهار الكبيرة غير الفعّالة", group = grpBig)
-color  cBigDead   = input.color(color.new(#3C171A, 80), "Non-effective fill / تعبئة غير الفعّالة (أحمر)", group = grpBig)
-color  cBigDeadBorder = input.color(color.new(#2457E2, 30), "Non-effective border / حدّ غير الفعّالة (أزرق — دلالة الدرجة)", group = grpBig)
-string nonEffBigSize = input.string("Small", "Non-effective large size / حجم غير الفعّالة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpBig)
-bool   linkLarge  = input.bool(true, "Link large pivots / وصل الكبيرة بخطوط", group = grpBig)
-color  cLineBig   = input.color(color.new(#2457E2, 55), "Large link line / لون خطّ وصل الكبيرة", group = grpBig)
-
-// ─── المدخلات: ط2 — مستويات الاتجاه + السيولة [درس 08] (الجزء1: المستويات · كبيرة→متوسطة→صغيرة) ───
-string grpLines  = "📏 Trend Levels & Liquidity / خطوط المستوى والسيولة"
-bool   showLevel = input.bool(true, "Show trend levels (master) / إظهار مستويات الاتجاه (رئيسيّ)", group = grpLines)
-bool   showLvlB  = input.bool(true, "  ↳ large level / مستوى الكبير", inline = "lvlsh", group = grpLines)
-bool   showLvlM  = input.bool(true, "  ↳ medium / المتوسط", inline = "lvlsh", group = grpLines)
-bool   showLvlS  = input.bool(true, "  ↳ small / الصغير", inline = "lvlsh", group = grpLines)
-color  cLvlB     = input.color(color.new(#2457E2, 0), "Large trend level / مستوى الاتجاه الكبير (أزرق)", group = grpLines)
-int    lvlWidthB = input.int(3, "Large level width / عرض مستوى الكبير", minval = 1, maxval = 8, group = grpLines)
-color  cLvlM     = input.color(color.new(#FF9800, 0), "Medium trend level / مستوى الاتجاه المتوسط (برتقاليّ)", group = grpLines)
-int    lvlWidthM = input.int(2, "Medium level width / عرض مستوى المتوسط", minval = 1, maxval = 8, group = grpLines)
-color  cLvlS     = input.color(color.new(#F23645, 0), "Small trend level / مستوى الاتجاه الصغير (أحمر)", group = grpLines)
-int    lvlWidthS = input.int(1, "Small level width / عرض مستوى الصغير", minval = 1, maxval = 8, group = grpLines)
-int    levelExtend = input.int(24, "Level extension past now (candles) / مدى امتداد المستوى بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
+// ─── 📏 الخطوط · المنطق ───
+string grpLines = "📏 Lines · Logic / الخطوط · المنطق"
 string lvlBreakMode = input.string("2 candles", "Level break mode / معيار كسر المستوى", options = ["Wick (1)", "2 candles"], group = grpLines, tooltip = "شمعتان إغلاقًا (الدرس09+الكتاب+القائمة+القديم — الأصحّ للانقلاب) أو ذيل شمعة واحدة (أسماء، للتعليم السريع). يُعتمَد للانقلاب (م3) والتعليم.")
-int    brkWidthB = input.int(3, "Broken-line width — large / عرض الخطّ المكسور — كبير", minval = 1, maxval = 8, group = grpLines)
-int    brkWidthM = input.int(2, "Broken-line width — medium / عرض الخطّ المكسور — متوسط", minval = 1, maxval = 8, group = grpLines)
-int    brkWidthS = input.int(1, "Broken-line width — small / عرض الخطّ المكسور — صغير", minval = 1, maxval = 8, group = grpLines)
-bool   showBroken = input.bool(true, "Show broken lines for display (else hide) / إظهار الخطوط المكسورة للعرض (وإلّا تُخفى) — لا يُعتمَد عليها", group = grpLines)
-bool   showLiq   = input.bool(true, "Show liquidity lines (master) / إظهار خطوط السيولة (رئيسيّ)", group = grpLines)
-bool   showLiqB  = input.bool(true, "  ↳ large liq / سيولة الكبير", inline = "liqsh", group = grpLines)
-bool   showLiqM  = input.bool(true, "  ↳ medium / المتوسط", inline = "liqsh", group = grpLines)
-bool   showLiqS  = input.bool(true, "  ↳ small / الصغير", inline = "liqsh", group = grpLines)
-color  cLiqB     = input.color(color.new(#2457E2, 0), "Large liquidity / سيولة الكبير (أزرق)", group = grpLines)
-int    liqWidthB = input.int(3, "Large liquidity width / عرض سيولة الكبير", minval = 1, maxval = 8, group = grpLines)
-color  cLiqM     = input.color(color.new(#FF9800, 0), "Medium liquidity / سيولة المتوسط (برتقاليّ)", group = grpLines)
-int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة المتوسط", minval = 1, maxval = 8, group = grpLines)
-color  cLiqS     = input.color(color.new(#F23645, 0), "Small liquidity / سيولة الصغير (أحمر)", group = grpLines)
-int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpLines)
-int    liqExtend = input.int(24, "Liquidity extension past now (candles) / مدى امتداد السيولة بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
 
-// ─── المدخلات: المناطق [الدرس L2-02 / ط4-أ] — مستويات م.A على أجسام المتوسطة الفعّالة ───
-string grpZone     = "🟦 Zones (Support/Resistance) / المناطق (الدعم والمقاومة)"
-bool   showZones   = input.bool(true, "Show zones module / إظهار وحدة المناطق", group = grpZone)
-bool   showZoneLvl = input.bool(true, "Show M.A level lines / خطوط مستويات م.A (على الأجسام)", group = grpZone, tooltip = "خطّ أفقيّ على جسم كلّ قمّة/قاع متوسط فعّال: القمّة من أعلى الجسم · القاع من أسفله (الدرس L2-02). الموجة العاملة فقط.")
-color  cZoneLvl    = input.color(color.new(#D1D4DC, 0), "M.A level color / لون مستويات م.A", group = grpZone)
-bool   showZoneBox = input.bool(true, "Show zone boxes / مستطيلات المناطق", group = grpZone, tooltip = "مستطيل بين كلّ مستويين متقاربين من نفس المرحلة (قمّتان/قاعان) في الموجة العاملة: greedy الأقرب سعريًّا + منع الاحتواء + منع مستوى ثالث بينهما (الدرس L2-02).")
-color  cZoneFill   = input.color(color.new(#2E75B6, 80), "Zone fill (in-zone/active) / تعبئة المنطقة النشطة (السعر داخلها)", group = grpZone)
-color  cZoneBorder = input.color(color.new(#2E75B6, 40), "Zone border / حدّ المنطقة", group = grpZone)
-color  cZoneSup    = input.color(color.new(#089981, 82), "Support zone fill / تعبئة منطقة الدعم (تحت السعر، أخضر)", group = grpZone)
-color  cZoneRes    = input.color(color.new(#F23645, 82), "Resistance zone fill / تعبئة منطقة المقاومة (فوق السعر، أحمر)", group = grpZone)
-int    zoneExtend  = input.int(24, "Zone extension past now (candles) / مدى امتداد المنطقة بعد السعر (شموع)", minval = 0, maxval = 500, group = grpZone)
-// [الدرس05 — التغطية] قانون التغطية لكلّ طبقة موجة (قمّة مُغطّاة بأعلى لاحقة · قاع بأدنى لاحق ⇒ غير فعّالة ⇒ لا م.A/منطقة):
+// ─── 🟦 المناطق · منطق التغطية [الدرس05] (قمّة مُغطّاة بأعلى لاحقة · قاع بأدنى لاحق ⇒ غير فعّالة) ───
+string grpZone = "🟦 Zones · Coverage Logic / المناطق · منطق التغطية"
 bool   covCur      = input.bool(false, "Coverage: current wave / التغطية: الموجة الحاليّة", group = grpZone, tooltip = "الموجة الحاليّة هي الترند الحيّ ⇒ مطفأة افتراضيًّا (تبقى نقاطها فعّالة). المغطّى غالبًا في الماضي.")
 bool   covHist     = input.bool(true, "Coverage: history / التغطية: التاريخ", group = grpZone)
 bool   covHoH      = input.bool(false, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone)
-bool   dbgCov      = input.bool(false, "Diag: show covered levels (red dashed) / تشخيص: إظهار المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
-bool   showCovered = input.bool(true, "Show covered pivots (red, when coverage on) / إظهار دوائر المغطّى (أحمر، حين القانون مفعّل)", group = grpZone, tooltip = "حين يكون قانون التغطية مفعّلًا لطبقة النقطة: المغطّى يُلوَّن أحمر إن فُعِّل هذا المفتاح، أو يُخفى إن أُطفئ. لا أثر له إن كان القانون مطفأً (لا تغطية).")
+bool   dbgCov      = input.bool(false, "Diag: covered levels (red dashed) / تشخيص: المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
 
-// ─── المدخلات: لوحة الاستنتاجات [درس 10 — مبدئيًّا: اتجاه السيولة من ميل الخطوط] (تصميم القديم) ───
-string grpConc  = "🧭 Decision Panel / لوحة القرار والاستنتاجات"
-bool   showConc = input.bool(true, "Conclusions panel / لوحة الاستنتاجات", group = grpConc, tooltip = "اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ). + اتجاه سيولة كلّ درجة. عرض فقط بلا ربط بالاستخراج (درس09 م1).")
-string concPos  = input.string("Top R", "Panel position / موضع اللوحة", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpConc)
-color  concBg   = input.color(#1E222D, "Panel background / خلفية اللوحة", group = grpConc)
+// ─── ✅ الإشارات · المنطق والتنبيه [L2-04] ───
+string grpSig = "✅ Signals · Logic & Alerts / الإشارات · المنطق والتنبيه"
+bool   enableConf   = input.bool(true, "Enable 4th-degree confirmation / تفعيل تأكيد الرابعة", group = grpSig, tooltip = "كسر آخر قمّة/قاع على فريم أصغر (request.security) ⇒ يرقّي الفرصة القويّة إلى «دخول ✓». ⚠ يعيد الرسم على الشمعة الجارية (طبيعيّ للحظيّ).")
+bool   confAuto     = input.bool(true, "Auto TF (chart ÷ divisor) / فريم تلقائيّ (الشارت ÷ معامل)", group = grpSig)
+int    confDiv      = input.int(12, "Auto divisor (finer-degree factor) / معامل التنعيم", minval = 2, maxval = 60, group = grpSig, tooltip = "فريم التأكيد ≈ الشارت ÷ هذا المعامل. 12 ≈ درجة أنعم (1س→5د). اضبطه ليطابق «أنعم بدرجة من الصغيرة» في سوقك.")
+string confTfManual = input.timeframe("5", "Manual TF (when Auto off) / الفريم اليدويّ (حين الإطفاء)", group = grpSig)
+bool   enableAlerts = input.bool(true, "Fire alert on confirmed entry / إطلاق تنبيه عند الدخول المؤكَّد", group = grpSig, tooltip = "يُطلِق alert() عند الفرصة المؤكَّدة (دخول ✓). نوع التنبيه (تطبيق/توست/صوت/إشعار) تختاره في نافذة «Create Alert» في TradingView — Pine يُطلِق الحدث فقط.")
+string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpSig, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
 
-// ─── المدخلات: تأكيد الرابعة (MTF) [الدرس L2-04] — التأكيد من فريم أصغر بلا تبديل فريمك ───
-string grpConf      = "✅ Signals, Confirmation & Alerts / الإشارات والتأكيد والتنبيهات"
-bool   enableConf   = input.bool(true, "Enable 4th-degree confirmation / تفعيل تأكيد الرابعة", group = grpConf, tooltip = "كسر آخر قمّة/قاع على فريم أصغر (request.security) ⇒ يرقّي الفرصة القويّة إلى «دخول ✓». ⚠ يعيد الرسم على الشمعة الجارية (طبيعيّ للحظيّ).")
-bool   confAuto     = input.bool(true, "Auto TF (chart ÷ divisor) / فريم تلقائيّ (الشارت ÷ معامل)", group = grpConf)
-int    confDiv      = input.int(12, "Auto divisor (finer-degree factor) / معامل التنعيم", minval = 2, maxval = 60, group = grpConf, tooltip = "فريم التأكيد ≈ الشارت ÷ هذا المعامل. 12 ≈ درجة أنعم (1س→5د). اضبطه ليطابق «أنعم بدرجة من الصغيرة» في سوقك.")
-string confTfManual = input.timeframe("5", "Manual TF (when Auto off) / الفريم اليدويّ (حين الإطفاء)", group = grpConf)
-bool   showSignals  = input.bool(true, "Show signals (master) / إظهار الإشارات (رئيسيّ)", group = grpConf, tooltip = "المفتاح العامّ لكلّ الإشارات (الدرجات الثلاث). يُغلق كلّ الإشارات دفعةً.")
-bool   showSigL     = input.bool(true, "  ↳ large-degree signals / إشارات الكبيرة", inline = "sigdeg", group = grpConf)
-bool   showSigM     = input.bool(true, "  ↳ medium / المتوسطة", inline = "sigdeg", group = grpConf)
-bool   showSigS     = input.bool(true, "  ↳ small / الصغيرة", inline = "sigdeg", group = grpConf)
-bool   enableAlerts = input.bool(true, "Fire alert on confirmed entry / إطلاق تنبيه عند الدخول المؤكَّد", group = grpConf, tooltip = "يُطلِق alert() عند الفرصة المؤكَّدة (دخول ✓). نوع التنبيه (تطبيق/توست/صوت/إشعار) تختاره في نافذة «Create Alert» في TradingView — Pine يُطلِق الحدث فقط.")
-string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpConf, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
+// ─── 🧭 لوحة القرار · التخطيط ───
+string grpPanel = "🧭 Decision Panel · Layout / لوحة القرار · التخطيط"
+string concPos  = input.string("Top R", "Decision-panel position / موضع لوحة القرار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpPanel)
+
+// ═══════════════ القسم ② — الإظهار / الإخفاء (Visibility 👁️) ═══════════════
+// ─── 👁️ إظهار · الدرجات (النقاط والوصل) ───
+string grpShDeg = "👁️ Show · Degrees (pivots & links) / إظهار · الدرجات (النقاط والوصل)"
+bool   showSmall  = input.bool(true, "Small pivots / الصغيرة", group = grpShDeg)
+bool   linkSmall  = input.bool(true, "  ↳ link small / وصل الصغيرة", group = grpShDeg)
+bool   showMedium = input.bool(true, "Medium pivots / المتوسطة", group = grpShDeg)
+bool   showNonEff = input.bool(true, "  ↳ non-effective medium / المتوسطة غير الفعّالة", group = grpShDeg, tooltip = "للعرض فقط — المراحل على الفعّالة وحدها.")
+bool   linkMed    = input.bool(true, "  ↳ link medium / وصل المتوسطة", group = grpShDeg)
+bool   showLarge  = input.bool(true, "Large pivots / الكبيرة", group = grpShDeg)
+bool   showNonEffBig = input.bool(true, "  ↳ non-effective large / الكبيرة غير الفعّالة", group = grpShDeg)
+bool   linkLarge  = input.bool(true, "  ↳ link large / وصل الكبيرة", group = grpShDeg)
+
+// ─── 👁️ إظهار · حدود الموجة ───
+string grpShWv = "👁️ Show · Wave bounds / إظهار · حدود الموجة"
+bool   showHist  = input.bool(true, "Historical-wave bounds / حدود الموجة التاريخية", group = grpShWv)
+bool   showHoh   = input.bool(true, "History-of-history bounds / حدود تاريخ التاريخ", group = grpShWv, tooltip = "يُظهر/يُخفي مستطيل موجة «تاريخ التاريخ» فقط — القمم/القيعان تبقى مرسومة.")
+bool   showOlder = input.bool(true, "Older-history bounds / حدود التاريخ الأقدم", group = grpShWv, tooltip = "يُظهر/يُخفي مستطيلات التاريخ الأقدم — القمم/القيعان تبقى مرسومة.")
+
+// ─── 👁️ إظهار · مستويات الاتجاه ───
+string grpShLvl = "👁️ Show · Trend levels / إظهار · مستويات الاتجاه"
+bool   showLevel = input.bool(true, "Trend levels (master) / مستويات الاتجاه (رئيسيّ)", group = grpShLvl)
+bool   showLvlB  = input.bool(true, "  ↳ large / الكبير", inline = "lvlsh", group = grpShLvl)
+bool   showLvlM  = input.bool(true, "  ↳ medium / المتوسط", inline = "lvlsh", group = grpShLvl)
+bool   showLvlS  = input.bool(true, "  ↳ small / الصغير", inline = "lvlsh", group = grpShLvl)
+bool   showBroken = input.bool(true, "Broken lines (display) / الخطوط المكسورة (عرض)", group = grpShLvl, tooltip = "إظهار الخطوط المكسورة متقطّعة (وإلّا تُخفى) — لا يُعتمَد عليها في القرار.")
+
+// ─── 👁️ إظهار · خطوط السيولة ───
+string grpShLiq = "👁️ Show · Liquidity lines / إظهار · خطوط السيولة"
+bool   showLiq   = input.bool(true, "Liquidity lines (master) / خطوط السيولة (رئيسيّ)", group = grpShLiq)
+bool   showLiqB  = input.bool(true, "  ↳ large / الكبير", inline = "liqsh", group = grpShLiq)
+bool   showLiqM  = input.bool(true, "  ↳ medium / المتوسط", inline = "liqsh", group = grpShLiq)
+bool   showLiqS  = input.bool(true, "  ↳ small / الصغير", inline = "liqsh", group = grpShLiq)
+
+// ─── 👁️ إظهار · المناطق ───
+string grpShZn = "👁️ Show · Zones / إظهار · المناطق"
+bool   showZones   = input.bool(true, "Zones module / وحدة المناطق", group = grpShZn)
+bool   showZoneLvl = input.bool(true, "M.A level lines / خطوط مستويات م.A", group = grpShZn, tooltip = "خطّ أفقيّ على جسم كلّ قمّة/قاع متوسط فعّال: القمّة من أعلى الجسم · القاع من أسفله (الدرس L2-02). الموجة العاملة فقط.")
+bool   showZoneBox = input.bool(true, "Zone boxes / مستطيلات المناطق", group = grpShZn, tooltip = "مستطيل بين كلّ مستويين متقاربين من نفس المرحلة (قمّتان/قاعان) في الموجة العاملة: greedy الأقرب سعريًّا + منع الاحتواء + منع مستوى ثالث بينهما (الدرس L2-02).")
+bool   showCovered = input.bool(true, "Covered pivots (red) / دوائر المغطّى (أحمر)", group = grpShZn, tooltip = "حين يكون قانون التغطية مفعّلًا لطبقة النقطة: المغطّى يُلوَّن أحمر إن فُعِّل هذا المفتاح، أو يُخفى إن أُطفئ. لا أثر له إن كان القانون مطفأً (لا تغطية).")
+
+// ─── 👁️ إظهار · الإشارات ───
+string grpShSig = "👁️ Show · Signals / إظهار · الإشارات"
+bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpShSig, tooltip = "المفتاح العامّ لكلّ الإشارات (الدرجات الثلاث). يُغلق كلّ الإشارات دفعةً.")
+bool   showSigL     = input.bool(true, "  ↳ large / الكبيرة", inline = "sigdeg", group = grpShSig)
+bool   showSigM     = input.bool(true, "  ↳ medium / المتوسطة", inline = "sigdeg", group = grpShSig)
+bool   showSigS     = input.bool(true, "  ↳ small / الصغيرة", inline = "sigdeg", group = grpShSig)
+
+// ─── 👁️ إظهار · اللوحات (لكلّ لوحة مفتاح مستقلّ) ───
+string grpShPanel = "👁️ Show · Panels / إظهار · اللوحات"
+bool   showConc        = input.bool(true, "Decision panel / لوحة القرار", group = grpShPanel, tooltip = "إظهار/إخفاء لوحة القرار (الاتجاه · السيولة · القوّة · الدخول · القرار · الكتلة). عرض فقط بلا ربط بالاستخراج (درس09 م1).")
+bool   showFrameHelper = input.bool(true, "Wave-test (frame helper) panel / لوحة اختبار الموجة (مساعد الإطار)", group = grpShPanel, tooltip = "إظهار/إخفاء لوحة اختبار الموجة: زمن الموجة ⇒ نوع التداول المناسب (مضاربة/سوينغ/استثمار).")
+
+// ═══════════════ القسم ③ — الألوان (Colors 🎨) ═══════════════
+// ─── 🎨 ألوان · الصغيرة ───
+string grpClS = "🎨 Colors · Small / ألوان · الصغيرة"
+color  cTop      = input.color(#F23645, "Small top / قمّة صغيرة", group = grpClS)
+color  cBot      = input.color(#4CAF50, "Small bottom / قاع صغير", group = grpClS)
+color  cLineS    = input.color(color.new(color.gray, 55), "Small link line / خطّ وصل الصغيرة", group = grpClS)
+
+// ─── 🎨 ألوان · المتوسطة ───
+string grpClM = "🎨 Colors · Medium / ألوان · المتوسطة"
+color  cMed       = input.color(color.new(#FF9800, 80), "Medium fill (effective) / تعبئة المتوسطة (فعّالة)", group = grpClM)
+color  cMedBorder = input.color(color.new(#FF9800, 30), "Medium border / حدّ المتوسطة", group = grpClM)
+color  cMedDead   = input.color(color.new(#3C171A, 80), "Non-effective medium fill / تعبئة غير الفعّالة (متوسطة)", group = grpClM)
+color  cMedDeadBorder = input.color(color.new(#FF9800, 30), "Non-effective medium border / حدّ غير الفعّالة (متوسطة)", group = grpClM)
+color  cMedPendFill   = input.color(color.new(color.gray, 30), "Medium pending fill / تعبئة المعلّقة (متوسطة)", group = grpClM)
+color  cMedPendBorder = input.color(color.new(#FF9800, 30), "Medium pending border / حدّ المعلّقة (متوسطة)", group = grpClM)
+color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / خطّ وصل المتوسطة", group = grpClM)
+
+// ─── 🎨 ألوان · الكبيرة ───
+string grpClL = "🎨 Colors · Large / ألوان · الكبيرة"
+color  cBig       = input.color(color.new(#2457E2, 45), "Large fill (effective) / تعبئة الكبيرة (فعّالة)", group = grpClL)
+color  cBigBorder = input.color(color.new(#2457E2, 30), "Large border / حدّ الكبيرة", group = grpClL)
+color  cBigDead   = input.color(color.new(#3C171A, 80), "Non-effective large fill / تعبئة غير الفعّالة (كبيرة)", group = grpClL)
+color  cBigDeadBorder = input.color(color.new(#2457E2, 30), "Non-effective large border / حدّ غير الفعّالة (كبيرة)", group = grpClL)
+color  cLineBig   = input.color(color.new(#2457E2, 55), "Large link line / خطّ وصل الكبيرة", group = grpClL)
+
+// ─── 🎨 ألوان · مستويات الاتجاه ───
+string grpClLvl = "🎨 Colors · Trend levels / ألوان · مستويات الاتجاه"
+color  cLvlB     = input.color(color.new(#2457E2, 0), "Large trend level / مستوى الاتجاه الكبير", group = grpClLvl)
+color  cLvlM     = input.color(color.new(#FF9800, 0), "Medium trend level / مستوى الاتجاه المتوسط", group = grpClLvl)
+color  cLvlS     = input.color(color.new(#F23645, 0), "Small trend level / مستوى الاتجاه الصغير", group = grpClLvl)
+
+// ─── 🎨 ألوان · السيولة ───
+string grpClLiq = "🎨 Colors · Liquidity / ألوان · السيولة"
+color  cLiqB     = input.color(color.new(#2457E2, 0), "Large liquidity / سيولة الكبير", group = grpClLiq)
+color  cLiqM     = input.color(color.new(#FF9800, 0), "Medium liquidity / سيولة المتوسط", group = grpClLiq)
+color  cLiqS     = input.color(color.new(#F23645, 0), "Small liquidity / سيولة الصغير", group = grpClLiq)
+
+// ─── 🎨 ألوان · المناطق ───
+string grpClZn = "🎨 Colors · Zones / ألوان · المناطق"
+color  cZoneLvl    = input.color(color.new(#D1D4DC, 0), "M.A level / مستويات م.A", group = grpClZn)
+color  cZoneFill   = input.color(color.new(#2E75B6, 80), "Zone fill (active) / تعبئة المنطقة النشطة", group = grpClZn)
+color  cZoneBorder = input.color(color.new(#2E75B6, 40), "Zone border / حدّ المنطقة", group = grpClZn)
+color  cZoneSup    = input.color(color.new(#089981, 82), "Support zone / منطقة الدعم (أخضر)", group = grpClZn)
+color  cZoneRes    = input.color(color.new(#F23645, 82), "Resistance zone / منطقة المقاومة (أحمر)", group = grpClZn)
+
+// ─── 🎨 ألوان · الموجة واللوحات ───
+string grpClMsc = "🎨 Colors · Wave & Panels / ألوان · الموجة واللوحات"
+color  cHist    = input.color(color.new(#607D8B, 82), "Historical wave / الموجة التاريخية", group = grpClMsc)
+color  cHoh     = input.color(color.new(#808080, 88), "Prior-history / تاريخ التاريخ", group = grpClMsc)
+color  fhBg     = input.color(#1E222D, "Frame-helper background / خلفية مساعد الإطار", group = grpClMsc)
+color  concBg   = input.color(#1E222D, "Decision-panel background / خلفية لوحة القرار", group = grpClMsc)
+
+// ═══════════════ القسم ④ — الأحجام (Sizes 📐) ═══════════════
+// ─── 📐 أحجام · النقاط والدوائر ───
+string grpSzPiv = "📐 Sizes · Pivots & Circles / أحجام · النقاط والدوائر"
+float  arrLen    = input.float(0.4, "Small arrow length / طول سهم الصغيرة", minval = 0.1, step = 0.01, group = grpSzPiv, tooltip = "نسبة من نطاق سعريّ أصيل (لا ATR) — حجم رسم فقط.")
+float  arrWidth  = input.float(2.0, "Small arrow width / عرض سهم الصغيرة", minval = 1.0, maxval = 10.0, step = 0.01, group = grpSzPiv)
+string medCircleSize = input.string("Small", "Medium circle size / حجم دائرة المتوسطة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpSzPiv)
+string nonEffCircleSize = input.string("Fine", "Non-effective medium size / حجم غير الفعّالة (متوسطة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpSzPiv)
+string largeCircleSize = input.string("Normal", "Large circle size / حجم دائرة الكبيرة", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpSzPiv)
+string nonEffBigSize = input.string("Small", "Non-effective large size / حجم غير الفعّالة (كبيرة)", options = ["Fine", "Small", "Normal", "Large", "Huge"], group = grpSzPiv)
+
+// ─── 📐 أحجام · عرض الخطوط ───
+string grpSzW = "📐 Sizes · Line widths / أحجام · عرض الخطوط"
+int    lvlWidthB = input.int(3, "Large level width / عرض مستوى الكبير", minval = 1, maxval = 8, group = grpSzW)
+int    lvlWidthM = input.int(2, "Medium level width / عرض مستوى المتوسط", minval = 1, maxval = 8, group = grpSzW)
+int    lvlWidthS = input.int(1, "Small level width / عرض مستوى الصغير", minval = 1, maxval = 8, group = grpSzW)
+int    brkWidthB = input.int(3, "Broken-line width — large / عرض الخطّ المكسور — كبير", minval = 1, maxval = 8, group = grpSzW)
+int    brkWidthM = input.int(2, "Broken-line width — medium / عرض الخطّ المكسور — متوسط", minval = 1, maxval = 8, group = grpSzW)
+int    brkWidthS = input.int(1, "Broken-line width — small / عرض الخطّ المكسور — صغير", minval = 1, maxval = 8, group = grpSzW)
+int    liqWidthB = input.int(3, "Large liquidity width / عرض سيولة الكبير", minval = 1, maxval = 8, group = grpSzW)
+int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة المتوسط", minval = 1, maxval = 8, group = grpSzW)
+int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpSzW)
+
+// ─── 📐 أحجام · الامتداد يمينًا ───
+string grpSzExt = "📐 Sizes · Extensions (right) / أحجام · الامتداد يمينًا"
+int    levelExtend = input.int(24, "Level extension (candles) / مدى امتداد المستوى (شموع)", minval = 0, maxval = 500, group = grpSzExt)
+int    liqExtend = input.int(24, "Liquidity extension (candles) / مدى امتداد السيولة (شموع)", minval = 0, maxval = 500, group = grpSzExt)
+int    zoneExtend  = input.int(24, "Zone extension (candles) / مدى امتداد المنطقة (شموع)", minval = 0, maxval = 500, group = grpSzExt)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
