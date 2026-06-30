@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.85.1 — [إصلاح] إشارات تاريخيّة: ألوان حرفيّة (#089981/#F23645) بدل cUp/cDn (محلّيّان لكتلة اللوحة ⇒ undeclared في الكتلة المستقلّة).
 // v0.85.0 — [ط4-ج إشارات تاريخيّة] كتلة مستقلّة (showSignals، بلا اللوحة): علامة ▲/▼ عند كلّ تطرّف صغير فعّال **داخل منطقة باتجاه الموجة** عبر الموجة العاملة
 //   (دخول الانخفاض عند الدعم / الارتداد عند المقاومة). تظهر الإشارات عبر الشارت لا الحاضر فقط. الإشارة المؤكَّدة بالـRR (entryLbl) تبقى للحاضر.
 // v0.84.0 — [L2-04 التأكيد بدرجة الصفقة] درجة الصفقة (متوسطة/صغيرة) تحدّد التأكيد: متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF). مفتاح tradeDeg.
@@ -1946,9 +1947,9 @@ if barstate.islast
                     bool isT = array.get(scTop, si)
                     int  ob  = bar_index - array.get(scBar, si)
                     if bigDir == 1 and not isT and ob >= 0          // صعود + قاع صغير داخل منطقة ⇒ شراء
-                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▲", xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = cUp, textcolor = color.white, size = size.tiny))
+                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▲", xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.tiny))
                     else if bigDir == -1 and isT and ob >= 0        // هبوط + قمّة صغيرة داخل منطقة ⇒ بيع
-                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▼", xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = cDn, textcolor = color.white, size = size.tiny))
+                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▼", xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.tiny))
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
