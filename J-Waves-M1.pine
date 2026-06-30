@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.91.1 — [توسيع التنبيه + ألوان المخاطرة] التنبيه/الوسم الحيّ يشمل الآن **عالية المخاطرة** (ذعر/يأس + تأكيد) مع الأساسيّة. ألوان المخاطرة أفتح (شراء #66BB6A · بيع #E57373).
 // v0.91.0 — [مفاتيح الإشارات + التنبيه] مفتاح عامّ showSignals + مفتاح لكلّ درجة (showSigL/M/S، مفعّلة تلقائيًّا) + alert() عند الدخول المؤكَّد (enableAlerts).
 //   نوع التنبيه (تطبيق/توست/صوت/إشعار) يُختار في نافذة Create Alert في TradingView — Pine يُطلِق الحدث فقط (alert.freq_once_per_bar_close).
 // v0.90.1 — [إشارات الدرجات الثلاث] + الكبيرة: كبيرة←تأكيد المتوسطة · متوسطة←الصغيرة · صغيرة←الرابعة. كلّ درجة وهدفها منطقتها التالية.
@@ -1956,13 +1957,16 @@ if showConc and barstate.islast
     if not na(entryLbl)
         label.delete(entryLbl)
         entryLbl := na
-    bool entrySig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)
-    if showSignals and entrySig
+    bool basicSig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)                  // أساسيّة: تجميع مكتمل + تأكيد
+    bool hrSig    = inZone and (phS == 1 or phS == 2) and confOk and (entry == 1 or entry == -1)    // عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس) + تأكيد
+    if showSignals and (basicSig or hrSig)
         bool   up    = entry == 1
+        bool   isBas = basicSig
         float  rr    = (not na(stp) and not na(tgt) and close != stp) ? math.abs(tgt - close) / math.abs(close - stp) : na
-        string sigTx = (up ? "شراء" : "بيع") + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
-        entryLbl := label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = up ? cUp : cDn, textcolor = color.white, size = size.small)
-        if enableAlerts                                          // يُطلِق الحدث؛ نوع التنبيه (تطبيق/توست/صوت/إشعار) من نافذة Create Alert في TradingView
+        string sigTx = (up ? "شراء" : "بيع") + " " + (isBas ? "أساسية" : "مخاطرة ⚠") + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
+        color  lc    = up ? (isBas ? cUp : #66BB6A) : (isBas ? cDn : #E57373)                        // المخاطرة بلون أفتح
+        entryLbl := label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small)
+        if enableAlerts                                          // يُطلِق الحدث (أساسيّة + مخاطرة)؛ نوع التنبيه من نافذة Create Alert في TradingView
             alert("M-Waves: " + sigTx + (not na(stp) ? " · وقف " + str.tostring(stp, format.mintick) : "") + (not na(tgt) ? " · هدف " + str.tostring(tgt, format.mintick) : ""), alert.freq_once_per_bar_close)
 
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
@@ -2004,7 +2008,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
                         float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
                         string tp = "درجة: " + degNm + " · نوع: " + (basic ? "أساسية" : "عالية مخاطرة") + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
-                        array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + "شراء", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tp))
+                        array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + "شراء", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
                         if not na(rr)
                             color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                             array.push(sigLabels, label.new(array.get(aBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
@@ -2017,7 +2021,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
                         float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
                         string tp = "درجة: " + degNm + " · نوع: " + (basic ? "أساسية" : "عالية مخاطرة") + "\nالوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
-                        array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + "بيع", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tp))
+                        array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + "بيع", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = basic ? #F23645 : #E57373, textcolor = color.white, size = size.small, tooltip = tp))
                         if not na(rr)
                             color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                             array.push(sigLabels, label.new(array.get(aBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
