@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.70.0 — [ط4-أ-1 / الدرس L2-02] **المناطق — مستويات م.A**: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال (قمّة=أعلى الجسم · قاع=أسفله).
+//   المدخل = المتوسطة الفعّالة فقط (mcEff). مجموعة Zones + showZones/showZoneLvl/cZoneLvl/zoneExtend. التالي ط4-أ-2: قَرن المتقاربين ⇒ مستطيلات (greedy الأقرب + منع احتواء/تصحيح/مستوى ثالث، من المنطق القديم).
 // v0.69.2 — [إصلاح المرحلة — الموضع الحاليّ] المرحلة = موضع السعر **الآن** من خطّ السيولة المرسوم (المائل) لا مسحًا تاريخيًّا يَعلَق:
 //   تحت المقاومة/فوق الدعم الآن ⇒ مشاركة · تجاوزه الآن ⇒ ذعر. يصلح شكوى «تحت الخطّ لكن ذعر» وشكوى «كسر الخطّ لكن مشاركة» معًا (يطابق الخطّ المرئيّ).
 // v0.69.1 — [إصلاح الكسر الزائف للمرحلة] (مُتجاوَز بـv0.69.2) ذعر = تجاوز w2 أفقيًّا — كان صارمًا يفوت الكسر المائل الفعليّ.
@@ -241,6 +243,13 @@ int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة ال
 color  cLiqS     = input.color(color.new(#F23645, 0), "Small liquidity / سيولة الصغير (أحمر)", group = grpLines)
 int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpLines)
 int    liqExtend = input.int(24, "Liquidity extension past now (candles) / مدى امتداد السيولة بعد السعر الحاليّ (شموع)", minval = 0, maxval = 500, group = grpLines)
+
+// ─── المدخلات: المناطق [الدرس L2-02 / ط4-أ] — مستويات م.A على أجسام المتوسطة الفعّالة ───
+string grpZone     = "🟦 Zones / المناطق (ط4)"
+bool   showZones   = input.bool(true, "Show zones module / إظهار وحدة المناطق", group = grpZone)
+bool   showZoneLvl = input.bool(true, "Show M.A level lines / خطوط مستويات م.A (على الأجسام)", group = grpZone, tooltip = "خطّ أفقيّ على جسم كلّ قمّة/قاع متوسط فعّال: القمّة من أعلى الجسم · القاع من أسفله (الدرس L2-02). الموجة العاملة فقط.")
+color  cZoneLvl    = input.color(color.new(#D1D4DC, 0), "M.A level color / لون مستويات م.A", group = grpZone)
+int    zoneExtend  = input.int(24, "Zone extension past now (candles) / مدى امتداد المنطقة بعد السعر (شموع)", minval = 0, maxval = 500, group = grpZone)
 
 // ─── المدخلات: لوحة الاستنتاجات [درس 10 — مبدئيًّا: اتجاه السيولة من ميل الخطوط] (تصميم القديم) ───
 string grpConc  = "🧭 Conclusions / لوحة الاستنتاجات"
@@ -1520,6 +1529,23 @@ if barstate.islast
             else
                 line.delete(smallLiqLine)
                 smallLiqLine := na
+
+// ─── [ط4-أ-1 / الدرس L2-02] مستويات م.A: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال (قمّة=أعلى الجسم · قاع=أسفله) ───
+//   المدخل = المتوسطة الفعّالة فقط (mcEff) — لا الأحمر ولا غير الفعّالة. الخطوة التالية (ط4-أ-2): قَرن المتقاربين ⇒ مستطيلات.
+var array<line> zoneLvlLines = array.new<line>()
+if barstate.islast
+    for li = 0 to array.size(zoneLvlLines) - 1
+        line.delete(array.get(zoneLvlLines, li))
+    array.clear(zoneLvlLines)
+    if showZones and showZoneLvl
+        int rightTmZ = time + zoneExtend * timeframe.in_seconds() * 1000
+        int nz = array.size(mcBar)
+        for i = 0 to (nz > 0 ? nz - 1 : 0)
+            if nz > 0 and array.get(mcEff, i)                          // المتوسطة الفعّالة فقط
+                int o = bar_index - array.get(mcBar, i)
+                if o >= 0
+                    float lvl = array.get(mcTop, i) ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // قمّة=أعلى الجسم · قاع=أسفله
+                    array.push(zoneLvlLines, line.new(array.get(mcTm, i), lvl, rightTmZ, lvl, xloc = xloc.bar_time, color = cZoneLvl, width = 1))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var table concTbl = table.new(f_pos(concPos), 2, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
