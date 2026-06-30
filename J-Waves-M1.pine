@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.88.0 — [ط4-ج-1 تصنيف الفرص أساسيّة/مخاطرة] الإشارة التاريخيّة تُصنَّف من تسلسل تطرّفات الصغيرة (تعريف الدرس): ارتداد (قاع أعلى/قمّة أدنى) = **أساسيّة** (تجميع/تصريف)
+//   · ما زال يتطرّف = **مخاطرة** (ذعر/يأس). شراء عند الدعم/بيع عند المقاومة باتجاه المستوى. الوقف=حافّة المنطقة · الهدف=التالية · RR + tooltip. أساسيّة لون صريح · مخاطرة أفتح.
 // v0.87.0 — [ط4-ب-1 عرض المرحلة direction-relative] اكتمال التصحيح (code 3) يُعرَض **تجميع** صعودًا (قاع) · **تصريف** هبوطًا (قمّة) — كما في الدرس (f_phTxt). + مواصفة L2-03/04.
 // v0.86.1 — [إصلاح تناقض اللوحة↔الإشارة] الإشارة تتبع اتجاه **المستوى** (المتوسطة+الكبيرة = entry) نفسه الذي تستعمله اللوحة، لا bigDir الخام
 //   (كانا يتعارضان بعد كسر المستوى: لوحة شراء/إشارة بيع). التوقيت سليم أصلًا: الإشارة عند تطرّف الصغيرة (التصحيح) داخل المنطقة قبل المشاركة الجديدة.
@@ -1948,40 +1950,52 @@ if barstate.islast
     int sMLvl  = f_activeDir(mcBar, mcTop, mcEff, bigDir)
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
     if showSignals and nzs > 0 and sigDir != 0
+        bool wantBot = sigDir == 1                                  // شراء يحتاج قاعًا (دعم) · بيع يحتاج قمّة (مقاومة)
         for si = 0 to (nsps > 0 ? nsps - 1 : 0)
             if nsps > 0 and array.get(scEff, si) and array.get(scBar, si) >= histLs
                 float pp  = array.get(scPrc, si)
                 bool  isT = array.get(scTop, si)
                 int   ob  = bar_index - array.get(scBar, si)
-                float zbC = na                                       // حدود المنطقة الحاضنة (تحوي التطرّف)
-                float ztC = na
-                for zi = 0 to nzs - 1
-                    if pp <= array.get(zTop, zi) and pp >= array.get(zBot, zi)
-                        ztC := array.get(zTop, zi)
-                        zbC := array.get(zBot, zi)
-                if not na(zbC) and ob >= 0
-                    if sigDir == 1 and not isT                       // شراء: قاع صغير داخل منطقة دعم
-                        float e = pp
-                        float s = zbC                                // الوقف = أسفل منطقة الدخول
-                        float t = na                                 // الهدف = أقرب منطقة فوق (حافّتها السفلى)
-                        for zi = 0 to nzs - 1
-                            if array.get(zBot, zi) > pp
-                                t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
-                        float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
-                        string tx = "شراء" + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
-                        string tp = "الهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick)
-                        array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tp))
-                    else if sigDir == -1 and isT                     // بيع: قمّة صغيرة داخل منطقة مقاومة
-                        float e = pp
-                        float s = ztC                                // الوقف = أعلى منطقة الدخول
-                        float t = na                                 // الهدف = أقرب منطقة تحت (حافّتها العليا)
-                        for zi = 0 to nzs - 1
-                            if array.get(zTop, zi) < pp
-                                t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
-                        float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
-                        string tx = "بيع" + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
-                        string tp = "الوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick))
-                        array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tp))
+                if ((wantBot and not isT) or ((not wantBot) and isT)) and ob >= 0
+                    float zbC = na                                   // المنطقة الحاضنة (تحوي التطرّف) ⇒ شرط «داخل منطقة»
+                    float ztC = na
+                    for zi = 0 to nzs - 1
+                        if pp <= array.get(zTop, zi) and pp >= array.get(zBot, zi)
+                            ztC := array.get(zTop, zi)
+                            zbC := array.get(zBot, zi)
+                    if not na(zbC)
+                        // التطرّف السابق من نفس النوع ⇒ تصنيف أساسيّة/مخاطرة من تسلسل التصحيح (تعريف الدرس، لا منطق مخترَع)
+                        float prevP = na
+                        if si >= 1
+                            for sj = si - 1 to 0
+                                if array.get(scEff, sj) and array.get(scTop, sj) == isT
+                                    prevP := array.get(scPrc, sj)
+                                    break
+                        // أساسيّة = ارتداد (قاع أعلى صعودًا / قمّة أدنى هبوطًا) = تجميع/تصريف اكتمل · مخاطرة = ما زال يتطرّف (ذعر/يأس)
+                        bool   basic = wantBot ? (not na(prevP) and pp > prevP) : (not na(prevP) and pp < prevP)
+                        string knd   = basic ? "أساسية" : "مخاطرة ⚠"
+                        if wantBot                                   // شراء عند الدعم
+                            float e = pp
+                            float s = zbC                            // الوقف = أسفل منطقة الدخول
+                            float t = na                             // الهدف = أقرب منطقة فوق (حافّتها السفلى)
+                            for zi = 0 to nzs - 1
+                                if array.get(zBot, zi) > pp
+                                    t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
+                            float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
+                            string tx = "شراء " + knd + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
+                            string tp = "الهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick)
+                            array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
+                        else                                         // بيع عند المقاومة
+                            float e = pp
+                            float s = ztC                            // الوقف = أعلى منطقة الدخول
+                            float t = na                             // الهدف = أقرب منطقة تحت (حافّتها العليا)
+                            for zi = 0 to nzs - 1
+                                if array.get(zTop, zi) < pp
+                                    t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
+                            float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
+                            string tx = "بيع " + knd + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
+                            string tp = "الوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick))
+                            array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = basic ? #F23645 : #EF9A9A, textcolor = color.white, size = size.small, tooltip = tp))
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
