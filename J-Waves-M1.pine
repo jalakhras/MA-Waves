@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.74.0 — [ط4-أ-2 المناطق مرحلتان + استعارة] الأساس دائمًا نقطة الموجة الحاليّة؛ pass1 شريك حاليّ بالأقرب · pass2 المنفردة تستعير الأقرب من التاريخ.
+//   كلّ نقطة حاليّة تجد زوجًا (حاليّ ثمّ تاريخيّ)؛ ما بقي = خطّ م.A فقط. حارسان: 🔴 لا منطقة داخل منطقة · لا مستوى حاليّ ثالث بينهما (تبقى صغيرة، طلب المستخدم).
 // v0.73.0 — [ط4-أ-2 تصحيح قاعدة التزويج] المناطق: **ابدأ من الأحدث ⇒ الأقرب سعريًّا**؛ المنع الوحيد = **التصحيح المتجاور** (قمّة+قاعها المباشر).
 //   كان «نفس النوع فقط» (خطأ) — الصحيح يسمح قمّة+قاع بعيدين بنفس المستوى. (المنفردة/الاستعارة من تاريخ التاريخ + التجديد: دورات تالية.)
 // v0.72.1 — [تشخيص التغطية] مفتاح dbgCov: يرسم المستويات المُغطّاة **أحمر متقطّع** بدل إخفائها — لمعرفة لماذا «لا تغيّر» (تغطية لا تُسقِط شيئًا).
@@ -1590,9 +1592,9 @@ if barstate.islast
                         color lc = covered ? color.red : cZoneLvl
                         array.push(zoneLvlLines, line.new(array.get(mcTm, i), lvl, rightTmZ, lvl, xloc = xloc.bar_time, color = lc, width = 1, style = covered ? line.style_dashed : line.style_solid))
 
-// ─── [ط4-أ-2 / الدرس L2-02] المناطق = مستطيل بين خطّين **متقاربين سعريًّا** (دعم/مقاومة) في الموجة العاملة ───
-//   قاعدة المستخدم: **ابدأ من الأحدث** واقرنه بـ**الأقرب سعريًّا**. يُسمح قمّتان/قاعان **أو قمّة+قاع بنفس المستوى** —
-//   🔴 الممنوع الوحيد: **التصحيح المتجاور** (قمّة + قاعها المباشر). بوّابتان: لا احتواء · لا مستوى ثالث بينهما سعريًّا. الموجة العاملة = mcBar ≥ segLefts[0].
+// ─── [ط4-أ-2 / الدرس L2-02] المناطق = مستطيل بين خطّين **متقاربين سعريًّا** (دعم/مقاومة) — قاعدته دائمًا نقطة الموجة الحاليّة ───
+//   قاعدة المستخدم: ابدأ من الأحدث ⇒ الأقرب سعريًّا. **مرحلتان**: (1) شريك من الموجة الحاليّة · (2) المنفردة تستعير الأقرب من **التاريخ**.
+//   ما بقي بلا شريك ⇒ خطّ م.A فقط (لا مستطيل، مرسوم أصلًا). 🔴 الممنوع: التصحيح المتجاور · 🔴 لا منطقة داخل منطقة (احتواء) · لا مستوى حاليّ ثالث بينهما (تبقى صغيرة).
 var array<box>   zoneBoxes = array.new<box>()
 var array<float> zTop = array.new<float>()                                  // حدود المناطق (للتصنيف وin_zone لاحقًا — ط4-أ-3)
 var array<float> zBot = array.new<float>()
@@ -1607,13 +1609,13 @@ if barstate.islast
         int histLeft = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
         int hL2b     = array.size(segLefts) > 1 ? array.get(segLefts, 1) : histLeft
         [wHiB, wLoB] = f_rangeHiLo(histLeft, bar_index)                             // نطاق الموجة الحاليّة (للاستثناء)
-        // (1) أطراف الموجة العاملة الفعّالة **غير المغطّاة**: الفهرس (في mcBar) + مستوى الجسم + النوع
+        // (1) كلّ الأطراف الفعّالة **غير المغطّاة** (الموجة + التاريخ — كي تجد كلّ نقطة زوجًا): الفهرس + مستوى الجسم + النوع
         array<int>   eIdx = array.new<int>()
         array<float> eLvl = array.new<float>()
         array<bool>  eTp  = array.new<bool>()
         int nz2 = array.size(mcBar)
         for i = 0 to (nz2 > 0 ? nz2 - 1 : 0)
-            if nz2 > 0 and array.get(mcEff, i) and array.get(mcBar, i) >= histLeft and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB)
+            if nz2 > 0 and array.get(mcEff, i) and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB)
                 int o = bar_index - array.get(mcBar, i)
                 if o >= 0
                     array.push(eIdx, i)
@@ -1623,46 +1625,49 @@ if barstate.islast
         if en >= 2
             array<bool> usedZ = array.new<bool>(en, false)
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
-            // [قاعدة المستخدم] ابدأ من **الأحدث** (en-1) ⇒ اقرنه بـ**الأقرب سعريًّا** غير المستهلَك، عدا التصحيح المتجاور:
-            for a = en - 1 to 0
-                if not array.get(usedZ, a)
-                    int   best = -1
-                    float bd   = 1e18
-                    for b = 0 to en - 1
-                        if b != a and not array.get(usedZ, b)
-                            bool adjc = math.abs(a - b) == 1
-                            bool oppc = array.get(eTp, a) != array.get(eTp, b)
-                            if not (adjc and oppc)                          // 🔴 لا تصحيح متجاور (قمّة + قاعها المباشر) — يُسمح قمّة+قاع بعيدين بنفس المستوى
-                                float d = math.abs(array.get(eLvl, a) - array.get(eLvl, b))
-                                if d < bd
-                                    bd   := d
-                                    best := b
-                    if best >= 0
-                        float cT = math.max(array.get(eLvl, a), array.get(eLvl, best))
-                        float cB = math.min(array.get(eLvl, a), array.get(eLvl, best))
-                        // بوّابة الاحتواء: مرشّحة داخل منطقة موجودة أو تحتويها
-                        bool contain = false
-                        int zc = array.size(zTop)
-                        if zc > 0
-                            for k = 0 to zc - 1
-                                if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
-                                    contain := true
-                        // بوّابة المجاورة: لا مستوى فعّال ثالث بين الحدّين سعريًّا
-                        bool thirdBetween = false
-                        for k = 0 to en - 1
-                            if k != a and k != best
-                                float lk = array.get(eLvl, k)
-                                if lk > cB and lk < cT
-                                    thirdBetween := true
-                        if not contain and not thirdBetween
-                            array.set(usedZ, a, true)
-                            array.set(usedZ, best, true)
-                            array.push(zTop, cT)
-                            array.push(zBot, cB)
-                            int leftBar = math.min(array.get(mcBar, array.get(eIdx, a)), array.get(mcBar, array.get(eIdx, best)))
-                            int loL     = bar_index - leftBar
-                            int leftTm2 = loL >= 0 ? time[loL] : time
-                            array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = cZoneFill))
+            // مرحلتان: pass1 = شريك من الموجة الحاليّة · pass2 = المنفردة تستعير الأقرب من التاريخ. الأساس (a) **دائمًا** نقطة الموجة الحاليّة.
+            for pass = 1 to 2
+                for a = en - 1 to 0                                              // ابدأ من الأحدث
+                    if not array.get(usedZ, a) and array.get(mcBar, array.get(eIdx, a)) >= histLeft   // الأساس = نقطة الموجة الحاليّة فقط (لا نرسم منطقة قاعدتها التاريخ)
+                        int   best = -1
+                        float bd   = 1e18
+                        for b = 0 to en - 1
+                            bool bCur   = array.get(mcBar, array.get(eIdx, b)) >= histLeft
+                            bool tierOk = pass == 1 ? bCur : not bCur            // ج1: شريك حاليّ · ج2: شريك تاريخيّ (استعارة)
+                            if b != a and not array.get(usedZ, b) and tierOk
+                                bool adjc = math.abs(a - b) == 1
+                                bool oppc = array.get(eTp, a) != array.get(eTp, b)
+                                if not (adjc and oppc)                          // 🔴 لا تصحيح متجاور — يُسمح قمّة+قاع بعيدين بنفس المستوى
+                                    float d = math.abs(array.get(eLvl, a) - array.get(eLvl, b))
+                                    if d < bd
+                                        bd   := d
+                                        best := b
+                        if best >= 0
+                            float cT = math.max(array.get(eLvl, a), array.get(eLvl, best))
+                            float cB = math.min(array.get(eLvl, a), array.get(eLvl, best))
+                            // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة (طلب المستخدم)
+                            bool contain = false
+                            int zc = array.size(zTop)
+                            if zc > 0
+                                for k = 0 to zc - 1
+                                    if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
+                                        contain := true
+                            // بوّابة المجاورة: لا مستوى **حاليّ** ثالث بين الحدّين سعريًّا ⇒ المنطقة تبقى صغيرة (لا كبيرة)
+                            bool thirdBetween = false
+                            for k = 0 to en - 1
+                                if k != a and k != best and array.get(mcBar, array.get(eIdx, k)) >= histLeft
+                                    float lk = array.get(eLvl, k)
+                                    if lk > cB and lk < cT
+                                        thirdBetween := true
+                            if not contain and not thirdBetween
+                                array.set(usedZ, a, true)
+                                array.set(usedZ, best, true)
+                                array.push(zTop, cT)
+                                array.push(zBot, cB)
+                                int leftBar = math.min(array.get(mcBar, array.get(eIdx, a)), array.get(mcBar, array.get(eIdx, best)))
+                                int loL     = bar_index - leftBar
+                                int leftTm2 = loL >= 0 ? time[loL] : time
+                                array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = cZoneFill))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var table concTbl = table.new(f_pos(concPos), 2, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
