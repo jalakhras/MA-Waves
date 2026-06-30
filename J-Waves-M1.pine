@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.67.0 — [درس11 م11-ب] آلة المراحل الكاملة f_phase (داو/إليوت ABC، الاتجاهان): مشاركة → ذعر(A، كسر خطّ السيولة المائل، latch)
+//   → يأس(C، تطرّف أعمق بعد ارتداد B). الانقلاب لمشاركة معاكسة بكسر المستوى (f_activeDir). صفّ الدرجة: اتجاه(مستوى)·قوّة·مرحلة.
 // v0.66.1 — [إصلاح① تكميل] المرحلة بالحالة الحاليّة (لا latch تاريخيّ) ⇒ إن تعافى السعر فوق الدعم يرجع مشاركة (لا ذعر عالق في صعود متعافٍ).
 // v0.66.0 — [إصلاح① الذعر الزائف + ② اتجاه الصفّ] (مطابقة الأطلس + تحليل منطقيّ):
 //   ① f_phaseBreak يقيس الكسر على **مستوى أفقيّ** (آخر دعم/مقاومة فعليّ) لا الخطّ المائل المُسقَط ⇒ لا ذعر زائف في صعود نظيف.
@@ -1373,20 +1375,51 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                         broken := true
     broken
 
-// [درس11/إصلاح①+②] كسر المرحلة (ذعر) = **الحالة الحاليّة**: منتصف جسم الشمعة الأخيرة بأكثر من نصف الجسم خلف **آخر دعم/مقاومة فعليّ**
-//   (مستوى **أفقيّ** عند ذيل i2 من f_liqPair) عكس الاتجاه. **بلا latch تاريخيّ** ⇒ إن تعافى السعر فوق الدعم يرجع مشاركة (لا ذعر عالق).
-//   في صعود نظيف يبقى السعر فوق آخر قاع دعم ⇒ مشاركة. تصحيحٌ حاليّ تحت الدعم ⇒ ذعر. (دورة داو الكاملة ذعر→يأس→تجميع = م11-ب.)
-f_phaseBreak(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
-    bool broken = false
+// [درس11/م11-ب] آلة المراحل (داو/إليوت ABC) — صعودًا (مرآة للهبوط):
+//   • مشاركة عامّة: السعر يحترم خطّ السيولة (الدعم المائل من f_liqPair).
+//   • ذعر (A): **كُسِر خطّ السيولة** (نزل ذيل السعر تحت الخطّ المُسقَط) — latch من بار الكسر حتى تطرّفين/تعافٍ.
+//   • يأس (C): تطرّف مضادّ **أعمق** بعد ارتداد B (قاع أدنى صعودًا / قمّة أعلى هبوطًا) بعد بار الكسر.
+//   الانقلاب (مشاركة معاكسة) يقوده كسر المستوى (f_activeDir يقلب wdir ⇒ زوج/سيولة جديدة ⇒ مشاركة جديدة). wdir = الاتجاه الفعّال للدرجة.
+//   يُرجِع: 0 مشاركة · 1 ذعر · 2 يأس · -1 لا سيولة (—).
+f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    int  ph = -1
     bool wantTop = wdir == -1
     [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
-    if i2 >= 0
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
-        if o2 >= 0
-            float level = wantTop ? high[o2] : low[o2]              // المستوى الأفقيّ = ذيل آخر دعم/مقاومة فعليّ
-            float mid = (open + close) / 2                          // الشمعة الحاليّة فقط (لا تاريخ): الحالة الآن
-            broken := wantTop ? mid > level : mid < level
-    broken
+        if o1 >= 0 and o2 >= 0
+            ph := 0                                                  // سيولة موجودة ⇒ مشاركة افتراضيًّا
+            float w1 = wantTop ? high[o1] : low[o1]
+            float w2 = wantTop ? high[o2] : low[o2]
+            int   b1 = array.get(aBar, i1)
+            int   b2 = array.get(aBar, i2)
+            float slope = (w2 - w1) / (b2 - b1)
+            float wp1a  = wantTop ? w1 + f_liqAdj(b1, b2, w1, slope, wantTop) : w1 - f_liqAdj(b1, b2, w1, slope, wantTop)
+            int   brkBar = -1                                        // أوّل بار كُسِر فيه خطّ السيولة (الذيل تجاوز الخطّ المُسقَط عكس الاتجاه)
+            for k = b2 + 1 to bar_index
+                int ok = bar_index - k
+                if ok >= 0 and brkBar < 0
+                    float lk = wp1a + slope * (k - b1)
+                    if wantTop ? (high[ok] > lk) : (low[ok] < lk)
+                        brkBar := k
+            if brkBar >= 0
+                ph := 1                                              // ذعر (كُسِرت السيولة)
+                float firstExt = na                                  // أوّل تطرّف مضادّ بعد الكسر (قاع الذعر A)
+                float lastExt  = na
+                int   cnt = 0
+                int   n = array.size(aBar)
+                for j = 0 to (n > 0 ? n - 1 : 0)
+                    if n > 0 and array.get(aEff, j) and array.get(aTop, j) == wantTop and array.get(aBar, j) > brkBar
+                        int oj = bar_index - array.get(aBar, j)
+                        if oj >= 0
+                            float wj = wantTop ? high[oj] : low[oj]
+                            firstExt := na(firstExt) ? wj : firstExt
+                            lastExt  := wj
+                            cnt := cnt + 1
+                if cnt >= 2 and (wantTop ? lastExt > firstExt : lastExt < firstExt)
+                    ph := 2                                          // يأس (تطرّف أعمق بعد ارتداد B = C)
+    ph
 
 var line bigLevelLine = na
 var line medLevelLine = na
@@ -1501,12 +1534,12 @@ if showConc and barstate.islast
     table.cell(concTbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 4, entry == 1 ? "شراء فقط" : entry == -1 ? "بيع فقط" : entry == 2 ? "بيع/شراء" : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
     // [درس11/م-أ] المرحلة **بجانب كلّ درجة** (خليّة مدمجة): مشاركة عامّة (السيولة محترَمة) ⟷ ذعر (كُسِرت بنصف الجسم). يأس/تجميع/تصريف = م11-ب
-    bool   phS   = f_phaseBreak(dB, dT, dE, smallLvlDir)
-    bool   phM   = f_phaseBreak(mcBar, mcTop, mcEff, medLvlDir)
-    bool   phB   = f_phaseBreak(lgBar, lgTop, lgEff, bigLvlDir)
-    string phsS  = lqS == 0 ? "—" : phS ? "ذعر ⚠" : "مشاركة"   // المرحلة مُعرَّفة نسبةً لخطّ السيولة ⇒ بلا خطّ (lq=0) لا مرحلة
-    string phsM  = lqM == 0 ? "—" : phM ? "ذعر ⚠" : "مشاركة"
-    string phsB  = lqB == 0 ? "—" : phB ? "ذعر ⚠" : "مشاركة"
+    int    phS   = f_phase(dB, dT, dE, smallLvlDir)            // 0 مشاركة · 1 ذعر · 2 يأس · -1 لا سيولة
+    int    phM   = f_phase(mcBar, mcTop, mcEff, medLvlDir)
+    int    phB   = f_phase(lgBar, lgTop, lgEff, bigLvlDir)
+    string phsS  = phS == -1 ? "—" : phS == 2 ? "يأس ⚠" : phS == 1 ? "ذعر ⚠" : "مشاركة"
+    string phsM  = phM == -1 ? "—" : phM == 2 ? "يأس ⚠" : phM == 1 ? "ذعر ⚠" : "مشاركة"
+    string phsB  = phB == -1 ? "—" : phB == 2 ? "يأس ⚠" : phB == 1 ? "ذعر ⚠" : "مشاركة"
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? "صاعدة" : smallLvlDir == -1 ? "هابطة" : "—") + " · " + (stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—") + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
