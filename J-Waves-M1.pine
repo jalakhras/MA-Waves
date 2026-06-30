@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.95.0 — [ثنائيّة اللغة — عرض فقط] مفتاح Language (AR/EN) + f_t(ar,en): تبديل نصّ اللوحة + الإشارات + المساعد + الكتلة + الوحدات. صفر أثر على المنطق (لم تُلمَس خيارات الإعدادات/المقارنات). أسماء الإعدادات تبقى ثنائيّة النصّ.
 // v0.94.1 — [إصلاح لوحة اختبار الموجة] الحقول الفارغة (نوع التداول/الفريم/الوسيط) عند غياب سيقان متوسطة دافعة ⇒ احتياطيّ بزمن الموجة الكاملة «(الموجة)».
 // v0.94.0 — [تنظيم الإعدادات + أطلس مُركَّب] مجموعات بأدوار واضحة (الكبيرة—الاتجاه · المتوسطة—المناطق · الصغيرة—الدخول…) + docs/build/MWaves_Atlas_synthesized.md.
 // v0.93.0 — [بحث الأطلس] التحقّق من مطابقة القرارات للأطلس (side=الدخول · decision=القرار · stop/target موجودان · القوّة 3 أوسع من ثنائيّ الأطلس) + صفّ «الكتلة (أطلس)» A–E في اللوحة.
@@ -195,6 +196,11 @@ indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count 
 // ════════════════════════════════════════════════════════════════════════════
 // ط0 — الأساس: الموجة التاريخية + تاريخ التاريخ   [درس 03-04]
 // ════════════════════════════════════════════════════════════════════════════
+
+// ─── المدخلات: عامّ — لغة العرض (عرض فقط، لا يمسّ المنطق) ───
+string grpGen  = "🌐 General / عامّ"
+string uiLang  = input.string("AR / عربيّة", "Display language / لغة العرض", options = ["AR / عربيّة", "EN / English"], group = grpGen, tooltip = "لغة النصّ المعروض (اللوحة · الإشارات · المساعد). أسماء الإعدادات تبقى ثنائيّة. عرض فقط — صفر أثر على المنطق.")
+f_t(string ar, string en) => uiLang == "AR / عربيّة" ? ar : en   // مبدِّل نصّ عرض بحت
 
 // ─── المدخلات: الموجة التاريخية ───
 string grpHist = "🌊 Wave & Frame / الموجة والإطار (ابدأ هنا)"
@@ -514,7 +520,7 @@ if barstate.islast
 var table fht = table.new(f_pos(fhPos), 2, 8, bgcolor = fhBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 // تنسيق مدّة (أيام) إلى نصّ مقروء (يوم/ساعة/دقيقة)
 f_durTxt(float d) =>
-    na(d) or d <= 0 ? "—" : d >= 1 ? str.tostring(d, "#.0") + " يوم" : d >= 0.0417 ? str.tostring(d * 24, "#.0") + " ساعة" : str.tostring(d * 1440, "#.0") + " دق"
+    na(d) or d <= 0 ? "—" : d >= 1 ? str.tostring(d, "#.0") + f_t(" يوم", " d") : d >= 0.0417 ? str.tostring(d * 24, "#.0") + f_t(" ساعة", " h") : str.tostring(d * 1440, "#.0") + f_t(" دق", " m")
 
 f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     table.set_position(fht, f_pos(fhPos))
@@ -524,32 +530,32 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     // [إصلاح الحقول الفارغة] احتياطيّ: إن لم توجد سيقان دافعة متوسطة (موجة كبيرة/متوسطة قليلة النقاط) ⇒ استعمل **زمن الموجة الكاملة** بدل الفراغ
     float  refDays = (na(medImpDays) or medImpDays <= 0) ? days : medImpDays
     bool   usingWv = na(medImpDays) or medImpDays <= 0
-    string waveType    = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? "مضاربة" : refDays <= swingMaxDays ? "سوينغ" : "استثمار"
+    string waveType    = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? f_t("مضاربة", "Scalp") : refDays <= swingMaxDays ? f_t("سوينغ", "Swing") : f_t("استثمار", "Invest")
     color  wtBg        = na(refDays) or refDays <= 0 ? color.new(#787B86, 0) : refDays < swingMinDays ? color.new(#FF9800, 0) : refDays <= swingMaxDays ? color.new(#089981, 0) : color.new(#2962FF, 0)
-    string tradeNature = na(refDays) or refDays <= 0 ? "بيانات غير كافية" : refDays < swingMinDays ? "صفقات دقائق–يوم" : refDays <= swingMaxDays ? "صفقات يومين–10 أيام" : "صفقات أسابيع–شهور"
+    string tradeNature = na(refDays) or refDays <= 0 ? f_t("بيانات غير كافية", "Insufficient data") : refDays < swingMinDays ? f_t("صفقات دقائق–يوم", "minutes–day") : refDays <= swingMaxDays ? f_t("صفقات يومين–10 أيام", "2–10 days") : f_t("صفقات أسابيع–شهور", "weeks–months")
     // الفريم المناسب (قانون الدرس: قصيرة ⇒ اصعد فريمًا · سوينغ ⇒ مناسب · طويلة ⇒ انزل فريمًا)
-    string frameFit = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? "اصعد فريمًا ↑" : refDays <= swingMaxDays ? "مناسب ✓" : "انزل فريمًا ↓"
+    string frameFit = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? f_t("اصعد فريمًا ↑", "Go higher TF ↑") : refDays <= swingMaxDays ? f_t("مناسب ✓", "Suitable ✓") : f_t("انزل فريمًا ↓", "Go lower TF ↓")
     color  frameBg  = na(refDays) or refDays <= 0 ? color.new(#787B86, 0) : refDays <= swingMaxDays and refDays >= swingMinDays ? color.new(#089981, 0) : color.new(#FF9800, 0)
-    string avgMedTxt = f_durTxt(refDays) + (usingWv ? " (الموجة)" : "")       // وسيط زمن الدافعة · أو زمن الموجة الكاملة (الموجة) عند غياب الدافعة
+    string avgMedTxt = f_durTxt(refDays) + (usingWv ? f_t(" (الموجة)", " (wave)") : "")
     color tvBg   = fhBg
     color tvHdr  = color.new(color.rgb(color.r(fhBg) * 0.72, color.g(fhBg) * 0.72, color.b(fhBg) * 0.72), color.t(fhBg))
     color tvMain = #D1D4DC
     color tvMute = #787B86
-    table.cell(fht, 0, 0, "لوحة اختبار الموجة", text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(fht, 0, 0, f_t("لوحة اختبار الموجة", "Wave Test"), text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(fht, 1, 0, "", bgcolor = tvHdr)
-    table.cell(fht, 0, 1, "درجات ظاهرة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 1, f_t("درجات ظاهرة", "Degrees shown"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 1, str.tostring(degShown) + " / 3", text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 2, "موجات دافعة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 2, f_t("موجات دافعة", "Impulse legs"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 2, str.tostring(impulse), text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 3, "زمن الموجة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 3, f_t("زمن الموجة", "Wave time"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 3, f_durTxt(days), text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 4, "وسيط زمن الدافعة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 4, f_t("وسيط زمن الدافعة", "Median impulse"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 4, avgMedTxt, text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 5, "نوع التداول", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 5, f_t("نوع التداول", "Trade type"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 5, waveType, text_color = color.white, bgcolor = wtBg, text_size = size.small)
-    table.cell(fht, 0, 6, "نمط الصفقة", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 6, f_t("نمط الصفقة", "Trade nature"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 6, tradeNature, text_color = tvMain, bgcolor = tvBg, text_size = size.small)
-    table.cell(fht, 0, 7, "الفريم المناسب", text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(fht, 0, 7, f_t("الفريم المناسب", "Suitable TF"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 7, frameFit, text_color = color.white, bgcolor = frameBg, text_size = size.small)
 
 
@@ -1431,11 +1437,11 @@ f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 
 // [درس10] نصّ القوّة (3 حالات) — مساعد عامّ (لا يُعرَّف داخل كتلة).
 f_stTxt(int st) =>
-    st == 1 ? "قويّة" : st == 2 ? "متوسطة" : st == -1 ? "ضعيفة" : "—"
+    st == 1 ? f_t("قويّة", "Strong") : st == 2 ? f_t("متوسطة", "Med") : st == -1 ? f_t("ضعيفة", "Weak") : "—"
 
 // [درس11/L2] نصّ المرحلة direction-relative: اكتمال التصحيح (code 3) = **تجميع** صعودًا (قاع) · **تصريف** هبوطًا (قمّة) — كما في الدرس.
 f_phTxt(int ph, int dir) =>
-    ph == -1 ? "—" : ph == 3 ? (dir == -1 ? "تصريف" : "تجميع") : ph == 2 ? "يأس ⚠" : ph == 1 ? "ذعر ⚠" : "مشاركة"
+    ph == -1 ? "—" : ph == 3 ? (dir == -1 ? f_t("تصريف", "Distrib") : f_t("تجميع", "Accum")) : ph == 2 ? f_t("يأس ⚠", "Despair ⚠") : ph == 1 ? f_t("ذعر ⚠", "Panic ⚠") : f_t("مشاركة", "Part")
 
 // [درس09/م3-أ] الاتجاه الفعّال **الملتقَط** (latch) — عرض فقط، لا يمسّ القمم/القيعان (الماضي ثابت):
 //   يبدأ startDir، وينقلب عند كلّ **كسر مؤكَّد** = شمعتان إغلاقًا خلف **جسم** آخر تطرّف فعّال من الجانب الحاليّ (مقاومة هبوطًا/دعم صعودًا)،
@@ -1874,25 +1880,25 @@ if showConc and barstate.islast
     color cUp   = #089981
     color cDn   = #F23645
     color cRngC = #FF9800
-    string histTxt = bigLvlDir == 1 ? "صاعدة ▲" : bigLvlDir == -1 ? "هابطة ▼" : "—"   // اتجاه الموجة = الاتجاه الفعّال للكبير (ينقلب بكسر مستواه)
+    string histTxt = bigLvlDir == 1 ? f_t("صاعدة ▲", "Up ▲") : bigLvlDir == -1 ? f_t("هابطة ▼", "Down ▼") : "—"   // اتجاه الموجة = الاتجاه الفعّال للكبير
     color  histCol = bigLvlDir == 1 ? cUp : bigLvlDir == -1 ? cDn : pMute
-    string liqTxt  = not cDef ? "غير محدّد" : cRng ? "عرضيّ (Range)" : cLiq == 1 ? "صاعدة" : "هابطة"
+    string liqTxt  = not cDef ? f_t("غير محدّد", "Undefined") : cRng ? f_t("عرضيّ (Range)", "Range") : cLiq == 1 ? f_t("صاعدة", "Up") : f_t("هابطة", "Down")
     color  liqCol  = not cDef ? pMute : cRng ? cRngC : cLiq == 1 ? cUp : cDn
-    table.cell(concTbl, 0, 0, "لوحة الاستنتاجات", text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(concTbl, 0, 0, f_t("لوحة القرار", "Decision Panel"), text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(concTbl, 1, 0, "", bgcolor = pHdr)
-    table.cell(concTbl, 0, 1, "اتجاه الموجة التاريخية", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 1, f_t("اتجاه الموجة التاريخية", "Historical wave dir"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 1, histTxt, text_color = color.white, bgcolor = histCol, text_size = size.small)
-    table.cell(concTbl, 0, 2, "اتجاه السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 2, f_t("اتجاه السيولة", "Liquidity dir"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
     // [درس10] قوّة لكلّ درجة (تداخل تطرّفاتها: قاع↔قمّة قبله بـ3) · العامّة من الصغيرة · الدخول من اتجاه مستوى المتوسطة+الكبيرة
     int    stB = f_liqStrength(lgBar, lgTop, lgEff, bigLvlDir)
     int    stM = f_liqStrength(mcBar, mcTop, mcEff, medLvlDir)
     int    stS = f_liqStrength(dB, dT, dE, smallLvlDir)
     int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير)
-    table.cell(concTbl, 0, 3, "قوة السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 3, f_t("قوة السيولة", "Liquidity strength"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 3, f_stTxt(stS), text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : stS == 2 ? cRngC : pMute, text_size = size.small)
-    table.cell(concTbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 4, entry == 1 ? "شراء فقط" : entry == -1 ? "بيع فقط" : entry == 2 ? "بيع/شراء" : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
+    table.cell(concTbl, 0, 4, f_t("الدخول المتاح", "Available entry"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 4, entry == 1 ? f_t("شراء فقط", "Buy only") : entry == -1 ? f_t("بيع فقط", "Sell only") : entry == 2 ? f_t("بيع/شراء", "Buy/Sell") : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
     // [درس11/م-أ] المرحلة **بجانب كلّ درجة** (خليّة مدمجة): مشاركة عامّة (السيولة محترَمة) ⟷ ذعر (كُسِرت بنصف الجسم). يأس/تجميع/تصريف = م11-ب
     int    phS   = f_phase(dB, dT, dE, smallLvlDir)            // 0 مشاركة · 1 ذعر · 2 يأس · -1 لا سيولة
     int    phM   = f_phase(mcBar, mcTop, mcEff, medLvlDir)
@@ -1901,24 +1907,26 @@ if showConc and barstate.islast
     string phsM  = f_phTxt(phM, medLvlDir)
     string phsB  = f_phTxt(phB, bigLvlDir)
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
-    table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? "صاعدة" : smallLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stS) + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 6, "المتوسطة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 6, (medLvlDir == 1 ? "صاعدة" : medLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stM) + " · " + phsM, text_color = color.white, bgcolor = medLvlDir == 0 ? pMute : medLvlDir == 1 ? cUp : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 7, "الكبيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 7, (bigLvlDir == 1 ? "صاعدة" : bigLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stB) + " · " + phsB, text_color = color.white, bgcolor = bigLvlDir == 0 ? pMute : bigLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    string dUp = f_t("صاعدة", "Up")
+    string dDn = f_t("هابطة", "Down")
+    table.cell(concTbl, 0, 5, f_t("الصغيرة", "Small"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? dUp : smallLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stS) + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 6, f_t("المتوسطة", "Medium"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 6, (medLvlDir == 1 ? dUp : medLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stM) + " · " + phsM, text_color = color.white, bgcolor = medLvlDir == 0 ? pMute : medLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 7, f_t("الكبيرة", "Large"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 7, (bigLvlDir == 1 ? dUp : bigLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stB) + " · " + phsB, text_color = color.white, bgcolor = bigLvlDir == 0 ? pMute : bigLvlDir == 1 ? cUp : cDn, text_size = size.small)
     // [ط4-أ-3] موضع السعر من المناطق: داخل منطقة (in_zone، نشطة) · أو خارجها ⇒ أقرب منطقة فوق=مقاومة / تحت=دعم
     bool   inZone = false
     int    nzc    = array.size(zTop)
     for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
         if nzc > 0 and close <= array.get(zTop, zi) and close >= array.get(zBot, zi)
             inZone := true
-    string zTxt   = inZone ? "داخل منطقة ✓" : nzc == 0 ? "—" : "خارج منطقة"
-    table.cell(concTbl, 0, 8, "موضع السعر", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    string zTxt   = inZone ? f_t("داخل منطقة ✓", "In zone ✓") : nzc == 0 ? "—" : f_t("خارج منطقة", "Out of zone")
+    table.cell(concTbl, 0, 8, f_t("موضع السعر", "Price position"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
     // [ط4-ب الفرصة المُدرَّجة] القرار = داخل منطقة ؟ (اتجاه + درجة الفرصة حسب مرحلة الصغيرة) : انتظار (الدرس L2-03):
     //   تجميع (اكتمل التصحيح ذعر→يأس) ⇒ **قويّة** · ذعر/يأس (تصحيح جارٍ) ⇒ **مخاطرة** · مشاركة (ترند) ⇒ **متاحة**.
-    string dirTxt = entry == 1 ? "شراء" : entry == -1 ? "بيع" : entry == 2 ? "بيع/شراء" : "—"
+    string dirTxt = entry == 1 ? f_t("شراء", "Buy") : entry == -1 ? f_t("بيع", "Sell") : entry == 2 ? f_t("بيع/شراء", "Buy/Sell") : "—"
     // [L2-04 التأكيد بدرجة الصفقة] متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF):
     float lstSmT = na
     float lstSmB = na
@@ -1933,10 +1941,10 @@ if showConc and barstate.islast
     bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة · صغيرة←الرابعة
     bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
     bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
-    string grade  = phS == 3 ? (confOk ? "دخول ✓" : "قويّة · بانتظار تأكيد") : (phS == 1 or phS == 2) ? "مخاطرة ⚠" : "متاحة"
-    string decTxt = not inZone ? "انتظار (خارج منطقة)" : (entry == 1 or entry == -1) ? dirTxt + " · " + grade : dirTxt
+    string grade  = phS == 3 ? (confOk ? f_t("دخول ✓", "Enter ✓") : f_t("قويّة · بانتظار تأكيد", "Strong · awaiting confirm")) : (phS == 1 or phS == 2) ? f_t("مخاطرة ⚠", "High-risk ⚠") : f_t("متاحة", "Available")
+    string decTxt = not inZone ? f_t("انتظار (خارج منطقة)", "Wait (out of zone)") : (entry == 1 or entry == -1) ? dirTxt + " · " + grade : dirTxt
     color  decBg  = not inZone ? pMute : entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute
-    table.cell(concTbl, 0, 9, "القرار", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
     // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. تظهر فقط عند صفقة اتجاهيّة داخل منطقة.
     float zaTop = na
@@ -1957,13 +1965,13 @@ if showConc and barstate.islast
         for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
             if nzc > 0 and array.get(zTop, zi) < close
                 tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
-    table.cell(concTbl, 0, 10, "الوقف", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 10, f_t("الوقف", "Stop"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 10, na(stp) ? "—" : str.tostring(stp, format.mintick), text_color = color.white, bgcolor = na(stp) ? pMute : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 11, "الهدف", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 0, 11, f_t("الهدف", "Target"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 11, na(tgt) ? "—" : str.tostring(tgt, format.mintick), text_color = color.white, bgcolor = na(tgt) ? pMute : cUp, text_size = size.small)
     // [بحث الأطلس] الكتلة (السياق): A ك↑م↑(شراء) · B ك↑م↓(تعارض) · C ك↓م↓(بيع) · D ك↓م↑(تعارض) · E خاصّة (ذعر/يأس كبير)
-    string blk = (phB == 1 or phB == 2) ? "E · خاصّة (ذعر/يأس كبير)" : (bigLvlDir == 1 and medLvlDir == 1) ? "A · ك↑م↑ (شراء)" : (bigLvlDir == -1 and medLvlDir == -1) ? "C · ك↓م↓ (بيع)" : (bigLvlDir == 1 and medLvlDir == -1) ? "B · ك↑م↓ (تعارض)" : (bigLvlDir == -1 and medLvlDir == 1) ? "D · ك↓م↑ (تعارض)" : "—"
-    table.cell(concTbl, 0, 12, "الكتلة (أطلس)", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    string blk = (phB == 1 or phB == 2) ? f_t("E · خاصّة (ذعر/يأس كبير)", "E · special (large panic/despair)") : (bigLvlDir == 1 and medLvlDir == 1) ? f_t("A · ك↑م↑ (شراء)", "A · L↑M↑ (buy)") : (bigLvlDir == -1 and medLvlDir == -1) ? f_t("C · ك↓م↓ (بيع)", "C · L↓M↓ (sell)") : (bigLvlDir == 1 and medLvlDir == -1) ? f_t("B · ك↑م↓ (تعارض)", "B · L↑M↓ (conflict)") : (bigLvlDir == -1 and medLvlDir == 1) ? f_t("D · ك↓م↑ (تعارض)", "D · L↓M↑ (conflict)") : "—"
+    table.cell(concTbl, 0, 12, f_t("الكتلة (أطلس)", "Block (Atlas)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» عند الفرصة المؤكَّدة (دخول ✓): داخل منطقة + اتجاه + تجميع + تأكيد الرابعة
     if not na(entryLbl)
@@ -1975,11 +1983,11 @@ if showConc and barstate.islast
         bool   up    = entry == 1
         bool   isBas = basicSig
         float  rr    = (not na(stp) and not na(tgt) and close != stp) ? math.abs(tgt - close) / math.abs(close - stp) : na
-        string sigTx = (up ? "شراء" : "بيع") + " " + (isBas ? "أساسية" : "مخاطرة ⚠") + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
+        string sigTx = (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + (isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
         color  lc    = up ? (isBas ? cUp : #66BB6A) : (isBas ? cDn : #E57373)                        // المخاطرة بلون أفتح
         entryLbl := label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small)
         if enableAlerts                                          // يُطلِق الحدث (أساسيّة + مخاطرة)؛ نوع التنبيه من نافذة Create Alert في TradingView
-            alert("M-Waves: " + sigTx + (not na(stp) ? " · وقف " + str.tostring(stp, format.mintick) : "") + (not na(tgt) ? " · هدف " + str.tostring(tgt, format.mintick) : ""), alert.freq_once_per_bar_close)
+            alert("M-Waves: " + sigTx + (not na(stp) ? f_t(" · وقف ", " · Stop ") + str.tostring(stp, format.mintick) : "") + (not na(tgt) ? f_t(" · هدف ", " · Target ") + str.tostring(tgt, format.mintick) : ""), alert.freq_once_per_bar_close)
 
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
 //   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
@@ -2019,9 +2027,9 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                             if array.get(zBot, zi) > pp
                                 t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
                         float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
-                        string tp = "درجة: " + degNm + " · نوع: " + (basic ? "أساسية" : "عالية مخاطرة") + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+                        string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
                         if not na(t)                             // 🔴 لا إشارة بلا هدف (الهدف = المنطقة التالية شرطٌ في الدرس)
-                            array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + "شراء", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
+                            array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
                             if not na(rr)
                                 color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                 array.push(sigLabels, label.new(array.get(aBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
@@ -2033,9 +2041,9 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                             if array.get(zTop, zi) < pp
                                 t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
                         float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
-                        string tp = "درجة: " + degNm + " · نوع: " + (basic ? "أساسية" : "عالية مخاطرة") + "\nالوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+                        string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
                         if not na(t)                             // 🔴 لا إشارة بلا هدف (الهدف = المنطقة التالية شرطٌ في الدرس)
-                            array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + "بيع", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = basic ? #F23645 : #E57373, textcolor = color.white, size = size.small, tooltip = tp))
+                            array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = basic ? #F23645 : #E57373, textcolor = color.white, size = size.small, tooltip = tp))
                             if not na(rr)
                                 color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                 array.push(sigLabels, label.new(array.get(aBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
@@ -2055,11 +2063,11 @@ if barstate.islast
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
     if showSignals and nzs > 0 and sigDir != 0
         if showSigS
-            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, "صغيرة")     // إشارات الصغيرة (تأكيدها بالرابعة)
+            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"))     // إشارات الصغيرة (تأكيدها بالرابعة)
         if showSigM
-            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, "متوسطة")    // إشارات المتوسطة (تأكيدها بالصغيرة)
+            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"))    // إشارات المتوسطة (تأكيدها بالصغيرة)
         if showSigL
-            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, "كبيرة")     // إشارات الكبيرة (تأكيدها بالمتوسطة) — كلّ درجة وهدفها منطقتها التالية
+            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"))      // إشارات الكبيرة (تأكيدها بالمتوسطة)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
