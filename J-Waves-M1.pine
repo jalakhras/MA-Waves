@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.89.0 — [تلوين المغطّى] دوائر المتوسطة المُغطّاة (القانون مفعّل لطبقتها) تُلوَّن **أحمر** (تمييزها عن البرتقاليّ الفعّال) — كما في الدرس «المُغطّى يُلوَّن أحمر».
+//   مفتاح showCovered: إظهار (أحمر) أو إخفاء المغطّى، يعمل فقط حين القانون مطبّق. منطق التغطية inline مطابق لـf_coveredAt حرفيًّا (تطابق الدوائر مع خطوط m.A).
 // v0.88.1 — [شكل الإشارة من القديم] وسم رئيسيّ «✦/⚠ شراء/بيع» (✦ أساسيّة · ⚠ مخاطرة) بألوان القديم (#089981/#F23645) + **شارة RR منفصلة على الجهة المقابلة ملوّنة بقيمتها** (أخضر≥2·أصفر1-2·أحمر<1) + tooltip كامل.
 // v0.88.0 — [ط4-ج-1 تصنيف الفرص أساسيّة/مخاطرة] الإشارة التاريخيّة تُصنَّف من تسلسل تطرّفات الصغيرة (تعريف الدرس): ارتداد (قاع أعلى/قمّة أدنى) = **أساسيّة** (تجميع/تصريف)
 //   · ما زال يتطرّف = **مخاطرة** (ذعر/يأس). شراء عند الدعم/بيع عند المقاومة باتجاه المستوى. الوقف=حافّة المنطقة · الهدف=التالية · RR + tooltip. أساسيّة لون صريح · مخاطرة أفتح.
@@ -296,6 +298,7 @@ bool   covCur      = input.bool(false, "Coverage: current wave / التغطية:
 bool   covHist     = input.bool(true, "Coverage: history / التغطية: التاريخ", group = grpZone)
 bool   covHoH      = input.bool(true, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone)
 bool   dbgCov      = input.bool(false, "Diag: show covered levels (red dashed) / تشخيص: إظهار المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
+bool   showCovered = input.bool(true, "Show covered pivots (red, when coverage on) / إظهار دوائر المغطّى (أحمر، حين القانون مفعّل)", group = grpZone, tooltip = "حين يكون قانون التغطية مفعّلًا لطبقة النقطة: المغطّى يُلوَّن أحمر إن فُعِّل هذا المفتاح، أو يُخفى إن أُطفئ. لا أثر له إن كان القانون مطفأً (لا تغطية).")
 
 // ─── المدخلات: لوحة الاستنتاجات [درس 10 — مبدئيًّا: اتجاه السيولة من ميل الخطوط] (تصميم القديم) ───
 string grpConc  = "🧭 Conclusions / لوحة الاستنتاجات"
@@ -1071,6 +1074,9 @@ if barstate.islast
     int   mcN     = array.size(mcBar)
     int   prevTm  = na
     float prevPrc = na
+    int   hL1c = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0          // طبقات التغطية — نفس مدخلات f_coveredAt (تطابق دوائر المغطّى مع خطوط m.A)
+    int   hL2c = array.size(segLefts) > 1 ? array.get(segLefts, 1) : hL1c
+    [wHiC, wLoC] = f_rangeHiLo(hL1c, bar_index)
     for i = 0 to (mcN > 0 ? mcN - 1 : 0)
         if mcN > 0
             int   b   = array.get(mcBar, i)
@@ -1078,13 +1084,26 @@ if barstate.islast
             int   t   = array.get(mcTm, i)
             bool  eff = array.get(mcEff, i)
             bool  liveTip = mediumDegree.pendingType != 0 and b == mediumDegree.pendingBar and i == mcN - 1
+            // [التغطية على الدوائر] مغطّى = فعّال + قانون طبقته مفعّل + لا استثناء (داخل نطاق الموجة) + وُجد لاحقًا أكثر تطرّفًا — نفس منطق f_coveredAt حرفيًّا
+            bool covd = false
+            if eff and not liveTip
+                bool covOnC = b >= hL1c ? covCur : b >= hL2c ? covHist : covHoH
+                if covOnC and not (not na(wHiC) and not na(wLoC) and (p > wHiC or p < wLoC))
+                    bool tiC = array.get(mcTop, i)
+                    for k = 0 to (mcN > 0 ? mcN - 1 : 0)
+                        if mcN > 0 and k != i and array.get(mcTop, k) == tiC and array.get(mcBar, k) > b
+                            if tiC ? (array.get(mcPrc, k) > p) : (array.get(mcPrc, k) < p)
+                                covd := true
             if showMedium
                 if liveTip
                     f_drawMedCircle(medCircles, t, p, cMedPendFill, cMedPendBorder, medCircleSize)
-                else if eff
+                else if eff and not covd
                     f_drawMedCircle(medCircles, t, p, cMed, cMedBorder, medCircleSize)
+                else if eff and covd
+                    if showCovered
+                        f_drawMedCircle(medCircles, t, p, cMedDead, cMedDeadBorder, nonEffCircleSize)   // مغطّى (القانون مفعّل) ⇒ أحمر؛ يُخفى إن أُطفئ showCovered
                 else if showNonEff
-                    f_drawMedCircle(medCircles, t, p, cMedDead, cMedDeadBorder, nonEffCircleSize)
+                    f_drawMedCircle(medCircles, t, p, cMedDead, cMedDeadBorder, nonEffCircleSize)        // غير فعّال
             if linkMed and not na(prevTm)
                 array.push(medLinks, line.new(prevTm, prevPrc, t, p, xloc = xloc.bar_time, color = cLineMed, width = 1))
             prevTm  := t
