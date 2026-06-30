@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.80.0 — [ط4-ب الفرصة المُدرَّجة] صفّ القرار يصير فرصة مُدرَّجة (الدرس L2-03): قويّة (تجميع=اكتمل التصحيح) · مخاطرة (ذعر/يأس جارٍ) · متاحة (مشاركة) — بمرحلة الصغيرة.
 // v0.79.0 — [حالة الكبيرة] الكبيرة قليلة النقاط كانت تُظهر «—» للقوّة/المرحلة. الآن: القوّة لها احتياطيّ (الطرف المعاكس الأقرب عند < 4 نقاط)؛
 //   والمرحلة تفترض «مشاركة» متى وُجد اتجاه ولو بلا خطّ سيولة (ترند بلا كسر). ⇒ الكبيرة لها حالة كاملة (اتجاه·قوّة·مرحلة) بلا تلفيق.
 // v0.78.0 — [ط4-ب بداية القرار] صفّ «القرار» في اللوحة بقاعدة الأطلس: داخل منطقة ؟ (اتجاه المتوسطة+الكبيرة ⇒ شراء/بيع/كلاهما) : انتظار.
@@ -1762,8 +1763,11 @@ if showConc and barstate.islast
     string zTxt   = inZone ? "داخل منطقة ✓" : nzc == 0 ? "—" : "خارج منطقة"
     table.cell(concTbl, 0, 8, "موضع السعر", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
-    // [ط4-ب بداية القرار] قاعدة الأطلس: القرار = داخل منطقة ؟ (اتجاه المتوسطة+الكبيرة) : انتظار. (الفرصة عالية الثقة باكتمال المرحلة = لاحقًا.)
-    string decTxt = not inZone ? "انتظار (خارج منطقة)" : entry == 1 ? "شراء" : entry == -1 ? "بيع" : entry == 2 ? "بيع/شراء" : "—"
+    // [ط4-ب الفرصة المُدرَّجة] القرار = داخل منطقة ؟ (اتجاه + درجة الفرصة حسب مرحلة الصغيرة) : انتظار (الدرس L2-03):
+    //   تجميع (اكتمل التصحيح ذعر→يأس) ⇒ **قويّة** · ذعر/يأس (تصحيح جارٍ) ⇒ **مخاطرة** · مشاركة (ترند) ⇒ **متاحة**.
+    string dirTxt = entry == 1 ? "شراء" : entry == -1 ? "بيع" : entry == 2 ? "بيع/شراء" : "—"
+    string grade  = phS == 3 ? "قويّة ✓✓" : (phS == 1 or phS == 2) ? "مخاطرة ⚠" : "متاحة"
+    string decTxt = not inZone ? "انتظار (خارج منطقة)" : (entry == 1 or entry == -1) ? dirTxt + " · " + grade : dirTxt
     color  decBg  = not inZone ? pMute : entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute
     table.cell(concTbl, 0, 9, "القرار", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
