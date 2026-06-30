@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.82.0 — [ط4-ج الوقف/الهدف] صفّا «الوقف» و«الهدف» في اللوحة (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة.
 // v0.81.0 — [درس L2-04 — تأكيد الرابعة MTF] f_degree4 (محرّك شمعتين مستقلّ) يُحسب على فريم أصغر (الشارت ÷ معامل، أو يدويّ) عبر request.security ⇒ تأكيد شراء/بيع.
 //   يرقّي الفرصة القويّة (داخل منطقة + اتجاه + تجميع) إلى **«دخول ✓»** عند مطابقة التأكيد. أتمتة «النزول لفريم أصغر» بلا تبديل فريم. (يعيد الرسم لحظيًّا — متوقَّع.)
 // v0.80.0 — [ط4-ب الفرصة المُدرَّجة] صفّ القرار يصير فرصة مُدرَّجة (الدرس L2-03): قويّة (تجميع=اكتمل التصحيح) · مخاطرة (ذعر/يأس جارٍ) · متاحة (مشاركة) — بمرحلة الصغيرة.
@@ -1793,7 +1794,7 @@ if barstate.islast
                             array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
-var table concTbl = table.new(f_pos(concPos), 2, 10, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+var table concTbl = table.new(f_pos(concPos), 2, 12, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
     // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
@@ -1867,6 +1868,29 @@ if showConc and barstate.islast
     color  decBg  = not inZone ? pMute : entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute
     table.cell(concTbl, 0, 9, "القرار", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
+    // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. تظهر فقط عند صفقة اتجاهيّة داخل منطقة.
+    float zaTop = na
+    float zaBot = na
+    for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
+        if nzc > 0 and close <= array.get(zTop, zi) and close >= array.get(zBot, zi)
+            zaTop := array.get(zTop, zi)
+            zaBot := array.get(zBot, zi)
+    float stp = na
+    float tgt = na
+    if inZone and entry == 1                                              // شراء: الوقف أسفل المنطقة · الهدف أقرب منطقة فوق (حافّتها السفلى)
+        stp := zaBot
+        for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
+            if nzc > 0 and array.get(zBot, zi) > close
+                tgt := na(tgt) or array.get(zBot, zi) < tgt ? array.get(zBot, zi) : tgt
+    else if inZone and entry == -1                                        // بيع: الوقف أعلى المنطقة · الهدف أقرب منطقة تحت (حافّتها العليا)
+        stp := zaTop
+        for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
+            if nzc > 0 and array.get(zTop, zi) < close
+                tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
+    table.cell(concTbl, 0, 10, "الوقف", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 10, na(stp) ? "—" : str.tostring(stp, format.mintick), text_color = color.white, bgcolor = na(stp) ? pMute : cDn, text_size = size.small)
+    table.cell(concTbl, 0, 11, "الهدف", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 11, na(tgt) ? "—" : str.tostring(tgt, format.mintick), text_color = color.white, bgcolor = na(tgt) ? pMute : cUp, text_size = size.small)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
