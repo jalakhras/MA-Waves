@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.84.0 — [L2-04 التأكيد بدرجة الصفقة] درجة الصفقة (متوسطة/صغيرة) تحدّد التأكيد: متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF). مفتاح tradeDeg.
 // v0.83.0 — [ط4-ج إشارة الدخول] وسم «شراء/بيع + RR» على الشارت عند الفرصة المؤكَّدة (دخول ✓) — بشكل الكود القديم (label_up/down + لون الاتجاه). مفتاح showSignals.
 // v0.82.0 — [ط4-ج الوقف/الهدف] صفّا «الوقف» و«الهدف» في اللوحة (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة.
 // v0.81.0 — [درس L2-04 — تأكيد الرابعة MTF] f_degree4 (محرّك شمعتين مستقلّ) يُحسب على فريم أصغر (الشارت ÷ معامل، أو يدويّ) عبر request.security ⇒ تأكيد شراء/بيع.
@@ -299,6 +300,7 @@ bool   confAuto     = input.bool(true, "Auto TF (chart ÷ divisor) / فريم ت
 int    confDiv      = input.int(12, "Auto divisor (finer-degree factor) / معامل التنعيم", minval = 2, maxval = 60, group = grpConf, tooltip = "فريم التأكيد ≈ الشارت ÷ هذا المعامل. 12 ≈ درجة أنعم (1س→5د). اضبطه ليطابق «أنعم بدرجة من الصغيرة» في سوقك.")
 string confTfManual = input.timeframe("5", "Manual TF (when Auto off) / الفريم اليدويّ (حين الإطفاء)", group = grpConf)
 bool   showSignals  = input.bool(true, "Show entry signal label / إظهار وسم إشارة الدخول (شراء/بيع + RR)", group = grpConf, tooltip = "وسم «شراء/بيع» عند الفرصة المؤكَّدة (دخول ✓) بشكل الكود القديم. يتطلّب لوحة الاستنتاجات مفعّلة.")
+string tradeDeg     = input.string("Medium / متوسطة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpConf, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
@@ -1865,7 +1867,20 @@ if showConc and barstate.islast
     // [ط4-ب الفرصة المُدرَّجة] القرار = داخل منطقة ؟ (اتجاه + درجة الفرصة حسب مرحلة الصغيرة) : انتظار (الدرس L2-03):
     //   تجميع (اكتمل التصحيح ذعر→يأس) ⇒ **قويّة** · ذعر/يأس (تصحيح جارٍ) ⇒ **مخاطرة** · مشاركة (ترند) ⇒ **متاحة**.
     string dirTxt = entry == 1 ? "شراء" : entry == -1 ? "بيع" : entry == 2 ? "بيع/شراء" : "—"
-    bool   confOk = (entry == 1 and confUp) or (entry == -1 and confDn)   // تأكيد الرابعة يطابق الاتجاه (كسر آخر قمّة/قاع على الفريم الأنعم)
+    // [L2-04 التأكيد بدرجة الصفقة] متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF):
+    float lstSmT = na
+    float lstSmB = na
+    int   nscc = array.size(scBar)
+    for si = 0 to (nscc > 0 ? nscc - 1 : 0)
+        if nscc > 0 and array.get(scEff, si)
+            if array.get(scTop, si)
+                lstSmT := array.get(scPrc, si)
+            else
+                lstSmB := array.get(scPrc, si)
+    bool isMedTrade = tradeDeg == "Medium / متوسطة"
+    bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة · صغيرة←الرابعة
+    bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
+    bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
     string grade  = phS == 3 ? (confOk ? "دخول ✓" : "قويّة · بانتظار تأكيد") : (phS == 1 or phS == 2) ? "مخاطرة ⚠" : "متاحة"
     string decTxt = not inZone ? "انتظار (خارج منطقة)" : (entry == 1 or entry == -1) ? dirTxt + " · " + grade : dirTxt
     color  decBg  = not inZone ? pMute : entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute
