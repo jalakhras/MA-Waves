@@ -3,6 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.72.0 — [الدرس05 — قانون التغطية / المناطق] f_coveredAt: نقطة مُغطّاة إن وُجدت بعدها نقطة من نوعها أكثر تطرّفًا (قمّة بأعلى لاحقة · قاع بأدنى لاحق)
+//   ⇒ غير فعّالة ⇒ لا م.A/منطقة. مفاتيح لكلّ طبقة موجة (covCur مطفأ · covHist/covHoH مفعّلان) عبر segLefts + استثناء «خارج نطاق الموجة».
+//   طُبِّق على مستويات/مناطق المتوسطة (كان غائبًا ⇒ قمم صاعدة تبقى فعّالة فتظهر مناطق مقاومة زائفة). التالي: الكبيرة + الاستعارة من الماضي.
 // v0.71.0 — [ط4-أ-2 / الدرس L2-02] **المناطق — المستطيلات**: منطقة = مستطيل بين مستويين متقاربين من **نفس المرحلة** (قمّتان/قاعان)
 //   في الموجة العاملة (mcBar ≥ segLefts[0]): greedy الأقرب سعريًّا + منع الاحتواء + منع مستوى ثالث بينهما (مبسَّط من المنطق القديم).
 //   تُخزَّن حدود zTop/zBot للتصنيف وin_zone (ط4-أ-3). مفاتيح showZoneBox/cZoneFill/cZoneBorder.
@@ -257,6 +260,10 @@ bool   showZoneBox = input.bool(true, "Show zone boxes / مستطيلات الم
 color  cZoneFill   = input.color(color.new(#2E75B6, 80), "Zone fill / تعبئة المنطقة", group = grpZone)
 color  cZoneBorder = input.color(color.new(#2E75B6, 40), "Zone border / حدّ المنطقة", group = grpZone)
 int    zoneExtend  = input.int(24, "Zone extension past now (candles) / مدى امتداد المنطقة بعد السعر (شموع)", minval = 0, maxval = 500, group = grpZone)
+// [الدرس05 — التغطية] قانون التغطية لكلّ طبقة موجة (قمّة مُغطّاة بأعلى لاحقة · قاع بأدنى لاحق ⇒ غير فعّالة ⇒ لا م.A/منطقة):
+bool   covCur      = input.bool(false, "Coverage: current wave / التغطية: الموجة الحاليّة", group = grpZone, tooltip = "الموجة الحاليّة هي الترند الحيّ ⇒ مطفأة افتراضيًّا (تبقى نقاطها فعّالة). المغطّى غالبًا في الماضي.")
+bool   covHist     = input.bool(true, "Coverage: history / التغطية: التاريخ", group = grpZone)
+bool   covHoH      = input.bool(true, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone)
 
 // ─── المدخلات: لوحة الاستنتاجات [درس 10 — مبدئيًّا: اتجاه السيولة من ميل الخطوط] (تصميم القديم) ───
 string grpConc  = "🧭 Conclusions / لوحة الاستنتاجات"
@@ -1537,8 +1544,26 @@ if barstate.islast
                 line.delete(smallLiqLine)
                 smallLiqLine := na
 
-// ─── [ط4-أ-1 / الدرس L2-02] مستويات م.A: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال (قمّة=أعلى الجسم · قاع=أسفله) ───
-//   المدخل = المتوسطة الفعّالة فقط (mcEff) — لا الأحمر ولا غير الفعّالة. الخطوة التالية (ط4-أ-2): قَرن المتقاربين ⇒ مستطيلات.
+// [الدرس05 — التغطية] نقطة مُغطّاة إن وُجدت **بعدها** نقطة من نوعها **أكثر تطرّفًا** (قمّة بأعلى لاحقة · قاع بأدنى لاحق) ⇒ غير فعّالة.
+//   عالميّة للأمام، تُطبَّق لكلّ طبقة موجة حسب مفتاحها (covCur/covHist/covHoH عبر segLefts). الاستثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة.
+f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1, int hL2, float wHi, float wLo) =>
+    bool cov = false
+    int  bi = array.get(aBar, i)
+    bool covOn = bi >= hL1 ? covCur : bi >= hL2 ? covHist : covHoH                  // طبقة النقطة ⇒ مفتاحها
+    if covOn
+        float pi = array.get(aPrc, i)
+        bool  ti = array.get(aTop, i)
+        bool outside = not na(wHi) and not na(wLo) and (pi > wHi or pi < wLo)        // استثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة
+        if not outside
+            int n = array.size(aBar)
+            for k = 0 to (n > 0 ? n - 1 : 0)
+                if n > 0 and k != i and array.get(aTop, k) == ti and array.get(aBar, k) > bi
+                    if ti ? (array.get(aPrc, k) > pi) : (array.get(aPrc, k) < pi)
+                        cov := true
+    cov
+
+// ─── [ط4-أ-1 / الدرس L2-02] مستويات م.A: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال **غير مُغطّى** (قمّة=أعلى الجسم · قاع=أسفله) ───
+//   المدخل = المتوسطة الفعّالة + ليست مُغطّاة (قانون التغطية لكلّ طبقة). الخطوة التالية (ط4-أ-2): قَرن المتقاربين ⇒ مستطيلات.
 var array<line> zoneLvlLines = array.new<line>()
 if barstate.islast
     if array.size(zoneLvlLines) > 0
@@ -1547,9 +1572,12 @@ if barstate.islast
     array.clear(zoneLvlLines)
     if showZones and showZoneLvl
         int rightTmZ = time + zoneExtend * timeframe.in_seconds() * 1000
+        int hL1z = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0           // بداية الموجة الحاليّة
+        int hL2z = array.size(segLefts) > 1 ? array.get(segLefts, 1) : hL1z         // بداية التاريخ (قبلها = تاريخ التاريخ)
+        [wHiZ, wLoZ] = f_rangeHiLo(hL1z, bar_index)                                 // نطاق سعر الموجة الحاليّة (للاستثناء)
         int nz = array.size(mcBar)
         for i = 0 to (nz > 0 ? nz - 1 : 0)
-            if nz > 0 and array.get(mcEff, i)                          // المتوسطة الفعّالة فقط
+            if nz > 0 and array.get(mcEff, i) and not f_coveredAt(mcBar, mcTop, mcPrc, i, hL1z, hL2z, wHiZ, wLoZ)   // فعّالة وغير مُغطّاة
                 int o = bar_index - array.get(mcBar, i)
                 if o >= 0
                     float lvl = array.get(mcTop, i) ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // قمّة=أعلى الجسم · قاع=أسفله
@@ -1569,13 +1597,15 @@ if barstate.islast
     array.clear(zBot)
     if showZones and showZoneBox
         int histLeft = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
-        // (1) أطراف الموجة العاملة الفعّالة: الفهرس (في mcBar) + مستوى الجسم + النوع
+        int hL2b     = array.size(segLefts) > 1 ? array.get(segLefts, 1) : histLeft
+        [wHiB, wLoB] = f_rangeHiLo(histLeft, bar_index)                             // نطاق الموجة الحاليّة (للاستثناء)
+        // (1) أطراف الموجة العاملة الفعّالة **غير المغطّاة**: الفهرس (في mcBar) + مستوى الجسم + النوع
         array<int>   eIdx = array.new<int>()
         array<float> eLvl = array.new<float>()
         array<bool>  eTp  = array.new<bool>()
         int nz2 = array.size(mcBar)
         for i = 0 to (nz2 > 0 ? nz2 - 1 : 0)
-            if nz2 > 0 and array.get(mcEff, i) and array.get(mcBar, i) >= histLeft
+            if nz2 > 0 and array.get(mcEff, i) and array.get(mcBar, i) >= histLeft and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB)
                 int o = bar_index - array.get(mcBar, i)
                 if o >= 0
                     array.push(eIdx, i)
