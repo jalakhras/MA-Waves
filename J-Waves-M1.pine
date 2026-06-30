@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.69.0 — [درس10] قوّة السيولة 3 حالات: **قويّة (اختبار بذيل واحد، الأقوى) · متوسطة (تباعُد، لا تلامس) · ضعيفة (تداخُل/توغّل الجسم)**.
+//   تمييز بلا رقم سحريّ (الذيل↔الجسم): جسم تجاوز المرجع⇒ضعيفة · ذيل لمَس وجسم صمد⇒قويّة · لم يلمس⇒متوسطة. مساعد f_stTxt + لون متوسطة برتقاليّ.
 // v0.68.1 — [تصحيح قاعدة] ما لم تُكسَر السيولة ⇒ **مشاركة** دائمًا (أُسقِط تصريف-بأيّ-ضعف الذي خالف القاعدة: ظهر تصريف في مشاركة عاديّة).
 //   تصريف الحقيقيّ (تجمّع قمم متقارب قُبيل الكسر) مؤجَّل لتعريف دقيق. المراحل العاملة: مشاركة · ذعر · يأس · تجميع.
 // v0.68.0 — [درس11 م11-ج] إكمال دورة داو الخماسية: + تجميع (ارتداد عن الأعمق بعد الكسر) + تصريف (ضعف تطرّف الاتجاه قُبيل الكسر).
@@ -1289,7 +1291,9 @@ f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     dir
 
 // [درس10] قوة السيولة لكلّ درجة = مدى تداخل تطرّفاتها: المرجع = الطرف المعاكس قبل الأخير بـ3 مواضع (قاع4↔قمّة1).
-//   صعود: قاعٌ بقي ≥ القمّة المرجع ⇒ قويّة (1) · توغّل تحتها ⇒ ضعيفة (-1). هبوط: مرآة. 0 = غير محدّد (نقاط غير كافية).
+//   3 حالات (الدرس10 §قوّة، بلا رقم سحريّ — الذيل↔الجسم): صعودًا والمرجع قمّة high[o2]:
+//   • جسم القاع تحت المرجع (توغّل > ذيل) ⇒ **ضعيفة** (-1، تصحيح متوقَّع). • ذيلٌ لمَس/تجاوز والجسم صمد فوقه ⇒ **قويّة** (1، اختبار بذيل واحد، الأقوى).
+//   • لم يلمس البتّة (فوق المرجع كلّه) ⇒ **متوسطة** (2، تباعُد). هبوط: مرآة (المرجع قاع، الجسم/الذيل أعلى). 0 = غير محدّد.
 f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     int st = 0
     array<int>  eb = array.new<int>()
@@ -1312,10 +1316,16 @@ f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
         int o2 = bar_index - array.get(eb, last - 3)       // الطرف المعاكس قبله بـ3 (قمّة في الصعود)
         if o1 >= 0 and o2 >= 0
             if up
-                st := low[o1] >= high[o2] ? 1 : -1         // القاع بقي فوق/عند القمّة المرجع ⇒ قويّة
+                float bodyLo = math.min(open[o1], close[o1])
+                st := bodyLo < high[o2] ? -1 : low[o1] <= high[o2] ? 1 : 2   // جسم تحت المرجع⇒ضعيفة · ذيل لمَس وجسم صمد⇒قويّة(اختبار) · لم يلمس⇒متوسطة(تباعد)
             else
-                st := high[o1] <= low[o2] ? 1 : -1         // القمّة بقيت تحت/عند القاع المرجع ⇒ قويّة
+                float bodyHi = math.max(open[o1], close[o1])
+                st := bodyHi > low[o2] ? -1 : high[o1] >= low[o2] ? 1 : 2     // مرآة الهبوط
     st
+
+// [درس10] نصّ القوّة (3 حالات) — مساعد عامّ (لا يُعرَّف داخل كتلة).
+f_stTxt(int st) =>
+    st == 1 ? "قويّة" : st == 2 ? "متوسطة" : st == -1 ? "ضعيفة" : "—"
 
 // [درس09/م3-أ] الاتجاه الفعّال **الملتقَط** (latch) — عرض فقط، لا يمسّ القمم/القيعان (الماضي ثابت):
 //   يبدأ startDir، وينقلب عند كلّ **كسر مؤكَّد** = شمعتان إغلاقًا خلف **جسم** آخر تطرّف فعّال من الجانب الحاليّ (مقاومة هبوطًا/دعم صعودًا)،
@@ -1543,7 +1553,7 @@ if showConc and barstate.islast
     int    stS = f_liqStrength(dB, dT, dE, smallLvlDir)
     int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير)
     table.cell(concTbl, 0, 3, "قوة السيولة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 3, stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—", text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : pMute, text_size = size.small)
+    table.cell(concTbl, 1, 3, f_stTxt(stS), text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : stS == 2 ? cRngC : pMute, text_size = size.small)
     table.cell(concTbl, 0, 4, "الدخول المتاح", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 4, entry == 1 ? "شراء فقط" : entry == -1 ? "بيع فقط" : entry == 2 ? "بيع/شراء" : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
     // [درس11/م-أ] المرحلة **بجانب كلّ درجة** (خليّة مدمجة): مشاركة عامّة (السيولة محترَمة) ⟷ ذعر (كُسِرت بنصف الجسم). يأس/تجميع/تصريف = م11-ب
@@ -1555,11 +1565,11 @@ if showConc and barstate.islast
     string phsB  = phB == -1 ? "—" : phB == 4 ? "تصريف" : phB == 3 ? "تجميع" : phB == 2 ? "يأس ⚠" : phB == 1 ? "ذعر ⚠" : "مشاركة"
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     table.cell(concTbl, 0, 5, "الصغيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? "صاعدة" : smallLvlDir == -1 ? "هابطة" : "—") + " · " + (stS == 1 ? "قويّة" : stS == -1 ? "ضعيفة" : "—") + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? "صاعدة" : smallLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stS) + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
     table.cell(concTbl, 0, 6, "المتوسطة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 6, (medLvlDir == 1 ? "صاعدة" : medLvlDir == -1 ? "هابطة" : "—") + " · " + (stM == 1 ? "قويّة" : stM == -1 ? "ضعيفة" : "—") + " · " + phsM, text_color = color.white, bgcolor = medLvlDir == 0 ? pMute : medLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 1, 6, (medLvlDir == 1 ? "صاعدة" : medLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stM) + " · " + phsM, text_color = color.white, bgcolor = medLvlDir == 0 ? pMute : medLvlDir == 1 ? cUp : cDn, text_size = size.small)
     table.cell(concTbl, 0, 7, "الكبيرة", text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 7, (bigLvlDir == 1 ? "صاعدة" : bigLvlDir == -1 ? "هابطة" : "—") + " · " + (stB == 1 ? "قويّة" : stB == -1 ? "ضعيفة" : "—") + " · " + phsB, text_color = color.white, bgcolor = bigLvlDir == 0 ? pMute : bigLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    table.cell(concTbl, 1, 7, (bigLvlDir == 1 ? "صاعدة" : bigLvlDir == -1 ? "هابطة" : "—") + " · " + f_stTxt(stB) + " · " + phsB, text_color = color.white, bgcolor = bigLvlDir == 0 ? pMute : bigLvlDir == 1 ? cUp : cDn, text_size = size.small)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
