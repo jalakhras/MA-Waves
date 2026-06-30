@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.76.0 — [ط4-أ-2 مرحلة ثالثة] تزويج خطوط الماضي (تاريخ/تاريخ-التاريخ) بينها بنفس الطريقة ⇒ لا يبقى خطّ بلا منطقة. حارس «المستوى الثالث» صار يشمل كلّ الطبقات.
 // v0.75.0 — [ط4-أ-2 تصحيح التزويج] greedy **الأصغر مسافةً عالميًّا** داخل كلّ مرحلة (بدل «الأحدث أوّلًا» الذي قد يزوّج الأحدث بشريك بعيد ⇒ منطقة كبيرة).
 //   مرحلتان بالأولويّة: ج1 كلاهما حاليّ · ج2 واحد حاليّ + واحد تاريخيّ (استعارة). الأزواج الأضيق أوّلًا. (تحقّق نظريّ بسيناريو + مطابقة الكود القديم.)
 // v0.74.0 — [ط4-أ-2 المناطق مرحلتان + استعارة] الأساس دائمًا نقطة الموجة الحاليّة؛ pass1 شريك حاليّ بالأقرب · pass2 المنفردة تستعير الأقرب من التاريخ.
@@ -1595,8 +1596,8 @@ if barstate.islast
                         array.push(zoneLvlLines, line.new(array.get(mcTm, i), lvl, rightTmZ, lvl, xloc = xloc.bar_time, color = lc, width = 1, style = covered ? line.style_dashed : line.style_solid))
 
 // ─── [ط4-أ-2 / الدرس L2-02] المناطق = مستطيل بين خطّين **متقاربين سعريًّا** (دعم/مقاومة) — قاعدته دائمًا نقطة الموجة الحاليّة ───
-//   **مرحلتان** (الموجة الحاليّة ثمّ استعارة التاريخ)؛ داخل كلّ مرحلة **greedy الأصغر مسافةً عالميًّا** (الأزواج الأضيق أوّلًا ⇒ لا تزويج بعيد كبير).
-//   ما بقي بلا شريك ⇒ خطّ م.A فقط (لا مستطيل، مرسوم أصلًا). 🔴 الممنوع: التصحيح المتجاور · 🔴 لا منطقة داخل منطقة (احتواء) · لا مستوى حاليّ ثالث بينهما (تبقى صغيرة).
+//   **3 مراحل** (الموجة الحاليّة · استعارة حاليّ↔ماضٍ · الماضي بينه)؛ داخل كلّ مرحلة **greedy الأصغر مسافةً عالميًّا** ⇒ كلّ خطّ يدخل منطقة.
+//   ما بقي بلا شريك ⇒ خطّ م.A فقط. 🔴 الممنوع: التصحيح المتجاور · 🔴 لا منطقة داخل منطقة (احتواء) · لا مستوى ثالث (أيّ طبقة) بينهما (تبقى صغيرة).
 var array<box>   zoneBoxes = array.new<box>()
 var array<float> zTop = array.new<float>()                                  // حدود المناطق (للتصنيف وin_zone لاحقًا — ط4-أ-3)
 var array<float> zBot = array.new<float>()
@@ -1627,9 +1628,9 @@ if barstate.islast
         if en >= 2
             array<bool> usedZ = array.new<bool>(en, false)
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
-            // مرحلتان بالأولويّة (الموجة الحاليّة ثمّ استعارة التاريخ)؛ داخل كلّ مرحلة: greedy **الأصغر مسافةً عالميًّا** (يمنع تزويج الأحدث بشريك بعيد):
-            for pass = 1 to 2
-                // بناء المرشّحات (a<b): الأساس أحدُ الطرفين حاليّ على الأقلّ · ج1 كلاهما حاليّ · ج2 واحد حاليّ + واحد تاريخيّ · عدا التصحيح المتجاور
+            // **ثلاث مراحل بالأولويّة**: ج1 الموجة الحاليّة · ج2 استعارة (حاليّ↔تاريخ) · ج3 الماضي بينه (تاريخ/تاريخ-التاريخ — كي لا يبقى خطّ بلا منطقة).
+            //   داخل كلّ مرحلة: greedy **الأصغر مسافةً عالميًّا** (الأزواج الأضيق أوّلًا ⇒ لا تزويج بعيد كبير).
+            for pass = 1 to 3
                 array<int>   pAi = array.new<int>()
                 array<int>   pBi = array.new<int>()
                 array<float> pD  = array.new<float>()
@@ -1637,7 +1638,7 @@ if barstate.islast
                     bool aCur = array.get(mcBar, array.get(eIdx, a)) >= histLeft
                     for b = a + 1 to en - 1
                         bool bCur   = array.get(mcBar, array.get(eIdx, b)) >= histLeft
-                        bool tierOk = pass == 1 ? (aCur and bCur) : ((aCur or bCur) and not (aCur and bCur))   // ج1 كلاهما حاليّ · ج2 واحد حاليّ + واحد تاريخيّ
+                        bool tierOk = pass == 1 ? (aCur and bCur) : pass == 2 ? ((aCur or bCur) and not (aCur and bCur)) : (not aCur and not bCur)   // ج1 كلاهما حاليّ · ج2 واحد حاليّ+واحد ماضٍ · ج3 كلاهما ماضٍ
                         bool adjc   = (b - a) == 1
                         bool oppc   = array.get(eTp, a) != array.get(eTp, b)
                         if tierOk and not (adjc and oppc)                       // 🔴 لا تصحيح متجاور — يُسمح قمّة+قاع بعيدين بنفس المستوى
@@ -1669,10 +1670,10 @@ if barstate.islast
                             for k = 0 to zc - 1
                                 if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
                                     contain := true
-                        // بوّابة المجاورة: لا مستوى **حاليّ** ثالث بين الحدّين سعريًّا ⇒ تبقى صغيرة
+                        // بوّابة المجاورة: لا مستوى ثالث (أيّ طبقة) بين الحدّين سعريًّا ⇒ كلّ المناطق تبقى صغيرة (حاليّة وماضية)
                         bool thirdBetween = false
                         for k = 0 to en - 1
-                            if k != aa and k != bb and array.get(mcBar, array.get(eIdx, k)) >= histLeft
+                            if k != aa and k != bb
                                 float lk = array.get(eLvl, k)
                                 if lk > cB and lk < cT
                                     thirdBetween := true
