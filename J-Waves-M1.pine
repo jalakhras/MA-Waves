@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.86.0 — [إشارات شكل القديم] الإشارة التاريخيّة = وسم «شراء/بيع» + **RR تحته** + **tooltip** (شراء: الهدف/الدخول/الوقف · بيع: الوقف/الدخول/الهدف). الوقف=حافّة المنطقة · الهدف=المنطقة التالية.
 // v0.85.1 — [إصلاح] إشارات تاريخيّة: ألوان حرفيّة (#089981/#F23645) بدل cUp/cDn (محلّيّان لكتلة اللوحة ⇒ undeclared في الكتلة المستقلّة).
 // v0.85.0 — [ط4-ج إشارات تاريخيّة] كتلة مستقلّة (showSignals، بلا اللوحة): علامة ▲/▼ عند كلّ تطرّف صغير فعّال **داخل منطقة باتجاه الموجة** عبر الموجة العاملة
 //   (دخول الانخفاض عند الدعم / الارتداد عند المقاومة). تظهر الإشارات عبر الشارت لا الحاضر فقط. الإشارة المؤكَّدة بالـRR (entryLbl) تبقى للحاضر.
@@ -1938,18 +1939,38 @@ if barstate.islast
     if showSignals and nzs > 0 and bigDir != 0
         for si = 0 to (nsps > 0 ? nsps - 1 : 0)
             if nsps > 0 and array.get(scEff, si) and array.get(scBar, si) >= histLs
-                float pp = array.get(scPrc, si)
-                bool  inZs = false
+                float pp  = array.get(scPrc, si)
+                bool  isT = array.get(scTop, si)
+                int   ob  = bar_index - array.get(scBar, si)
+                float zbC = na                                       // حدود المنطقة الحاضنة (تحوي التطرّف)
+                float ztC = na
                 for zi = 0 to nzs - 1
                     if pp <= array.get(zTop, zi) and pp >= array.get(zBot, zi)
-                        inZs := true
-                if inZs
-                    bool isT = array.get(scTop, si)
-                    int  ob  = bar_index - array.get(scBar, si)
-                    if bigDir == 1 and not isT and ob >= 0          // صعود + قاع صغير داخل منطقة ⇒ شراء
-                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▲", xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.tiny))
-                    else if bigDir == -1 and isT and ob >= 0        // هبوط + قمّة صغيرة داخل منطقة ⇒ بيع
-                        array.push(sigLabels, label.new(array.get(scBar, si), pp, "▼", xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.tiny))
+                        ztC := array.get(zTop, zi)
+                        zbC := array.get(zBot, zi)
+                if not na(zbC) and ob >= 0
+                    if bigDir == 1 and not isT                       // شراء: قاع صغير داخل منطقة دعم
+                        float e = pp
+                        float s = zbC                                // الوقف = أسفل منطقة الدخول
+                        float t = na                                 // الهدف = أقرب منطقة فوق (حافّتها السفلى)
+                        for zi = 0 to nzs - 1
+                            if array.get(zBot, zi) > pp
+                                t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
+                        float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
+                        string tx = "شراء" + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
+                        string tp = "الهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالوقف: " + str.tostring(s, format.mintick)
+                        array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.belowbar, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tp))
+                    else if bigDir == -1 and isT                     // بيع: قمّة صغيرة داخل منطقة مقاومة
+                        float e = pp
+                        float s = ztC                                // الوقف = أعلى منطقة الدخول
+                        float t = na                                 // الهدف = أقرب منطقة تحت (حافّتها العليا)
+                        for zi = 0 to nzs - 1
+                            if array.get(zTop, zi) < pp
+                                t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
+                        float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
+                        string tx = "بيع" + (not na(rr) ? "\nRR " + str.tostring(rr, "#.#") : "")
+                        string tp = "الوقف: " + str.tostring(s, format.mintick) + "\nالدخول: " + str.tostring(e, format.mintick) + "\nالهدف: " + (na(t) ? "—" : str.tostring(t, format.mintick))
+                        array.push(sigLabels, label.new(array.get(scBar, si), pp, tx, xloc = xloc.bar_index, yloc = yloc.abovebar, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tp))
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
