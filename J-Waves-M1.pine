@@ -3,6 +3,7 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.92.1 — [تحقّق شامل — إصلاح②] الإشارات تستثني النقاط **المُغطّاة** (f_coveredAt) — اتّساق مع المناطق/خطوط m.A (كان يُطلِق إشارة عند متوسطة/كبيرة مغطّاة حمراء).
 // v0.92.0 — [تحقّق شامل — إصلاح] لا إشارة (تاريخيّة أو حيّة) **بلا هدف** (المنطقة التالية شرطٌ في الدرس) — كان يُرسَم شراء عند المنطقة العليا/بيع عند السفلى بلا اتّجاه ربح.
 // v0.91.1 — [توسيع التنبيه + ألوان المخاطرة] التنبيه/الوسم الحيّ يشمل الآن **عالية المخاطرة** (ذعر/يأس + تأكيد) مع الأساسيّة. ألوان المخاطرة أفتح (شراء #66BB6A · بيع #E57373).
 // v0.91.0 — [مفاتيح الإشارات + التنبيه] مفتاح عامّ showSignals + مفتاح لكلّ درجة (showSigL/M/S، مفعّلة تلقائيًّا) + alert() عند الدخول المؤكَّد (enableAlerts).
@@ -1975,12 +1976,12 @@ if showConc and barstate.islast
 //   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
 var array<label> sigLabels = array.new<label>()
 // [ط4-ج إشارات لكلّ درجة] «كلّ تصحيح = صفقة · درجة الصفقة = درجة التصحيح»: تطرّف فعّال داخل منطقة بالاتجاه ⇒ شراء/بيع (✦أساسية/⚠مخاطرة) + RR + tooltip. الهدف = منطقة الدرجة التالية ⇒ التدرّج تلقائيّ.
-f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int sigDir, int histLs, string degNm) =>
+f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int sigDir, int hL1, int hL2, float wHi, float wLo, string degNm) =>
     int  nps = array.size(aBar)
     int  nzs = array.size(zTop)
     bool wantBot = sigDir == 1
     for si = 0 to (nps > 0 ? nps - 1 : 0)
-        if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= histLs
+        if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= hL1 and not f_coveredAt(aBar, aTop, aPrc, si, hL1, hL2, wHi, wLo)   // فعّال + غير مُغطّى (اتّساق مع المناطق/خطوط m.A)
             float pp  = array.get(aPrc, si)
             bool  isT = array.get(aTop, si)
             int   ob  = bar_index - array.get(aBar, si)
@@ -2035,6 +2036,8 @@ if barstate.islast
             label.delete(array.get(sigLabels, li))
     array.clear(sigLabels)
     int histLs = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
+    int hL2s   = array.size(segLefts) > 1 ? array.get(segLefts, 1) : histLs        // طبقات التغطية (لاستثناء المغطّى من الإشارات — اتّساق مع المناطق)
+    [wHiS, wLoS] = f_rangeHiLo(histLs, bar_index)
     int nzs    = array.size(zTop)
     // [إصلاح التناقض] اتجاه الإشارة = اتجاه **المستوى** (المتوسطة+الكبيرة) نفسه الذي تستعمله اللوحة (entry) — لا bigDir الخام (يتعارضان بعد كسر المستوى)
     int sBLvl  = f_activeDir(lgBar, lgTop, lgEff, bigDir)
@@ -2042,11 +2045,11 @@ if barstate.islast
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
     if showSignals and nzs > 0 and sigDir != 0
         if showSigS
-            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, "صغيرة")     // إشارات الصغيرة (تأكيدها بالرابعة)
+            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, "صغيرة")     // إشارات الصغيرة (تأكيدها بالرابعة)
         if showSigM
-            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, "متوسطة")    // إشارات المتوسطة (تأكيدها بالصغيرة)
+            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, "متوسطة")    // إشارات المتوسطة (تأكيدها بالصغيرة)
         if showSigL
-            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, "كبيرة")     // إشارات الكبيرة (تأكيدها بالمتوسطة) — كلّ درجة وهدفها منطقتها التالية
+            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, "كبيرة")     // إشارات الكبيرة (تأكيدها بالمتوسطة) — كلّ درجة وهدفها منطقتها التالية
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
