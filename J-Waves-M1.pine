@@ -3,6 +3,18 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v1.06.0 — [غير الفعّالة حمراء + إشارة الكسر من خارج المنطقة] (أ) لون غير الفعّالة (متوسطة/كبيرة) أحمر #F23645 (مخفيّة افتراضيًّا). (ب) إشارة جديدة: شروط الانعكاس قد تتحقّق **بعد خروج السعر من المنطقة** — كسر المنطقة بشمعة/شمعتين صحيحتين (بيع=للأسفل حمراء · شراء=للأعلى خضراء)؛ عدد الشموع حسب الفريم (≥15د=1 · أقلّ=2). الوقف=حافّة المنطقة المكسورة · الهدف=التالية. يندمج مع إشارات داخل-المنطقة. علامة دائمة + تنبيه.
+// v1.05.1 — [إخفاء غير الفعّالة افتراضيًّا] showNonEff/showNonEffBig ⇐ false: النقاط غير الفعّالة (بلا خطّ م.A) لا تُرسم أصلًا (طلب المستخدم: «إذا غير فعّالة لا تُرسم») ⇒ لا دوائر بلا خطوط. خطوط م.A على المتوسطة الفعّالة (وكلّ كبيرة=متوسطة أيضًا فتأخذ خطًّا).
+// v1.05.0 — [مراجعة عاجلة: مناطق أصغر + علامات إشارات دائمة] (أ) حدّ حجم المنطقة zoneMaxRatio (افتراض 0.25 × نطاق الموجة) ⇒ مناطق أصغر نسبةً لموجات الدفع/التصحيح. (تحقّق: التصحيح المتجاور + الاحتواء + المستوى الثالث + الأولويّة حاليّ→تاريخ = مطبَّقة أصلًا.) (ب) الأشعار: entryLbl كان لحظيًّا يختفي ⇒ أضفتُ sigMarks (علامة دائمة عند إغلاق الشمعة) فيقابل كلّ تنبيهٍ أثرٌ مرئيّ دائم.
+// v1.04.2 — [⑥ عدّ إليوت — تشخيص] مفتاح ewDbg يعرض أعداد نقاط الدرجات (كبيرة/متوسطة/صغيرة) + الوسوم المرسومة، لحسم سبب غياب العدّ التاريخيّ/الأزرق (نقاط<6 أم بلوغ سقف 500).
+// v1.04.1 — [⑥ عدّ إليوت — إصلاح غياب الأزرق] سببان: (1) نافذة العدّ تشترط تناوبًا صارمًا والكبيرة (leg+كسر) فيها نقطتان متتاليتان ⇒ أضفتُ ضمان التناوب (دمج المتتاليات، أبقِ الأشدّ) في f_ewRun ⇒ نافذة صالحة. (2) بـmaxSets=0 قد يتجاوز مجموع الوسوم سقف Pine (500) فيُحذف الأقدم = الكبيرة ⇒ عكستُ الترتيب (الكبيرة تُرسَم أخيرًا فتنجو). عرض فقط.
+// v1.04.0 — [⑥ عدّ إليوت — من التاريخ + إظهار الأزرق] ewMaxSets=0 (رقّم كلّ الدفعات عبر التاريخ) · مفتاح ewStrict (مطفأ): يسمح بتراكب م4/م1 = المثلّث القطريّ (نمط إليوت صحيح §4-د) ⇒ تظهر الكبيرة (الأزرق) والترندات المتراكبة؛ مفعّلًا يفرض ق3 (لا تراكب، أندر). عرض فقط.
+// v1.03.2 — [⑥ عدّ إليوت — وسم داخل شكل] رجوع لنمط الصندوق الملوّن (label_down/up + نصّ أبيض) كأوّل نسخة، لكن **مرفوعًا فوق الدائرة** بالإزاحة (لا تداخل). الأقواس (1)-(5)/(a)(b)(c) باقية. عرض فقط.
+// v1.03.1 — [⑥ عدّ إليوت — تصميم القديم] وسوم مقوّسة على نمط الكود القديم: الدفعة «(1)(2)(3)(4)(5)» والتصحيح «(a)(b)(c)»، نصّ ملوّن style_none مُزاح. أجمل بصريًّا. عرض فقط.
+// v1.03.0 — [⑥ عدّ إليوت — إظهار الأزرق + إزاحة الوسم] الترقيم يقرأ **كلّ تأرجحات الموجة** لا الفعّالة فقط ⇒ الكبيرة (أزرق) تظهر (نقاط أكفى). + إزاحة y أصيلة (ewOffset × النطاق، كلّ درجة خطوة أبعد) لرفع الوسم عن الدوائر وتكديس النقاط المتقاطعة بألوانها. حُذفت أرقام المسافة (لم تُطلَب). وسوم style_none نصّ ملوّن (size.normal). الرسم لحظيّ (islast). صفر أثر على المنطق.
+// v1.02.0 — [⑥ عدّ إليوت — ABC + بُعد الموجة] + a·b·c على التصحيح (3 نقاط بعد الدفعة) بنفس اللون/الإزاحة · + بُعد كلّ موجة (المسافة السعريّة عن النقطة السابقة) في الوسم + tooltip، خلف مفتاح ewShowDist. التقاطع المتعشّش (نقطة = 1 صغيرة + A متوسطة) يظهر بلونين وإزاحتين. الأزرق (الكبيرة) يظهر فقط عند ≥6 نقاط فعّالة + دفعة صحيحة (متوقَّع). صفر أثر على المنطق (قراءة نقاط فقط).
+// v1.01.0 — [⑥ عدّ إليوت — الدرجات الثلاث] تعميم الترقيم على الكبيرة (أزرق)+المتوسطة (برتقالي)+الصغيرة (أحمر) عبر f_ewRun، كلّ بلونها + إزاحة رأسيّة (pfx) لمنع تراكب الأرقام المتعشّشة. مفاتيح لكلّ درجة. سبب «لا ترقيم على الكبيرة» = نقاطها الفعّالة <6 (المتوسطة/الصغيرة أوفر ⇒ تظهر). خطّ الوصل الأزرق تُحقِّق: سليم (يُنظَّف+يُصفَّر كلّ islast، يصل النقاط الفعّالة المتتالية).
+// v1.00.0 — [⑥-أ عدّ إليوت — الترقيم، الكبيرة] طبقة وصفيّة مستقلّة: دالّة f_drawElliott (نافذة 6 نقاط فعّالة + قواعد إليوت الثلاث القطعيّة: ق1 p3>p1 · ق2 م3 ليست الأقصر · ق3 p5>p2 لا تراكب + تقدّم) ⇒ ترقيم (1)-(5) على قمم/قيعان الكبيرة الفعّالة، دفعات غير متداخلة، آخر ewMaxSets. مفتاح showEW (مجموعة 🌊 إليوت·الترقيم، مطفأ). عرض فقط — صفر أثر على الدرجات/الإشارات/القرار. مؤكَّد بالبحث (ALPHAX = نفس المنهج القواعديّ على محاور موجودة؛ ML مرفوض لعجزه عن ضمان القواعد). a-b-c + التحسينات (70%م1، حدود الارتداد) = ⑥-ب.
 // v0.99.1 — [تشديد التصريف — محفّز مصعب2] رصد code 4 صار «كسر آخر دعم/مقاومة صغير للدرجة» (بنيويّ فعليّ) بدل «قمّة أدنى» الفضفاض ⇒ أقلّ زيفًا وأدقّ فراكتاليًّا (لا تصريف على تذبذب عاديّ). عرض فقط.
 // v0.99.0 — [بحث الأطلس — قرار FSM كامل] دالّة f_atlasDecision(entry,inZone,phS,confOk,phB,hasTgt) ⇒ صفّ «القرار» يعرض فئة الأطلس السبع: مراجعة(الكبيرة انعطاف E) · لا تداول(خارج منطقة/لا هدف) · النطاق فقط(تعارض) · شراء/بيع ✓(تجميع مكتمل+تأكيد داخل منطقة بهدف) · انتظار(بانتظار تأكيد/تصحيح جارٍ مخاطرة/بانتظار تصحيح، مع الاتجاه). الوقف/الهدف يُحسبان قبل القرار (لا هدف⇒لا تداول). عرض فقط، متّسق مع basicSig/hrSig. استبدل grade/dirTxt القديمين.
 // v0.98.1 — [توضيح خليّة الكتلة] نصّ مفهوم بلا رموز مختصرة (توافق صعود⇒شراء · توافق هبوط⇒بيع · تعارض: الكبيرة صاعدة المتوسطة هابطة · الكبيرة ذعر/يأس⇒مراجعة؛ الحرف A–E ثانويّ) + tooltip يشرح الكتل. عرض فقط.
@@ -250,6 +262,7 @@ bool   covCur      = input.bool(false, "Coverage: current wave / التغطية:
 bool   covHist     = input.bool(true, "Coverage: history / التغطية: التاريخ", group = grpZone)
 bool   covHoH      = input.bool(false, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone)
 bool   dbgCov      = input.bool(false, "Diag: covered levels (red dashed) / تشخيص: المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
+float  zoneMaxRatio = input.float(0.25, "Max zone height (× current wave range) / أقصى ارتفاع للمنطقة (× نطاق الموجة)", minval = 0.02, maxval = 1.0, step = 0.01, group = grpZone, tooltip = "يمنع المناطق الكبيرة: ارتفاع المنطقة يجب ألّا يتجاوز هذه النسبة × نطاق الموجة الحاليّة (أعلى-أدنى). أصغر ⇒ مناطق أصغر. (نسبةً لموجات الدفع/التصحيح.)")
 
 // ─── ✅ الإشارات · المنطق والتنبيه [L2-04] ───
 string grpSig = "✅ Signals · Logic & Alerts / الإشارات · المنطق والتنبيه"
@@ -268,16 +281,30 @@ bool   useDistrib = input.bool(true, "Distribution phase (pre-break topping) / �
 string grpPanel = "🧭 Decision Panel · Layout / لوحة القرار · التخطيط"
 string concPos  = input.string("Top R", "Decision-panel position / موضع لوحة القرار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpPanel)
 
+// ─── 🌊 إليوت · الترقيم (طبقة وصفيّة مستقلّة) [⑥] — لا تمسّ الدرجات/الإشارات/القرار ───
+string grpEW       = "🌊 Elliott · Numbering / إليوت · الترقيم"
+bool   showEW      = input.bool(false, "Elliott wave-count labels / ترقيم موجات إليوت", group = grpEW, tooltip = "طبقة وصفيّة: ترقيم (1)-(5) دفعة على النقاط الفعّالة لكلّ درجة، فقط إن حقّقت قواعد إليوت الثلاث القطعيّة (فروست/بريكتر). الدرجات متعشّشة (كبيرة⊃متوسطة⊃صغيرة). عرض فقط — لا يمسّ الدرجات/الإشارات/القرار. (a-b-c لاحقًا ⑥-ب.)")
+bool   showEWBig   = input.bool(true, "  ↳ large / الكبيرة", inline = "ewd", group = grpEW)
+bool   showEWMed   = input.bool(true, "  ↳ medium / المتوسطة", inline = "ewd", group = grpEW)
+bool   showEWSmall = input.bool(true, "  ↳ small / الصغيرة", inline = "ewd", group = grpEW)
+color  cEWBig      = input.color(#2457E2, "Large color / لون الكبيرة", inline = "ewc", group = grpEW)
+color  cEWMed      = input.color(#FF9800, "Medium / المتوسطة", inline = "ewc", group = grpEW)
+color  cEWSmall    = input.color(#F23645, "Small / الصغيرة", inline = "ewc", group = grpEW)
+int    ewMaxSets   = input.int(0, "Max wave-sets (0=all history) / أقصى دفعات (0=كلّ التاريخ)", minval = 0, group = grpEW, tooltip = "0 = رقّم كلّ الدفعات عبر التاريخ (العدّ من التاريخ). أو آخر N دفعة لتقليل الزحام.")
+bool   ewStrict    = input.bool(false, "Strict no-overlap (else allow diagonals) / صارم بلا تراكب (وإلّا يسمح بالقطريّة)", group = grpEW, tooltip = "مطفأ (موصى): يسمح بتراكب الموجة4/الموجة1 = المثلّث القطريّ (Diagonal) — نمط إليوت صحيح (فروست/بريكتر §4-د) ⇒ تظهر الكبيرة والترندات المتراكبة. مفعّل: يفرض ق3 (لا تراكب) ⇒ دفعات دافعة نقيّة فقط (أندر).")
+float  ewOffset    = input.float(0.06, "Label offset from pivot (× range) / إزاحة الوسم عن النقطة (× النطاق)", minval = 0.0, step = 0.01, group = grpEW, tooltip = "يرفع الوسم فوق القمّة/تحت القاع بمقدار = هذه النسبة × نطاق سعريّ أصيل، لتفادي تداخله مع الدوائر. كلّ درجة تُزاح خطوة أبعد (تتكدّس النقاط المتقاطعة تحت بعضها بألوانها).")
+bool   ewDbg       = input.bool(false, "Diag: pivot/label counts / تشخيص: أعداد النقاط والوسوم", group = grpEW, tooltip = "يعرض عدد نقاط كلّ درجة (كبيرة/متوسطة/صغيرة) + عدد الوسوم المرسومة — لتشخيص سبب غياب العدّ (نقاط<6 أم بلوغ سقف 500). أطفئه بعد التحقّق.")
+
 // ═══════════════ القسم ② — الإظهار / الإخفاء (Visibility 👁️) ═══════════════
 // ─── 👁️ إظهار · الدرجات (النقاط والوصل) ───
 string grpShDeg = "👁️ Show · Degrees (pivots & links) / إظهار · الدرجات (النقاط والوصل)"
 bool   showSmall  = input.bool(true, "Small pivots / الصغيرة", group = grpShDeg)
 bool   linkSmall  = input.bool(true, "  ↳ link small / وصل الصغيرة", group = grpShDeg)
 bool   showMedium = input.bool(true, "Medium pivots / المتوسطة", group = grpShDeg)
-bool   showNonEff = input.bool(true, "  ↳ non-effective medium / المتوسطة غير الفعّالة", group = grpShDeg, tooltip = "للعرض فقط — المراحل على الفعّالة وحدها.")
+bool   showNonEff = input.bool(false, "  ↳ non-effective medium / المتوسطة غير الفعّالة", group = grpShDeg, tooltip = "غير الفعّالة (أسقطها التتابُع/الفعاليّة) — مطفأة افتراضيًّا (لا تُرسم أصلًا؛ لا خطّ م.A لها). فعّلها لرؤيتها حمراء.")
 bool   linkMed    = input.bool(true, "  ↳ link medium / وصل المتوسطة", group = grpShDeg)
 bool   showLarge  = input.bool(true, "Large pivots / الكبيرة", group = grpShDeg)
-bool   showNonEffBig = input.bool(true, "  ↳ non-effective large / الكبيرة غير الفعّالة", group = grpShDeg)
+bool   showNonEffBig = input.bool(false, "  ↳ non-effective large / الكبيرة غير الفعّالة", group = grpShDeg, tooltip = "غير الفعّالة — مطفأة افتراضيًّا (لا تُرسم أصلًا). فعّلها لرؤيتها.")
 bool   linkLarge  = input.bool(true, "  ↳ link large / وصل الكبيرة", group = grpShDeg)
 
 // ─── 👁️ إظهار · حدود الموجة ───
@@ -331,8 +358,8 @@ color  cLineS    = input.color(color.new(color.gray, 55), "Small link line / خ�
 string grpClM = "🎨 Colors · Medium / ألوان · المتوسطة"
 color  cMed       = input.color(color.new(#FF9800, 80), "Medium fill (effective) / تعبئة المتوسطة (فعّالة)", group = grpClM)
 color  cMedBorder = input.color(color.new(#FF9800, 30), "Medium border / حدّ المتوسطة", group = grpClM)
-color  cMedDead   = input.color(color.new(#3C171A, 80), "Non-effective medium fill / تعبئة غير الفعّالة (متوسطة)", group = grpClM)
-color  cMedDeadBorder = input.color(color.new(#FF9800, 30), "Non-effective medium border / حدّ غير الفعّالة (متوسطة)", group = grpClM)
+color  cMedDead   = input.color(color.new(#F23645, 75), "Non-effective medium fill / تعبئة غير الفعّالة (متوسطة، أحمر)", group = grpClM)
+color  cMedDeadBorder = input.color(color.new(#F23645, 20), "Non-effective medium border / حدّ غير الفعّالة (متوسطة، أحمر)", group = grpClM)
 color  cMedPendFill   = input.color(color.new(color.gray, 30), "Medium pending fill / تعبئة المعلّقة (متوسطة)", group = grpClM)
 color  cMedPendBorder = input.color(color.new(#FF9800, 30), "Medium pending border / حدّ المعلّقة (متوسطة)", group = grpClM)
 color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / خطّ وصل المتوسطة", group = grpClM)
@@ -341,8 +368,8 @@ color  cLineMed   = input.color(color.new(#FF9800, 55), "Medium link line / خط
 string grpClL = "🎨 Colors · Large / ألوان · الكبيرة"
 color  cBig       = input.color(color.new(#2457E2, 45), "Large fill (effective) / تعبئة الكبيرة (فعّالة)", group = grpClL)
 color  cBigBorder = input.color(color.new(#2457E2, 30), "Large border / حدّ الكبيرة", group = grpClL)
-color  cBigDead   = input.color(color.new(#3C171A, 80), "Non-effective large fill / تعبئة غير الفعّالة (كبيرة)", group = grpClL)
-color  cBigDeadBorder = input.color(color.new(#2457E2, 30), "Non-effective large border / حدّ غير الفعّالة (كبيرة)", group = grpClL)
+color  cBigDead   = input.color(color.new(#F23645, 75), "Non-effective large fill / تعبئة غير الفعّالة (كبيرة، أحمر)", group = grpClL)
+color  cBigDeadBorder = input.color(color.new(#F23645, 20), "Non-effective large border / حدّ غير الفعّالة (كبيرة، أحمر)", group = grpClL)
 color  cLineBig   = input.color(color.new(#2457E2, 55), "Large link line / خطّ وصل الكبيرة", group = grpClL)
 
 // ─── 🎨 ألوان · مستويات الاتجاه ───
@@ -1076,6 +1103,76 @@ f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bo
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(szStr)))    // الحافة (أكبر، خلف)
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(szStr)))   // التعبئة (أصغر، أمام)
 
+// ─── [⑥ عدّ إليوت — الترقيم، طبقة وصفيّة] نافذة 6 نقاط فعّالة ⇒ ترقيم (1)-(5) إن حقّقت قواعد إليوت الثلاث (فروست/بريكتر ص13؛ مطابق LuxAlgo) ───
+//   النقاط: p1 أصل (بلا وسم) · p2..p6 ⇒ (1)-(5). القواعد (صاعد، والمرآة للهابط): ق1 p3>p1 (م2 لا ترتدّ>100% م1) · ق2 م3 ليست الأقصر · ق3 p5>p2 (م4 لا تتراكب م1) + تقدّم (p4>p2, p6>p4).
+//   دفعات غير متداخلة (تحجز 3 خانات لـa-b-c لاحقًا). يقرأ نقاطنا الفعّالة (لا zigzag). لا يمسّ المنطق. يدفع الوسوم لـlbls للتنظيف.
+f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int maxSets, int degLvl, array<label> lbls) =>
+    int n = array.size(pP)
+    if n >= 6
+        array<int> ends = array.new<int>()
+        int lastEnd = -1
+        for e = 5 to n - 1
+            if e - 5 >= lastEnd
+                bool t6 = array.get(pTop, e)                    // قمّة ⇒ دفعة صاعدة · قاع ⇒ هابطة
+                bool alt = array.get(pTop, e-4) == t6 and array.get(pTop, e-2) == t6 and array.get(pTop, e-5) != t6 and array.get(pTop, e-3) != t6 and array.get(pTop, e-1) != t6
+                if alt
+                    float p1 = array.get(pP, e-5)
+                    float p2 = array.get(pP, e-4)
+                    float p3 = array.get(pP, e-3)
+                    float p4 = array.get(pP, e-2)
+                    float p5 = array.get(pP, e-1)
+                    float p6 = array.get(pP, e)
+                    bool ok = false
+                    if t6                                       // صاعدة: ق1 p3>p1 · ق2 م3 ليست الأقصر · تقدّم p4>p2,p6>p4 · ق3 p5>p2 (لا تراكب) مشروطة بالصارم (وإلّا قطريّة مسموحة)
+                        float mn = math.min(p2 - p1, math.min(p4 - p3, p6 - p5))
+                        ok := p3 > p1 and (not ewStrict or p5 > p2) and (p4 - p3) != mn and p6 > p4 and p4 > p2
+                    else                                        // هابطة: المرآة
+                        float mn = math.min(p1 - p2, math.min(p3 - p4, p5 - p6))
+                        ok := p3 < p1 and (not ewStrict or p5 < p2) and (p3 - p4) != mn and p6 < p4 and p4 < p2
+                    if ok
+                        array.push(ends, e)
+                        lastEnd := e + 3                        // احجز خانات a·b·c (⑥-ب)
+        int total = array.size(ends)
+        int fromI = (maxSets > 0 and total > maxSets) ? total - maxSets : 0
+        if total > 0
+            float off = ewOffset * nz(arrScale)                // إزاحة سعريّة أصيلة (× النطاق) لرفع الوسم عن الدائرة
+            for s = fromI to total - 1
+                int e = array.get(ends, s)
+                for k = 1 to 5                                  // (1)-(5) على p2..p6؛ p1 (e-5) أصل بلا وسم
+                    int   idx = e - 5 + k
+                    bool  tp  = array.get(pTop, idx)
+                    float ly  = tp ? array.get(pP, idx) + (1 + degLvl) * off : array.get(pP, idx) - (1 + degLvl) * off   // فوق القمّة/تحت القاع؛ كلّ درجة خطوة أبعد ⇒ تتكدّس النقاط المتقاطعة بألوانها
+                    array.push(lbls, label.new(array.get(pTm, idx), ly, "(" + str.tostring(k) + ")", xloc = xloc.bar_time, yloc = yloc.price, style = tp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع فوق الدائرة
+                for j = 1 to 3                                  // a·b·c على التصحيح (النقاط الثلاث بعد الدفعة) إن وُجدت
+                    int aidx = e + j
+                    if aidx < n
+                        bool   atp  = array.get(pTop, aidx)
+                        string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : "(c)"   // نمط القديم: تصحيح مقوّس (a)(b)(c)
+                        float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
+                        array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع
+
+// ─── [⑥] مساعد: يبني نقاط درجة الفعّالة (سعر/زمن/نوع) ثمّ يستدعي الترقيم — يُستدعى لكلّ درجة ───
+f_ewRun(array<int> pBar, array<float> pPrc, array<bool> pTop, array<int> pTm, array<bool> pEff, color col, int maxSets, int degLvl, array<label> lbls) =>
+    array<float> eP  = array.new<float>()
+    array<int>   eTm = array.new<int>()
+    array<bool>  eTp = array.new<bool>()
+    int nn = array.size(pBar)
+    for i = 0 to (nn > 0 ? nn - 1 : 0)                         // كلّ تأرجحات الموجة + ضمان التناوب الصارم (قمّة/قاع) كالـzigzag: تتالي نوعين متماثلين ⇒ أبقِ الأشدّ تطرّفًا
+        if nn > 0
+            bool tp = array.get(pTop, i)
+            int  sz = array.size(eTp)
+            if sz > 0 and array.get(eTp, sz - 1) == tp         // نفس نوع الأخير ⇒ ادمج (قمّة⇒الأعلى · قاع⇒الأدنى) بدل كسر التناوب
+                float lp = array.get(eP, sz - 1)
+                float cp = array.get(pPrc, i)
+                if tp ? cp > lp : cp < lp
+                    array.set(eP,  sz - 1, cp)
+                    array.set(eTm, sz - 1, array.get(pTm, i))
+            else
+                array.push(eP,  array.get(pPrc, i))
+                array.push(eTm, array.get(pTm, i))
+                array.push(eTp, tp)
+    f_drawElliott(eP, eTm, eTp, col, maxSets, degLvl, lbls)
+
 // ─── رسم الدرجة الصغيرة: مؤجَّل لما بعد بناء السلسلة الصغيرة (scBar) ليُرسَم عبر التاريخ كالمتوسطة/الكبيرة ───
 var array<polyline> smallArrows = array.new<polyline>()
 var array<line>     smallLinks  = array.new<line>()
@@ -1236,6 +1333,7 @@ var array<int>   lgTm  = array.new<int>()
 var array<bool>  lgEff = array.new<bool>()       // علم الفعاليّة لكلّ موضع
 var array<label> bigCircles = array.new<label>()
 var array<line>  bigLinks   = array.new<line>()
+var array<label> ewLabels   = array.new<label>()        // [⑥] وسوم عدّ إليوت (تُنظَّف كلّ islast)
 if barstate.islast
     largeDeg   := newDegreeLaws()
     largeRaw   := newDegreeLaws()
@@ -1369,6 +1467,20 @@ if barstate.islast
                         array.push(bigLinks, line.new(prevTmB, prevPrcB, t, p, xloc = xloc.bar_time, color = cLineBig, width = 2))
                     prevTmB  := t
                     prevPrcB := p
+    // [⑥ عدّ إليوت — الدرجات الثلاث] طبقة وصفيّة: نظّف الوسوم القديمة ثمّ رقّم (1)-(5) على نقاط كلّ درجة الفعّالة إن حقّقت قواعد إليوت الثلاث (كلّ بلونها وإزاحتها)
+    if array.size(ewLabels) > 0
+        for li = 0 to array.size(ewLabels) - 1
+            label.delete(array.get(ewLabels, li))
+        array.clear(ewLabels)
+    if showEW                                                  // الترتيب: الصغيرة ثمّ المتوسطة ثمّ **الكبيرة أخيرًا** (تنجو من حذف Pine للأقدم عند تجاوز سقف الوسوم)
+        if showEWSmall
+            f_ewRun(scBar, scPrc, scTop, scTm, scEff, cEWSmall, ewMaxSets, 0, ewLabels)
+        if showEWMed
+            f_ewRun(mcBar, mcPrc, mcTop, mcTm, mcEff, cEWMed, ewMaxSets, 1, ewLabels)
+        if showEWBig
+            f_ewRun(lgBar, lgPrc, lgTop, lgTm, lgEff, cEWBig, ewMaxSets, 2, ewLabels)
+        if ewDbg                                                // تشخيص: أعداد نقاط الدرجات + الوسوم المرسومة (لكشف: نقاط<6 أم بلوغ سقف الوسوم)
+            array.push(ewLabels, label.new(bar_index, high, "EW · كبيرة=" + str.tostring(array.size(lgBar)) + " متوسطة=" + str.tostring(array.size(mcBar)) + " صغيرة=" + str.tostring(array.size(scBar)) + " · وسوم=" + str.tostring(array.size(ewLabels)), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(color.gray, 15), textcolor = color.white, size = size.small))
 
 // ─── ج1 [درس08]: مستويات الاتجاه — خطّ أفقيّ عند آخر طرف فعّال من نوع الأساس (قاع صاعدًا/قمّة هابطًا) على **الجسم** ───
 //   معمّم لكلّ درجة (كبيرة→متوسطة→صغيرة). على الجسم تمييزًا عن السيولة. يمتدّ levelExtend شمعة بعد الآن.
@@ -1952,7 +2064,8 @@ if barstate.islast
                                 float lk = array.get(eLvl, k)
                                 if lk > cB and lk < cT
                                     thirdBetween := true
-                        if not contain and not thirdBetween
+                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)   // 🔴 حدّ الحجم: منطقة صغيرة نسبةً لموجة الدفع/التصحيح (نطاق الموجة)
+                        if not contain and not thirdBetween and not tooBig
                             array.set(usedZ, aa, true)
                             array.set(usedZ, bb, true)
                             array.push(zTop, cT)
@@ -1965,6 +2078,7 @@ if barstate.islast
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var label entryLbl = na
+var array<label> sigMarks = array.new<label>()   // علامات إشارات دائمة (عند إغلاق الشمعة، تبقى مع كلّ تنبيه — لا تُحذَف)
 var table concTbl = table.new(f_pos(concPos), 2, 13, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
@@ -2084,17 +2198,62 @@ if showConc and barstate.islast
     if not na(entryLbl)
         label.delete(entryLbl)
         entryLbl := na
-    bool basicSig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)                  // أساسيّة: تجميع مكتمل + تأكيد
-    bool hrSig    = inZone and (phS == 1 or phS == 2) and confOk and (entry == 1 or entry == -1)    // عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس) + تأكيد
-    if showSignals and (basicSig or hrSig) and not na(tgt)       // 🔴 لا دخول مؤكَّد بلا هدف (المنطقة التالية)
-        bool   up    = entry == 1
-        bool   isBas = basicSig
-        float  rr    = (not na(stp) and not na(tgt) and close != stp) ? math.abs(tgt - close) / math.abs(close - stp) : na
-        string sigTx = (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + (isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
-        color  lc    = up ? (isBas ? cUp : #66BB6A) : (isBas ? cDn : #E57373)                        // المخاطرة بلون أفتح
+    bool basicSig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)                  // أساسيّة: تجميع مكتمل + تأكيد (داخل المنطقة)
+    bool hrSig    = inZone and (phS == 1 or phS == 2) and confOk and (entry == 1 or entry == -1)    // عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس) + تأكيد (داخل المنطقة)
+    // [شروط الانعكاس بعد خروج السعر من المنطقة] كسر المنطقة بشمعتين **صحيحتين** (جسم ≥ كلّ ذيل): بيع = كسر للأسفل (حمراوان) · شراء = كسر للأعلى (خضراوان)
+    bool vRed  = close    < open    and (open    - close)    >= (high    - open)     and (open    - close)    >= (close    - low)
+    bool vRed1 = close[1] < open[1] and (open[1] - close[1]) >= (high[1] - open[1])  and (open[1] - close[1]) >= (close[1] - low[1])
+    bool vGrn  = close    > open    and (close    - open)    >= (high    - close)    and (close    - open)    >= (open     - low)
+    bool vGrn1 = close[1] > open[1] and (close[1] - open[1]) >= (high[1] - close[1]) and (close[1] - open[1]) >= (open[1]  - low[1])
+    bool  oneBar = timeframe.in_seconds() >= 900               // [درجة التأكيد الأنعم] فريم ≥ 15د ⇒ إغلاق شمعة واحدة يكفي · أقلّ ⇒ شمعتان
+    bool  redN = oneBar ? vRed : (vRed and vRed1)              // كسر البيع: شمعة/شمعتان حمراء صحيحة
+    bool  grnN = oneBar ? vGrn : (vGrn and vGrn1)              // كسر الشراء: خضراء صحيحة
+    float bzt = na
+    float bzb = na
+    bool  zSell = false
+    bool  zBuy  = false
+    for z = 0 to (nzc > 0 ? nzc - 1 : 0)
+        if nzc > 0
+            float zt = array.get(zTop, z)
+            float zb = array.get(zBot, z)
+            if redN and close < zb and (oneBar or close[1] < zb) and (high[1] >= zb or high[2] >= zb)   // كُسِرت للأسفل + كان السعر قد لامسها
+                zSell := true
+                bzt := zt
+                bzb := zb
+            if grnN and close > zt and (oneBar or close[1] > zt) and (low[1] <= zt or low[2] <= zt)     // كُسِرت للأعلى
+                zBuy := true
+                bzt := zt
+                bzb := zb
+    bool  brkSell = (entry == -1 or entry == 2) and zSell
+    bool  brkBuy  = (entry == 1  or entry == 2) and zBuy
+    float bStp = brkSell ? bzt : brkBuy ? bzb : na                                                    // الوقف = الحافّة المقابلة للمنطقة المكسورة
+    float bTgt = na
+    if brkSell or brkBuy
+        for z = 0 to (nzc > 0 ? nzc - 1 : 0)
+            if nzc > 0
+                float zt = array.get(zTop, z)
+                float zb = array.get(zBot, z)
+                if brkSell and zt < close                                                            // الهدف = أقرب منطقة تحت
+                    bTgt := na(bTgt) or zt > bTgt ? zt : bTgt
+                if brkBuy and zb > close                                                              // أقرب منطقة فوق
+                    bTgt := na(bTgt) or zb < bTgt ? zb : bTgt
+    bool inZoneSig = (basicSig or hrSig) and not na(tgt)
+    bool brkSig    = (brkSell or brkBuy) and not na(bTgt)
+    if showSignals and (inZoneSig or brkSig)                     // 🔴 لا إشارة بلا هدف (المنطقة التالية)
+        bool   isBrk = brkSig and not inZoneSig
+        bool   up    = isBrk ? brkBuy : entry == 1
+        bool   isBas = basicSig and not isBrk
+        float  sStp  = isBrk ? bStp : stp
+        float  sTgt  = isBrk ? bTgt : tgt
+        float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
+        string sTyp  = isBrk ? f_t("كسر", "Break") : isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")
+        string sigTx = (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + sTyp + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
+        color  lc    = up ? cUp : cDn
         entryLbl := label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small)
-        if enableAlerts                                          // يُطلِق الحدث (أساسيّة + مخاطرة)؛ نوع التنبيه من نافذة Create Alert في TradingView
-            alert("M-Waves: " + sigTx + (not na(stp) ? f_t(" · وقف ", " · Stop ") + str.tostring(stp, format.mintick) : "") + (not na(tgt) ? f_t(" · هدف ", " · Target ") + str.tostring(tgt, format.mintick) : ""), alert.freq_once_per_bar_close)
+        if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة دائمة تبقى على الشارت (فيقابل كلّ تنبيهٍ أثرٌ مرئيّ)
+            array.push(sigMarks, label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small))
+        if enableAlerts                                          // يُطلِق الحدث (داخل المنطقة + الكسر)؛ نوع التنبيه من نافذة Create Alert
+            alert("M-Waves: " + sigTx + (not na(sStp) ? f_t(" · وقف ", " · Stop ") + str.tostring(sStp, format.mintick) : "") + (not na(sTgt) ? f_t(" · هدف ", " · Target ") + str.tostring(sTgt, format.mintick) : ""), alert.freq_once_per_bar_close)
 
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
 //   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
