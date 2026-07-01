@@ -3,6 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v0.99.1 — [تشديد التصريف — محفّز مصعب2] رصد code 4 صار «كسر آخر دعم/مقاومة صغير للدرجة» (بنيويّ فعليّ) بدل «قمّة أدنى» الفضفاض ⇒ أقلّ زيفًا وأدقّ فراكتاليًّا (لا تصريف على تذبذب عاديّ). عرض فقط.
+// v0.99.0 — [بحث الأطلس — قرار FSM كامل] دالّة f_atlasDecision(entry,inZone,phS,confOk,phB,hasTgt) ⇒ صفّ «القرار» يعرض فئة الأطلس السبع: مراجعة(الكبيرة انعطاف E) · لا تداول(خارج منطقة/لا هدف) · النطاق فقط(تعارض) · شراء/بيع ✓(تجميع مكتمل+تأكيد داخل منطقة بهدف) · انتظار(بانتظار تأكيد/تصحيح جارٍ مخاطرة/بانتظار تصحيح، مع الاتجاه). الوقف/الهدف يُحسبان قبل القرار (لا هدف⇒لا تداول). عرض فقط، متّسق مع basicSig/hrSig. استبدل grade/dirTxt القديمين.
 // v0.98.1 — [توضيح خليّة الكتلة] نصّ مفهوم بلا رموز مختصرة (توافق صعود⇒شراء · توافق هبوط⇒بيع · تعارض: الكبيرة صاعدة المتوسطة هابطة · الكبيرة ذعر/يأس⇒مراجعة؛ الحرف A–E ثانويّ) + tooltip يشرح الكتل. عرض فقط.
 // v0.98.0 — [درس11 م11-ج — تصريف قُبيل الكسر، حرفيّ بالدرس] f_phase يُرجِع code 4 (تصريف): السيولة سليمة (لم تُكسَر) + قمّة الترند تضعف (قمّة أدنى صعودًا / قاع أعلى هبوطًا) ⇒ تذبذب/توقّف عند الطرف قُبيل الكسر (درس11 §3،5 + مصعب2). f_phTxt: code4 مرآة code3 بالاتجاه (صعود⇒تصريف · هبوط⇒تجميع). خلف مفتاح useDistrib (افتراض ON، مجموعة 📊 المراحل · المنطق). عرض فقط — لا يمسّ الإشارات (grade/basicSig/hrSig تعامله كمشاركة = لا دخول، صحيح للدرس). ⇒ دورة داو الخماسية كاملة.
 // v0.97.1 — [UI/UX — مجموعة إظهار مستقلّة للّوحات] فصل «👁️ إظهار · اللوحات» (لوحة القرار showConc + اختبار الموجة showFrameHelper) عن مجموعة الإشارات ⇒ مفتاح مستقلّ واضح لكلّ لوحة. (المفتاحان كانا موجودَين وعاملَين أصلًا — هذا تنظيم/وضوح فقط، صفر أثر على المنطق.)
@@ -260,7 +262,7 @@ string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm 
 
 // ─── 📊 المراحل · المنطق [درس11] ───
 string grpPhase  = "📊 Phases · Logic / المراحل · المنطق"
-bool   useDistrib = input.bool(true, "Distribution phase (pre-break topping) / مرحلة التصريف (قُبيل الكسر)", group = grpPhase, tooltip = "[درس11 §3،5 + مصعب2] قُبيل كسر السيولة، إن ضعفت قمّة الترند (قمّة أدنى صعودًا / قاع أعلى هبوطًا) والسيولة سليمة ⇒ «تصريف» (صعودًا) / «تجميع» (هبوطًا) بدل «مشاركة». عرض فقط — لا يُغيّر الإشارات. أطفئه للمقارنة قبل/بعد.")
+bool   useDistrib = input.bool(true, "Distribution phase (pre-break topping) / مرحلة التصريف (قُبيل الكسر)", group = grpPhase, tooltip = "[مصعب2] قُبيل كسر السيولة الكبرى، إن كُسِر آخر دعم صغير (صعودًا) / آخر مقاومة صغيرة (هبوطًا) والسيولة سليمة ⇒ «تصريف» (صعودًا) / «تجميع» (هبوطًا) بدل «مشاركة». كسر بنيويّ فعليّ (أقلّ زيفًا). عرض فقط — لا يُغيّر الإشارات. أطفئه للمقارنة قبل/بعد.")
 
 // ─── 🧭 لوحة القرار · التخطيط ───
 string grpPanel = "🧭 Decision Panel · Layout / لوحة القرار · التخطيط"
@@ -1570,7 +1572,7 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 //   • مشاركة عامّة: السعر يحترم خطّ السيولة (الدعم المائل من f_liqPair).
 //   • ذعر (A): **السعر الآن على الجانب المكسور من خطّ السيولة المرسوم** (صعود⇒تحت الدعم · هبوط⇒فوق المقاومة) — موضع حاليّ لا latch تاريخيّ.
 //   • يأس (C): تطرّف مضادّ **أعمق** بعد ارتداد B (قاع أدنى صعودًا / قمّة أعلى هبوطًا) بعد بار الكسر.
-//   • تجميع: ارتداد عن الأعمق بعد الكسر (تبَنٍّ عرضيّ قبل استئناف المشاركة). • تصريف: تطرّف الاتجاه يضعف (قمّة أدنى صعودًا) والسيولة سليمة (قُبيل الكسر).
+//   • تجميع: ارتداد عن الأعمق بعد الكسر (تبَنٍّ عرضيّ قبل استئناف المشاركة). • تصريف [مصعب2]: كُسِر آخر دعم صغير (صعودًا)/مقاومة صغيرة (هبوطًا) والسيولة الكبرى سليمة (قُبيل الكسر الكامل).
 //   الانقلاب (مشاركة معاكسة) يقوده كسر المستوى (f_activeDir يقلب wdir ⇒ زوج/سيولة جديدة ⇒ مشاركة جديدة). wdir = الاتجاه الفعّال للدرجة.
 //   يُرجِع: 0 مشاركة · 1 ذعر · 2 يأس · 3 تجميع · 4 تصريف · -1 لا اتجاه (—). [اتجاه بلا خطّ سيولة ⇒ مشاركة افتراضيًّا، لا «—»]
 f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
@@ -1623,22 +1625,53 @@ f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                         ph := 3                                      // تجميع (عرضيّ بعد القاع/القمّة، قبل استئناف المشاركة)
                     else if deepened
                         ph := 2                                      // يأس (C، تطرّف أعمق بعد ارتداد B)
-            else if useDistrib                                      // [درس11 §3،5 + مصعب2] السيولة سليمة (لم تُكسَر) ⇒ افحص التصريف قُبيل الكسر
-                // تصريف: قمّة الترند تضعف (قمّة أدنى صعودًا / قاع أعلى هبوطًا) ⇒ تذبذب/توقّف عند الطرف قبل الكسر (مرآة تجميع code3 بالاتجاه)
-                bool  trendTop = wdir == 1                           // طرف الترند: صعود ⇒ قمم · هبوط ⇒ قيعان (عكس wantTop للتصحيح)
-                float peakX = na                                     // أقصى طرف للترند (أعلى قمّة / أدنى قاع)
-                float lastX = na                                     // آخر طرف للترند (الأحدث زمنيًّا)
+            else if useDistrib                                      // [مصعب2] السيولة سليمة (لم تُكسَر) ⇒ افحص التصريف: كسر آخر دعم/مقاومة صغير قُبيل الكسر الكامل
+                // تصريف يبدأ بكسر آخر قاع (صعودًا) / آخر قمّة (هبوطًا) للدرجة — كسر بنيويّ فعليّ لا مجرّد «قمّة أدنى» (أدقّ فراكتاليًّا، أقلّ زيفًا)
+                bool  wantSup = wdir == 1                            // صعود ⇒ الدعم = القيعان · هبوط ⇒ المقاومة = القمم
+                float lastPiv = na                                  // آخر نقطة دعم/مقاومة فعّالة للدرجة (الأحدث زمنيًّا)
                 int   nt = array.size(aBar)
                 for j = 0 to (nt > 0 ? nt - 1 : 0)
-                    if nt > 0 and array.get(aEff, j) and array.get(aTop, j) == trendTop
+                    if nt > 0 and array.get(aEff, j) and array.get(aTop, j) == (not wantSup)   // صعود ⇒ قيعان (aTop=false) · هبوط ⇒ قمم (aTop=true)
                         int oj = bar_index - array.get(aBar, j)
                         if oj >= 0
-                            float xj = trendTop ? high[oj] : low[oj]
-                            peakX := na(peakX) ? xj : (trendTop ? math.max(peakX, xj) : math.min(peakX, xj))
-                            lastX := xj
-                if not na(peakX) and not na(lastX) and (trendTop ? lastX < peakX : lastX > peakX)
-                    ph := 4                                          // تصريف (قُبيل الكسر — فشل قمّة جديدة والسيولة سليمة)
+                            lastPiv := wantSup ? low[oj] : high[oj]
+                if not na(lastPiv) and (wantSup ? (low < lastPiv) : (high > lastPiv))
+                    ph := 4                                          // تصريف (كُسِر آخر دعم/مقاومة صغير والسيولة سليمة ⇒ قُبيل الكسر الكامل)
     ph
+
+// [بحث الأطلس — L2-03/04] قرار FSM من الحالة الكاملة (عرض فقط، جدول قرار قاعديّ لا سلاسل if متضخّمة). الأولويّة:
+//   الكبيرة انعطاف(E)⇒مراجعة · خارج منطقة⇒لا تداول · تعارض⇒النطاق فقط · توافق داخل منطقة: لا هدف⇒لا تداول · تجميع مكتمل+تأكيد⇒شراء/بيع · تصحيح جارٍ/بانتظار⇒انتظار.
+//   يُرجِع [نصّ القرار, نوع k]: 1 شراء · -1 بيع · 2 نطاق · 3 انتظار · 9 مراجعة · 0 لا تداول. متّسق مع basicSig (تجميع+تأكيد داخل منطقة بهدف).
+f_atlasDecision(int entry, bool inZone, int phSm, bool confOk, int phBig, bool hasTgt) =>
+    string t = f_t("لا تداول", "NoTrade")
+    int    k = 0
+    if phBig == 1 or phBig == 2
+        t := f_t("مراجعة (الكبيرة في انعطاف)", "Review (large reversal)")
+        k := 9
+    else if not inZone
+        t := f_t("لا تداول (خارج منطقة)", "NoTrade (out of zone)")
+        k := 0
+    else if entry == 2
+        t := f_t("النطاق فقط (جهة المنطقة صارمة)", "RangeOnly (strict zone side)")
+        k := 2
+    else if entry == 1 or entry == -1
+        string dr = entry == 1 ? f_t("شراء", "buy") : f_t("بيع", "sell")
+        if not hasTgt
+            t := f_t("لا تداول (لا منطقة هدف)", "NoTrade (no target)")
+            k := 0
+        else if phSm == 3 and confOk
+            t := entry == 1 ? f_t("شراء ✓", "Buy ✓") : f_t("بيع ✓", "Sell ✓")
+            k := entry
+        else if phSm == 3
+            t := f_t("انتظار · " + dr + " (بانتظار تأكيد)", "Wait · " + dr + " (awaiting confirm)")
+            k := 3
+        else if phSm == 1 or phSm == 2
+            t := f_t("انتظار · " + dr + " مخاطرة (تصحيح جارٍ)", "Wait · risky " + dr + " (correction)")
+            k := 3
+        else
+            t := f_t("انتظار · " + dr + " (بانتظار تصحيح)", "Wait · " + dr + " (awaiting correction)")
+            k := 3
+    [t, k]
 
 // [درس L2-04 — تأكيد الرابعة MTF] محرّك شمعتين مستقلّ (حركة سعر بحتة) يُحسب عبر request.security على فريم أصغر:
 //   يُرجِع [كسر آخر قمّة صحيحة (تأكيد شراء)، كسر آخر قاع صحيح (تأكيد بيع)]. منقول من الكود القديم f_degree4 (تتابُع شمعتين تصحيح غير مبتلِع).
@@ -2001,7 +2034,6 @@ if showConc and barstate.islast
     table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
     // [ط4-ب الفرصة المُدرَّجة] القرار = داخل منطقة ؟ (اتجاه + درجة الفرصة حسب مرحلة الصغيرة) : انتظار (الدرس L2-03):
     //   تجميع (اكتمل التصحيح ذعر→يأس) ⇒ **قويّة** · ذعر/يأس (تصحيح جارٍ) ⇒ **مخاطرة** · مشاركة (ترند) ⇒ **متاحة**.
-    string dirTxt = entry == 1 ? f_t("شراء", "Buy") : entry == -1 ? f_t("بيع", "Sell") : entry == 2 ? f_t("بيع/شراء", "Buy/Sell") : "—"
     // [L2-04 التأكيد بدرجة الصفقة] متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF):
     float lstSmT = na
     float lstSmB = na
@@ -2016,12 +2048,7 @@ if showConc and barstate.islast
     bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة · صغيرة←الرابعة
     bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
     bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
-    string grade  = phS == 3 ? (confOk ? f_t("دخول ✓", "Enter ✓") : f_t("قويّة · بانتظار تأكيد", "Strong · awaiting confirm")) : (phS == 1 or phS == 2) ? f_t("مخاطرة ⚠", "High-risk ⚠") : f_t("متاحة", "Available")
-    string decTxt = not inZone ? f_t("انتظار (خارج منطقة)", "Wait (out of zone)") : (entry == 1 or entry == -1) ? dirTxt + " · " + grade : dirTxt
-    color  decBg  = not inZone ? pMute : entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute
-    table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
-    // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. تظهر فقط عند صفقة اتجاهيّة داخل منطقة.
+    // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. يُحسَب أوّلًا ليدخل قرار الأطلس (لا هدف ⇒ لا تداول).
     float zaTop = na
     float zaBot = na
     for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
@@ -2040,6 +2067,11 @@ if showConc and barstate.islast
         for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
             if nzc > 0 and array.get(zTop, zi) < close
                 tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
+    // [بحث الأطلس] صفّ القرار = فئة FSM كاملة من الحالة (متّسق مع الإشارات)
+    [decTxt, decK] = f_atlasDecision(entry, inZone, phS, confOk, phB, not na(tgt))
+    color decBg = decK == 1 ? cUp : decK == -1 ? cDn : decK == 2 ? cRngC : (decK == 3 or decK == 9) ? color.new(#FF9800, 0) : pMute
+    table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
     table.cell(concTbl, 0, 10, f_t("الوقف", "Stop"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     table.cell(concTbl, 1, 10, na(stp) ? "—" : str.tostring(stp, format.mintick), text_color = color.white, bgcolor = na(stp) ? pMute : cDn, text_size = size.small)
     table.cell(concTbl, 0, 11, f_t("الهدف", "Target"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
