@@ -3,6 +3,11 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// v1.07.2 — [شرط لمس/دخول المنطقة] الإشارة تشترط أن يكون السعر **لمس/دخل المنطقة** (الشمعة الحاليّة أو السابقة) ثمّ خرج بشمعة/شمعتين صحيحة لونها = الاتجاه: بيع (لمس المقاومة+إغلاق تحت قمّتها) · شراء (لمس الدعم+إغلاق فوق قاعه). يشمل الكسر والارتداد.
+// v1.07.1 — [شروط الانعكاس: كسر أو ارتداد] عمّمتُ كاشف الإشارة من «كسر فقط» إلى **كسر أو ارتداد** عند المنطقة بشمعة/شمعتين صحيحة لونها = اتجاه الدخول: بيع=حمراء عند المقاومة (high بلغها + إغلاق تحت قمّتها) · شراء=خضراء عند الدعم (low بلغها + إغلاق فوق قاعها). صفقة أساسيّة (النوع من المرحلة). عدد الشموع حسب الفريم (≥15د=1). ثابتة + tooltip.
+// v1.07.0 — [الإشارة ثابتة + نوعها من المرحلة لا «كسر»] الكسر ليس نوعًا بل طريقة تأكيد ⇒ الإشارة تُصنَّف أساسيّة (تجميع)/مخاطرة (ذعر/يأس) كأخواتها. + الإشارة **ثابتة لا تتحرك مع السعر**: حُذف الوسم الحيّ المتحرّك (entryLbl)، تبقى علامة تُرسم مرّةً عند إغلاق الشمعة (sigMarks) + RR + tooltip، تمامًا كالإشارات التاريخيّة.
+// v1.06.2 — [tooltip للإشارة الحيّة/الكسر] الإشارة الحيّة وإشارة الكسر كانتا عاريتين (بلا tooltip) فبدت «شراء كسر» ناقصةً ⇒ أضفتُ tooltip تصميم القديم (شراء: الهدف/الدخول/الوقف · بيع: العكس + النوع + R:R). التاريخيّة (f_emitDegSignals) كانت سليمة أصلًا (RR+tooltip+تنبيه لم تُمَسّ).
+// v1.06.1 — [إصلاح لون المخاطرة] استعادة تدرّج «عالية المخاطرة الأفتح» (أخضر #66BB6A / أحمر #E57373) الذي ضاع سهوًا في v1.06.0 عند توحيد اللون؛ الأساسيّة والكسر صلبان. (شروط basicSig/hrSig لم تتغيّر أصلًا — v1.06.0 أضاف مسار الكسر فقط.)
 // v1.06.0 — [غير الفعّالة حمراء + إشارة الكسر من خارج المنطقة] (أ) لون غير الفعّالة (متوسطة/كبيرة) أحمر #F23645 (مخفيّة افتراضيًّا). (ب) إشارة جديدة: شروط الانعكاس قد تتحقّق **بعد خروج السعر من المنطقة** — كسر المنطقة بشمعة/شمعتين صحيحتين (بيع=للأسفل حمراء · شراء=للأعلى خضراء)؛ عدد الشموع حسب الفريم (≥15د=1 · أقلّ=2). الوقف=حافّة المنطقة المكسورة · الهدف=التالية. يندمج مع إشارات داخل-المنطقة. علامة دائمة + تنبيه.
 // v1.05.1 — [إخفاء غير الفعّالة افتراضيًّا] showNonEff/showNonEffBig ⇐ false: النقاط غير الفعّالة (بلا خطّ م.A) لا تُرسم أصلًا (طلب المستخدم: «إذا غير فعّالة لا تُرسم») ⇒ لا دوائر بلا خطوط. خطوط م.A على المتوسطة الفعّالة (وكلّ كبيرة=متوسطة أيضًا فتأخذ خطًّا).
 // v1.05.0 — [مراجعة عاجلة: مناطق أصغر + علامات إشارات دائمة] (أ) حدّ حجم المنطقة zoneMaxRatio (افتراض 0.25 × نطاق الموجة) ⇒ مناطق أصغر نسبةً لموجات الدفع/التصحيح. (تحقّق: التصحيح المتجاور + الاحتواء + المستوى الثالث + الأولويّة حاليّ→تاريخ = مطبَّقة أصلًا.) (ب) الأشعار: entryLbl كان لحظيًّا يختفي ⇒ أضفتُ sigMarks (علامة دائمة عند إغلاق الشمعة) فيقابل كلّ تنبيهٍ أثرٌ مرئيّ دائم.
@@ -2077,8 +2082,7 @@ if barstate.islast
                             array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
-var label entryLbl = na
-var array<label> sigMarks = array.new<label>()   // علامات إشارات دائمة (عند إغلاق الشمعة، تبقى مع كلّ تنبيه — لا تُحذَف)
+var array<label> sigMarks = array.new<label>()   // علامات إشارات ثابتة (تُرسم عند إغلاق الشمعة وتبقى في مكانها — لا تتحرك مع السعر)
 var table concTbl = table.new(f_pos(concPos), 2, 13, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if showConc and barstate.islast
     table.set_position(concTbl, f_pos(concPos))
@@ -2194,10 +2198,7 @@ if showConc and barstate.islast
     string blk = (phB == 1 or phB == 2) ? f_t("الكبيرة ذعر/يأس ⇒ مراجعة (E)", "Large panic/despair ⇒ review (E)") : (bigLvlDir == 1 and medLvlDir == 1) ? f_t("توافق صعود ⇒ شراء (A)", "Up-agreement ⇒ buy (A)") : (bigLvlDir == -1 and medLvlDir == -1) ? f_t("توافق هبوط ⇒ بيع (C)", "Down-agreement ⇒ sell (C)") : (bigLvlDir == 1 and medLvlDir == -1) ? f_t("تعارض: الكبيرة صاعدة، المتوسطة هابطة (B)", "Conflict: Large up, Medium down (B)") : (bigLvlDir == -1 and medLvlDir == 1) ? f_t("تعارض: الكبيرة هابطة، المتوسطة صاعدة (D)", "Conflict: Large down, Medium up (D)") : "—"
     table.cell(concTbl, 0, 12, f_t("الكتلة (أطلس)", "Block (Atlas)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سياق السوق حسب الأطلس (توافق الدرجتين). الرموز: ك=الكبيرة · م=المتوسطة · ↑صاعدة · ↓هابطة.\nA (ك↑م↑) توافق صعود ⇒ شراء · C (ك↓م↓) توافق هبوط ⇒ بيع · B/D تعارض (جهة المنطقة صارمة) · E الكبيرة في ذعر/يأس ⇒ مراجعة/إدارة.", "Market context per the Atlas (agreement of both degrees). Symbols: L=Large · M=Medium · ↑up · ↓down.\nA (L↑M↑) up-agreement ⇒ buy · C (L↓M↓) down-agreement ⇒ sell · B/D conflict (strict zone side) · E large in panic/despair ⇒ review/manage."))
     table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
-    // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» عند الفرصة المؤكَّدة (دخول ✓): داخل منطقة + اتجاه + تجميع + تأكيد الرابعة
-    if not na(entryLbl)
-        label.delete(entryLbl)
-        entryLbl := na
+    // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
     bool basicSig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)                  // أساسيّة: تجميع مكتمل + تأكيد (داخل المنطقة)
     bool hrSig    = inZone and (phS == 1 or phS == 2) and confOk and (entry == 1 or entry == -1)    // عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس) + تأكيد (داخل المنطقة)
     // [شروط الانعكاس بعد خروج السعر من المنطقة] كسر المنطقة بشمعتين **صحيحتين** (جسم ≥ كلّ ذيل): بيع = كسر للأسفل (حمراوان) · شراء = كسر للأعلى (خضراوان)
@@ -2216,11 +2217,11 @@ if showConc and barstate.islast
         if nzc > 0
             float zt = array.get(zTop, z)
             float zb = array.get(zBot, z)
-            if redN and close < zb and (oneBar or close[1] < zb) and (high[1] >= zb or high[2] >= zb)   // كُسِرت للأسفل + كان السعر قد لامسها
+            if redN and (high >= zb or high[1] >= zb) and close < zt and (oneBar or close[1] < zt)      // بيع: لمس/دخل المقاومة (الآن أو السابقة) ثمّ حمراء صحيحة (شمعة≥15د/شمعتان) أغلقت تحت قمّتها ⇒ خرج (ارتداد/كسر لأسفل)
                 zSell := true
                 bzt := zt
                 bzb := zb
-            if grnN and close > zt and (oneBar or close[1] > zt) and (low[1] <= zt or low[2] <= zt)     // كُسِرت للأعلى
+            if grnN and (low <= zt or low[1] <= zt) and close > zb and (oneBar or close[1] > zb)        // شراء: لمس/دخل الدعم ثمّ خضراء صحيحة أغلقت فوق قاعها ⇒ خرج (ارتداد/كسر لأعلى)
                 zBuy := true
                 bzt := zt
                 bzb := zb
@@ -2242,16 +2243,18 @@ if showConc and barstate.islast
     if showSignals and (inZoneSig or brkSig)                     // 🔴 لا إشارة بلا هدف (المنطقة التالية)
         bool   isBrk = brkSig and not inZoneSig
         bool   up    = isBrk ? brkBuy : entry == 1
-        bool   isBas = basicSig and not isBrk
+        bool   isBas = phS == 3                                  // النوع من المرحلة: تجميع=أساسيّة · ذعر/يأس=مخاطرة (الكسر طريقة تأكيد لا نوع منفصل)
         float  sStp  = isBrk ? bStp : stp
         float  sTgt  = isBrk ? bTgt : tgt
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
-        string sTyp  = isBrk ? f_t("كسر", "Break") : isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")
+        string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // لا «كسر» — أساسيّة/مخاطرة كأخواتها
         string sigTx = (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + sTyp + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
-        color  lc    = up ? cUp : cDn
-        entryLbl := label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small)
-        if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة دائمة تبقى على الشارت (فيقابل كلّ تنبيهٍ أثرٌ مرئيّ)
-            array.push(sigMarks, label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small))
+        // tooltip تصميم القديم: شراء ⇒ الهدف/الدخول/الوقف · بيع ⇒ الوقف/الدخول/الهدف
+        string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + f_t("\nنوع: ", "\nType: ") + sTyp + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+        color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
+        // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
+        if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
+            array.push(sigMarks, label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small, tooltip = sigTip))
         if enableAlerts                                          // يُطلِق الحدث (داخل المنطقة + الكسر)؛ نوع التنبيه من نافذة Create Alert
             alert("M-Waves: " + sigTx + (not na(sStp) ? f_t(" · وقف ", " · Stop ") + str.tostring(sStp, format.mintick) : "") + (not na(sTgt) ? f_t(" · هدف ", " · Target ") + str.tostring(sTgt, format.mintick) : ""), alert.freq_once_per_bar_close)
 
