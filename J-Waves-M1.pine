@@ -4,7 +4,8 @@
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
 // الإصدار: v1.24.0 — [إعادة ترتيب الإعدادات بالميزة] سجلّ الإصدارات في git
-// v1.24.0/.1: الإعدادات مرتّبة **بالميزة** (قرار المستخدم) بدل النوع: كلّ ميزة (صغيرة/متوسطة/كبيرة/خطوط/مناطق/إشارات/لوحة) مجموعة واحدة تضمّ منطقها + إظهارها + ألوانها + أحجامها. 26 مجموعة ⇒ 12. (v1.24.1: نُقِل تعريف grpClM لأعلى — كان يُستعمَل قبل تعريفه CE10272.)
+// v1.24.0/.1/.2: الإعدادات مرتّبة **بالميزة** (12 مجموعة) · حُذف confDiv.
+// v1.25.0: إليوت ⑥-ب — الموجة الجارية (1?)-(5?): بعد آخر دفعة+تصحيح، الأرجل الجارية غير المكتملة تُرقَّم تنبّؤيًّا بلون أفتح (مفتاح showEWForm، ON). عرض فقط. الأزرق يظهر ✅ (المستخدم).
 // v1.22.0: showSigMain (الوسم الحيّ) · showSigSub (التاريخيّة/الدرجات) · enableAlerts (مستقلّ) — كلّها ON.
 // v1.23.0: [فصل الإشارات/التنبيه عن اللوحة] كتلة اللوحة صارت `if barstate.islast` (بدل showConc)؛ كلّ خليّة محروسة بـshowConc + مسح عند الإخفاء؛ الإشارات/التنبيه تعمل دائمًا (showSignals/enableAlerts) حتى مع إخفاء اللوحة. مطلب «لا تنسَ ALERT» مكتمل.
 // v1.19.0/.1: (1) توحيد نصّ الإشارة الحيّة إلى رمز ✦/⚠ (كالتاريخيّة). (2) f_emitExit: إشارات الخروج (الفرصة الثالثة) تُرسَم تاريخيًّا عبر الموجة (✦، آخر ≤500 شمعة) — مع الدخول+الوقف+الهدف+RR كأخواتها.
@@ -115,6 +116,7 @@ bool   showEW      = input.bool(false, "Elliott wave-count labels / ترقيم �
 bool   showEWBig   = input.bool(true, "  ↳ large / الكبيرة", inline = "ewd", group = grpEW)
 bool   showEWMed   = input.bool(true, "  ↳ medium / المتوسطة", inline = "ewd", group = grpEW)
 bool   showEWSmall = input.bool(true, "  ↳ small / الصغيرة", inline = "ewd", group = grpEW)
+bool   showEWForm  = input.bool(true, "Forming wave (1?)-(5?) / الموجة الجارية (تنبّؤيّ)", group = grpEW, tooltip = "ترقيم تنبّؤيّ للدفعة الجارية غير المكتملة (بعد آخر دفعة+تصحيح): (1?)-(5?) بلون أفتح — غير مؤكَّدة، تكتمل حين تحقّق قواعد إليوت.")
 color  cEWBig      = input.color(#2457E2, "Large color / لون الكبيرة", inline = "ewc", group = grpEW)
 color  cEWMed      = input.color(#FF9800, "Medium / المتوسطة", inline = "ewc", group = grpEW)
 color  cEWSmall    = input.color(#F23645, "Small / الصغيرة", inline = "ewc", group = grpEW)
@@ -950,6 +952,16 @@ f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int 
                         string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : "(c)"   // نمط القديم: تصحيح مقوّس (a)(b)(c)
                         float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
                         array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع
+            // [⑥-ب الموجة الجارية] بعد آخر دفعة+تصحيح (الأصل = c عند lastLbl)، رقّم الأرجل الجارية (1?)-(5?) تنبّؤيًّا بلون أفتح — غير مؤكَّدة (تكتمل حين تحقّق القواعد وتصير دفعة مرقَّمة)
+            if showEWForm
+                int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)   // نهاية آخر بنية مكتملة (c) = أصل الموجة الجارية
+                int formCnt = math.min(n - 1 - lastLbl, 5)                       // أرجل جارية (≤5 قبل اكتمال الدفعة)
+                if formCnt >= 1
+                    for fk = 1 to formCnt
+                        int   fidx = lastLbl + fk
+                        bool  ftp  = array.get(pTop, fidx)
+                        float fly  = ftp ? array.get(pP, fidx) + (1 + degLvl) * off : array.get(pP, fidx) - (1 + degLvl) * off
+                        array.push(lbls, label.new(array.get(pTm, fidx), fly, "(" + str.tostring(fk) + "?)", xloc = xloc.bar_time, yloc = yloc.price, style = ftp ? label.style_label_down : label.style_label_up, color = color.new(col, 45), textcolor = color.white, size = size.small))
     found                                                       // [تشخيص] عدد الدفعات المكتشَفة (للكشف: هل القواعد رفضت الكبيرة أم رُسمت خارج الشاشة)
 
 // ─── [⑥] مساعد: يبني نقاط درجة الفعّالة (سعر/زمن/نوع) ثمّ يستدعي الترقيم — يُستدعى لكلّ درجة ───
