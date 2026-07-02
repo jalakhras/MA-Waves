@@ -3,7 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار: v1.11.0 — [تدقيق جولة2 — إصلاحات محقَّقة عدائيًّا + تصويب الإشارات كما الدروس] سجلّ الإصدارات في git
+// الإصدار: v1.12.0 — [إليوت: إصلاح القطريّة + تشخيص الأزرق] سجلّ الإصدارات في git
+// إليوت ⑥ (v1.12.0): f_drawElliott — ق3 (لا تراكب) صارت قابلة للتخفيف بـewStrict (كان يبدّل p4>p2 الإرشاديّة خطأً · spec §2 القطريّة). f_drawElliott تُعيد عدد الدفعات + تشخيص «دفعات الكبيرة» في ewDbg.
+// تشخيص الأزرق (محسوم): الكبيرة بطريقة leg (useBigBreak=false) خشنة (8 نقاط، ساق أولى ضخمة ثمّ تذبذب ⇒ م3 الأقصر ⇒ ق2 ترفض) ⇒ لا دفعة. بـuseBigBreak=true (كسر من المتوسطة، أنعم) ⇒ الأزرق يظهر ✅. القرار المؤجَّل: (أ) جعله افتراضيًّا · (ب) إليوت يقرأ سلسلة الكسر دومًا مستقلًّا (الأنظف). [مؤجَّل بقرار المستخدم]
 // جولة1 (v1.09.0): F1 محفّز المرحلة نصف الجسم · F2 التصريف نصف الجسم · S13 مواءمة الأطلس · S12 تحقّق.
 // جولة2 آمنة: حارس phB (لا إشارة/تنبيه حين الكبيرة ذعر/يأس ⇒ مراجعة E) · L1 سقف sigMarks (200) يمنع حذف Pine الصامت عند 500.
 // الفرص الثلاث (قرار المستخدم + spec §51-52): (1) أساسية = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) عالية مخاطرة = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) خروج/fallback = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
@@ -20,6 +22,7 @@ indicator("J-Waves M1", overlay = true, max_labels_count = 500, max_lines_count 
 // الاختيار التلقائيّ من السعر الخام (لا دائرة، لا ارتكاز على ط1). عدّ الدرجات/موجات الدفعة
 //   /ملاءمة الفريم في اللوحة يكتمل بـط1 (يحتاج الدرجات الثلاث).
 // ════════════════════════════════════════════════════════════════════════════
+
 
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -918,6 +921,7 @@ f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bo
 //   دفعات غير متداخلة (تحجز 3 خانات لـa-b-c لاحقًا). يقرأ نقاطنا الفعّالة (لا zigzag). لا يمسّ المنطق. يدفع الوسوم لـlbls للتنظيف.
 f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int maxSets, int degLvl, array<label> lbls) =>
     int n = array.size(pP)
+    int found = 0
     if n >= 6
         array<int> ends = array.new<int>()
         int lastEnd = -1
@@ -933,16 +937,17 @@ f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int 
                     float p5 = array.get(pP, e-1)
                     float p6 = array.get(pP, e)
                     bool ok = false
-                    if t6                                       // صاعدة — القواعد الثلاث القطعيّة فقط: ق1 م2 لا تحت بداية م1 (p3>p1) · ق2 م3 ليست الأقصر · ق3 م4 لا تدخل قمّة م1 (p5>p2). ewStrict يضيف الإرشاد (قمّة م3>م1 = p4>p2).
+                    if t6                                       // صاعدة — ق1 م2 لا تحت بداية م1 (p3>p1) · ق2 م3 ليست الأقصر · ق3 م4 لا تدخل قمّة م1 (p5>p2). [إصلاح] ق3 قابلة للتخفيف: ewStrict مطفأ ⇒ يسمح بالقطريّة/التراكب (spec §2) فتظهر الكبيرة.
                         float mn = math.min(p2 - p1, math.min(p4 - p3, p6 - p5))
-                        ok := p3 > p1 and p5 > p2 and (p4 - p3) != mn and (not ewStrict or p4 > p2)
+                        ok := p3 > p1 and (p4 - p3) != mn and (not ewStrict or p5 > p2)
                     else                                        // هابطة: المرآة
                         float mn = math.min(p1 - p2, math.min(p3 - p4, p5 - p6))
-                        ok := p3 < p1 and p5 < p2 and (p3 - p4) != mn and (not ewStrict or p4 < p2)
+                        ok := p3 < p1 and (p3 - p4) != mn and (not ewStrict or p5 < p2)
                     if ok
                         array.push(ends, e)
                         lastEnd := e + 3                        // احجز خانات a·b·c (⑥-ب)
         int total = array.size(ends)
+        found := total
         int fromI = (maxSets > 0 and total > maxSets) ? total - maxSets : 0
         if total > 0
             float off = ewOffset * nz(arrScale)                // إزاحة سعريّة أصيلة (× النطاق) لرفع الوسم عن الدائرة
@@ -960,6 +965,7 @@ f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int 
                         string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : "(c)"   // نمط القديم: تصحيح مقوّس (a)(b)(c)
                         float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
                         array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع
+    found                                                       // [تشخيص] عدد الدفعات المكتشَفة (للكشف: هل القواعد رفضت الكبيرة أم رُسمت خارج الشاشة)
 
 // ─── [⑥] مساعد: يبني نقاط درجة الفعّالة (سعر/زمن/نوع) ثمّ يستدعي الترقيم — يُستدعى لكلّ درجة ───
 f_ewRun(array<int> pBar, array<float> pPrc, array<bool> pTop, array<int> pTm, array<bool> pEff, color col, int maxSets, int degLvl, array<label> lbls) =>
@@ -1282,13 +1288,14 @@ if barstate.islast
         for li = 0 to array.size(ewLabels) - 1
             label.delete(array.get(ewLabels, li))
         array.clear(ewLabels)
+    int ewBigSets = 0                                           // [تشخيص] عدد دفعات الكبيرة المكتشَفة (>0 ⇒ رُسمت؛ 0 ⇒ القواعد رفضت)
     if showEW                                                  // الترتيب: الصغيرة ثمّ المتوسطة ثمّ **الكبيرة أخيرًا** (تنجو من حذف Pine للأقدم عند تجاوز سقف الوسوم)
         if showEWSmall
             f_ewRun(scBar, scPrc, scTop, scTm, scEff, cEWSmall, ewMaxSets, 0, ewLabels)
         if showEWMed
             f_ewRun(mcBar, mcPrc, mcTop, mcTm, mcEff, cEWMed, ewMaxSets, 1, ewLabels)
         if showEWBig
-            f_ewRun(lgBar, lgPrc, lgTop, lgTm, lgEff, cEWBig, ewMaxSets, 2, ewLabels)
+            ewBigSets := f_ewRun(lgBar, lgPrc, lgTop, lgTm, lgEff, cEWBig, ewMaxSets, 2, ewLabels)
         if ewDbg                                                // تشخيص: عدد الكبيرة الخام + بعد الدمج (تناوب) + عدد قممها ⇒ يكشف: تناوب مكسور (دُمجت<6) أم القواعد (دُمجت≥6 بلا دفعة)
             int lgColl = 0
             int lgTops = 0
@@ -1303,7 +1310,7 @@ if barstate.islast
                     if prevLt != cur
                         lgColl := lgColl + 1
                         prevLt := cur
-            array.push(ewLabels, label.new(bar_index, high, "EW · كبيرة=" + str.tostring(array.size(lgBar)) + " (دُمجت=" + str.tostring(lgColl) + " قمم=" + str.tostring(lgTops) + ") · متوسطة=" + str.tostring(array.size(mcBar)) + " · وسوم=" + str.tostring(array.size(ewLabels)), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(color.gray, 15), textcolor = color.white, size = size.small))
+            array.push(ewLabels, label.new(bar_index, high, "EW · كبيرة=" + str.tostring(array.size(lgBar)) + " (دُمجت=" + str.tostring(lgColl) + " قمم=" + str.tostring(lgTops) + ") · دفعات الكبيرة=" + str.tostring(ewBigSets) + " · متوسطة=" + str.tostring(array.size(mcBar)) + " · وسوم=" + str.tostring(array.size(ewLabels)), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(color.gray, 15), textcolor = color.white, size = size.small))
 
 // ─── ج1 [درس08]: مستويات الاتجاه — خطّ أفقيّ عند آخر طرف فعّال من نوع الأساس (قاع صاعدًا/قمّة هابطًا) على **الجسم** ───
 //   معمّم لكلّ درجة (كبيرة→متوسطة→صغيرة). على الجسم تمييزًا عن السيولة. يمتدّ levelExtend شمعة بعد الآن.
