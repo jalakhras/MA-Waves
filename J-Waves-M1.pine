@@ -3,7 +3,8 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار: v1.12.0 — [إليوت: إصلاح القطريّة + تشخيص الأزرق] سجلّ الإصدارات في git
+// الإصدار: v1.13.0 — [أداء P3: cache f_activeDir] سجلّ الإصدارات في git
+// أداء (v1.13.0): f_activeDir (حلقة على كامل الشارت) كانت تُستدعى 11× بنفس الوسائط لكلّ درجة ⇒ تُحسَب مرّة عند islast في bActVg/mActVg/sActVg وتُقرأ في كلّ الكتل (مستويات/سيولة/لوحة/إشارات). نتيجة مطابقة، أسرع. المتبقّي: P1 (علم تغطية مرّة) · P2 (حدّ en) · P4 (cache f_liqAdj).
 // إليوت ⑥ (v1.12.0): f_drawElliott — ق3 (لا تراكب) صارت قابلة للتخفيف بـewStrict (كان يبدّل p4>p2 الإرشاديّة خطأً · spec §2 القطريّة). f_drawElliott تُعيد عدد الدفعات + تشخيص «دفعات الكبيرة» في ewDbg.
 // تشخيص الأزرق (محسوم): الكبيرة بطريقة leg (useBigBreak=false) خشنة (8 نقاط، ساق أولى ضخمة ثمّ تذبذب ⇒ م3 الأقصر ⇒ ق2 ترفض) ⇒ لا دفعة. بـuseBigBreak=true (كسر من المتوسطة، أنعم) ⇒ الأزرق يظهر ✅. القرار المؤجَّل: (أ) جعله افتراضيًّا · (ب) إليوت يقرأ سلسلة الكسر دومًا مستقلًّا (الأنظف). [مؤجَّل بقرار المستخدم]
 // جولة1 (v1.09.0): F1 محفّز المرحلة نصف الجسم · F2 التصريف نصف الجسم · S13 مواءمة الأطلس · S12 تحقّق.
@@ -1707,6 +1708,15 @@ bool   confValid    = enableConf and timeframe.in_seconds(confTfEff) > 0 and tim
 bool confUp = confValid and confUpRaw   // تأكيد شراء (كسر آخر قمّة على الفريم الأصغر)
 bool confDn = confValid and confDnRaw   // تأكيد بيع
 
+// [أداء P3] cache اتجاه المستوى لكلّ درجة: f_activeDir حلقة على كامل الشارت، كانت تُستدعى ~11× بنفس الوسائط (السلاسل نهائيّة بعد س1255) ⇒ تُحسَب مرّة عند islast وتُقرأ في كلّ الكتل
+var int bActVg = 0
+var int mActVg = 0
+var int sActVg = 0
+if barstate.islast
+    bActVg := f_activeDir(lgBar, lgTop, lgEff, bigDir)
+    mActVg := f_activeDir(mcBar, mcTop, mcEff, bigDir)
+    sActVg := f_activeDir(scBar, scTop, scEff, bigDir)
+
 var line bigLevelLine = na
 var line medLevelLine = na
 var line smallLevelLine = na
@@ -1722,12 +1732,12 @@ if barstate.islast
     smallLevelLine := na
     if showLevel
         // [م3-ج] المستوى يُنقَل لجانب الاتجاه الفعّال (كُسِر مستواه ⇒ ينقلب ⇒ يُرسَم عند تطرّف الجانب الجديد). لا تقطيع — نقلٌ.
-        int bActV = f_activeDir(lgBar, lgTop, lgEff, bigDir)
-        int mActV = f_activeDir(mcBar, mcTop, mcEff, bigDir)
+        int bActV = bActVg
+        int mActV = mActVg
         bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV) : na   // الكبيرة (تُنقَل للجانب الفعّال)
         medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة (لا الموجة الجارية فقط)
-        int sActV = f_activeDir(scBar, scTop, scEff, bigDir)
+        int sActV = sActVg
         smallLevelLine := showLvlS ? f_levelLine(scBar, scTop, scEff, scTm, cLvlS, lvlWidthS, sActV) : na     // الصغيرة
 
 // ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
@@ -1746,12 +1756,12 @@ if barstate.islast
     smallLiqLine := na
     if showLiq
         // [تعديل] تُرسَم السيولة **دائمًا** على جانب الاتجاه الفعّال (تُظهر ميلها — حتى لو خالف المستوى = تباعد مفيد). المكسورة تبقى متقطّعة أدناه.
-        int bActL = f_activeDir(lgBar, lgTop, lgEff, bigDir)
-        int mActL = f_activeDir(mcBar, mcTop, mcEff, bigDir)
+        int bActL = bActVg
+        int mActL = mActVg
         bigLiqLine := showLiqB ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة
         medLiqLine := showLiqM ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar)
-        int sActL = f_activeDir(scBar, scTop, scEff, bigDir)
+        int sActL = sActVg
         smallLiqLine := showLiqS ? f_liqLine(scBar, scTop, scEff, scTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
         if f_liqBroken(lgBar, lgTop, lgEff, bActL) and not na(bigLiqLine)
@@ -1922,9 +1932,9 @@ if showConc and barstate.islast
     array<bool> dT = scTop
     array<bool> dE = scEff
     // [م3] الاتجاه الفعّال لكلّ درجة (latch كسر المستوى) ⇒ يقود الاتجاه/الدخول + السيولة/القوة على **جانب واحد** متّسق
-    int  bigLvlDir   = f_activeDir(lgBar, lgTop, lgEff, bigDir)
-    int  medLvlDir   = f_activeDir(mcBar, mcTop, mcEff, bigDir)
-    int  smallLvlDir = f_activeDir(dB, dT, dE, bigDir)
+    int  bigLvlDir   = bActVg
+    int  medLvlDir   = mActVg
+    int  smallLvlDir = sActVg
     int lqB = f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)   // اتجاه السيولة = ميل آخر دعم/مقاومة متّسق (f_liqPair) ⇒ يطابق خطّ السيولة المرسوم
     int lqM = f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
     int lqS = f_liqDir(dB, dT, dE, smallLvlDir)
@@ -2162,8 +2172,8 @@ if barstate.islast
     [wHiS, wLoS] = f_rangeHiLo(histLs, bar_index)
     int nzs    = array.size(zTop)
     // [إصلاح التناقض] اتجاه الإشارة = اتجاه **المستوى** (المتوسطة+الكبيرة) نفسه الذي تستعمله اللوحة (entry) — لا bigDir الخام (يتعارضان بعد كسر المستوى)
-    int sBLvl  = f_activeDir(lgBar, lgTop, lgEff, bigDir)
-    int sMLvl  = f_activeDir(mcBar, mcTop, mcEff, bigDir)
+    int sBLvl  = bActVg
+    int sMLvl  = mActVg
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
     if showSignals and nzs > 0 and sigDir != 0
         if showSigS
