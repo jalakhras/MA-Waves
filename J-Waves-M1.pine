@@ -3,8 +3,9 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار: v1.13.0 — [أداء P3: cache f_activeDir] سجلّ الإصدارات في git
-// أداء (v1.13.0): f_activeDir (حلقة على كامل الشارت) كانت تُستدعى 11× بنفس الوسائط لكلّ درجة ⇒ تُحسَب مرّة عند islast في bActVg/mActVg/sActVg وتُقرأ في كلّ الكتل (مستويات/سيولة/لوحة/إشارات). نتيجة مطابقة، أسرع. المتبقّي: P1 (علم تغطية مرّة) · P2 (حدّ en) · P4 (cache f_liqAdj).
+// الإصدار: v1.14.0 — [أداء P3+P1] سجلّ الإصدارات في git
+// أداء P3 (v1.13.0): f_activeDir تُحسَب مرّة عند islast (bActVg/mActVg/sActVg) بدل 11× — مستويات/سيولة/لوحة/إشارات.
+// أداء P1 (v1.14.0): f_covLater يحسب «مُغطّى بلاحقة أكثر تطرّفًا» بتمريرة O(n) واحدة لكلّ درجة (scCovLg/mcCovLg/lgCovLg) ⇒ f_coveredAt صار O(1)؛ استهلاك المناطق/الإشارات من O(n²) إلى O(n). دلالة مطابقة. المتبقّي: P2 (حدّ en) · P4 (cache f_liqAdj).
 // إليوت ⑥ (v1.12.0): f_drawElliott — ق3 (لا تراكب) صارت قابلة للتخفيف بـewStrict (كان يبدّل p4>p2 الإرشاديّة خطأً · spec §2 القطريّة). f_drawElliott تُعيد عدد الدفعات + تشخيص «دفعات الكبيرة» في ewDbg.
 // تشخيص الأزرق (محسوم): الكبيرة بطريقة leg (useBigBreak=false) خشنة (8 نقاط، ساق أولى ضخمة ثمّ تذبذب ⇒ م3 الأقصر ⇒ ق2 ترفض) ⇒ لا دفعة. بـuseBigBreak=true (كسر من المتوسطة، أنعم) ⇒ الأزرق يظهر ✅. القرار المؤجَّل: (أ) جعله افتراضيًّا · (ب) إليوت يقرأ سلسلة الكسر دومًا مستقلًّا (الأنظف). [مؤجَّل بقرار المستخدم]
 // جولة1 (v1.09.0): F1 محفّز المرحلة نصف الجسم · F2 التصريف نصف الجسم · S13 مواءمة الأطلس · S12 تحقّق.
@@ -1786,23 +1787,44 @@ if barstate.islast
                 line.delete(smallLiqLine)
                 smallLiqLine := na
 
-// [الدرس05 — التغطية] نقطة مُغطّاة إن وُجدت **بعدها** نقطة من نوعها **أكثر تطرّفًا** (قمّة بأعلى لاحقة · قاع بأدنى لاحق) ⇒ غير فعّالة.
-//   عالميّة للأمام، تُطبَّق لكلّ طبقة موجة حسب مفتاحها (covCur/covHist/covHoH عبر segLefts). الاستثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة.
-f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1, int hL2, float wHi, float wLo) =>
+// [أداء P1] علم «مُغطّى بنقطة لاحقة أكثر تطرّفًا» لكلّ نقطة في تمريرة O(n) واحدة (من الأحدث للأقدم، بأقصى قمّة/أدنى قاع جارٍ) — بدل حلقة O(n) داخل كلّ استدعاء تغطية. السلاسل زمنيّة تصاعديّة ⇒ فهرس أعلى = بار لاحق.
+f_covLater(array<int> aBar, array<bool> aTop, array<float> aPrc) =>
+    int n = array.size(aBar)
+    array<bool> cl = array.new<bool>(n, false)
+    float mxT = na
+    float mnB = na
+    for j = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0
+            int   i  = n - 1 - j
+            bool  ti = array.get(aTop, i)
+            float pi = array.get(aPrc, i)
+            array.set(cl, i, ti ? (not na(mxT) and mxT > pi) : (not na(mnB) and mnB < pi))   // نقطة لاحقة (فُحِصت قبلها) أكثر تطرّفًا من نوعها
+            if ti
+                mxT := na(mxT) ? pi : math.max(mxT, pi)
+            else
+                mnB := na(mnB) ? pi : math.min(mnB, pi)
+    cl
+
+// [الدرس05 — التغطية] نقطة مُغطّاة إن وُجدت **بعدها** نقطة من نوعها **أكثر تطرّفًا** ⇒ غير فعّالة. عالميّة للأمام، لكلّ طبقة حسب مفتاحها (covCur/covHist/covHoH). الاستثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة. (covLater مُحسَب مسبقًا O(n) — P1)
+f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1, int hL2, float wHi, float wLo, array<bool> covLater) =>
     bool cov = false
     int  bi = array.get(aBar, i)
     bool covOn = bi >= hL1 ? covCur : bi >= hL2 ? covHist : covHoH                  // طبقة النقطة ⇒ مفتاحها
     if covOn
         float pi = array.get(aPrc, i)
-        bool  ti = array.get(aTop, i)
         bool outside = not na(wHi) and not na(wLo) and (pi > wHi or pi < wLo)        // استثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة
         if not outside
-            int n = array.size(aBar)
-            for k = 0 to (n > 0 ? n - 1 : 0)
-                if n > 0 and k != i and array.get(aTop, k) == ti and array.get(aBar, k) > bi
-                    if ti ? (array.get(aPrc, k) > pi) : (array.get(aPrc, k) < pi)
-                        cov := true
+            cov := array.get(covLater, i)
     cov
+
+// [أداء P1] علم التغطية لكلّ درجة يُحسَب مرّة (O(n)) ويُقرأ في كلّ مستهلكي f_coveredAt (مستويات/أطراف المناطق/إشارات الدرجات) بدل إعادة الحلقة
+var array<bool> scCovLg = array.new<bool>()
+var array<bool> mcCovLg = array.new<bool>()
+var array<bool> lgCovLg = array.new<bool>()
+if barstate.islast
+    scCovLg := f_covLater(scBar, scTop, scPrc)
+    mcCovLg := f_covLater(mcBar, mcTop, mcPrc)
+    lgCovLg := f_covLater(lgBar, lgTop, lgPrc)
 
 // ─── [ط4-أ-1 / الدرس L2-02] مستويات م.A: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال **غير مُغطّى** (قمّة=أعلى الجسم · قاع=أسفله) ───
 //   المدخل = المتوسطة الفعّالة + ليست مُغطّاة (قانون التغطية لكلّ طبقة). الخطوة التالية (ط4-أ-2): قَرن المتقاربين ⇒ مستطيلات.
@@ -1820,7 +1842,7 @@ if barstate.islast
         int nz = array.size(mcBar)
         for i = 0 to (nz > 0 ? nz - 1 : 0)
             if nz > 0 and array.get(mcEff, i)
-                bool covered = f_coveredAt(mcBar, mcTop, mcPrc, i, hL1z, hL2z, wHiZ, wLoZ)
+                bool covered = f_coveredAt(mcBar, mcTop, mcPrc, i, hL1z, hL2z, wHiZ, wLoZ, mcCovLg)
                 if not covered or dbgCov                                    // المغطّى يُخفى (إلّا في وضع التشخيص ⇒ أحمر متقطّع)
                     int o = bar_index - array.get(mcBar, i)
                     if o >= 0
@@ -1851,7 +1873,7 @@ if barstate.islast
         array<bool>  eTp  = array.new<bool>()
         int nz2 = array.size(mcBar)
         for i = 0 to (nz2 > 0 ? nz2 - 1 : 0)
-            if nz2 > 0 and array.get(mcEff, i) and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB)
+            if nz2 > 0 and array.get(mcEff, i) and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB, mcCovLg)
                 int o = bar_index - array.get(mcBar, i)
                 if o >= 0
                     array.push(eIdx, i)
@@ -2108,12 +2130,12 @@ if showConc and barstate.islast
 //   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
 var array<label> sigLabels = array.new<label>()
 // [ط4-ج إشارات لكلّ درجة] «كلّ تصحيح = صفقة · درجة الصفقة = درجة التصحيح»: تطرّف فعّال داخل منطقة بالاتجاه ⇒ شراء/بيع (✦أساسية/⚠مخاطرة) + RR + tooltip. الهدف = منطقة الدرجة التالية ⇒ التدرّج تلقائيّ.
-f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int sigDir, int hL1, int hL2, float wHi, float wLo, string degNm) =>
+f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int sigDir, int hL1, int hL2, float wHi, float wLo, string degNm, array<bool> covLater) =>
     int  nps = array.size(aBar)
     int  nzs = array.size(zTop)
     bool wantBot = sigDir == 1
     for si = 0 to (nps > 0 ? nps - 1 : 0)
-        if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= hL1 and not f_coveredAt(aBar, aTop, aPrc, si, hL1, hL2, wHi, wLo)   // فعّال + غير مُغطّى (اتّساق مع المناطق/خطوط m.A)
+        if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= hL1 and not f_coveredAt(aBar, aTop, aPrc, si, hL1, hL2, wHi, wLo, covLater)   // فعّال + غير مُغطّى (اتّساق مع المناطق/خطوط m.A)
             float pp  = array.get(aPrc, si)
             bool  isT = array.get(aTop, si)
             int   ob  = bar_index - array.get(aBar, si)
@@ -2177,11 +2199,11 @@ if barstate.islast
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
     if showSignals and nzs > 0 and sigDir != 0
         if showSigS
-            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"))     // إشارات الصغيرة (تأكيدها بالرابعة)
+            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg)     // إشارات الصغيرة (تأكيدها بالرابعة)
         if showSigM
-            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"))    // إشارات المتوسطة (تأكيدها بالصغيرة)
+            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg)    // إشارات المتوسطة (تأكيدها بالصغيرة)
         if showSigL
-            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"))      // إشارات الكبيرة (تأكيدها بالمتوسطة)
+            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"), lgCovLg)      // إشارات الكبيرة (تأكيدها بالمتوسطة)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
