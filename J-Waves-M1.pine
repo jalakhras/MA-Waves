@@ -3,8 +3,13 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار: v1.17.0 — [المناطق: عنقدة ذكيّة] سجلّ الإصدارات في git
-// v1.17.0: المناطق = عنقدة بالقرب بدل التزويج الثنائيّ+منع الثالث. بذرة زوج قريب (≤ mergeGap=mergeRatio×نطاق الموجة) ثمّ ينمو بامتصاص كلّ خطّ قريب ضمن الحدّ الأقصى zoneMaxRatio ⇒ يدمج الخطوط القريبة في منطقة واحدة (#2) + لا منطقة كبيرة (#1، البذرة قريبة + سقف صارم). م.A على الفعّال فقط (#3، أصلًا). صون الأولويّة (3 مراحل: حاليّ→استعارة→تاريخ) + منع الاحتواء/التصحيح المتجاور. mergeRatio مُدخَل (0.05).
+// الإصدار: v1.22.0 — [مفاتيح الوسم: رئيسيّة/فرعيّة/تنبيه مستقلّة] سجلّ الإصدارات في git
+// v1.22.0: showSigMain (الوسم الحيّ) · showSigSub (التاريخيّة/الدرجات) · enableAlerts (مستقلّ) — كلّها ON.
+// v1.23.0: [فصل الإشارات/التنبيه عن اللوحة] كتلة اللوحة صارت `if barstate.islast` (بدل showConc)؛ كلّ خليّة محروسة بـshowConc + مسح عند الإخفاء؛ الإشارات/التنبيه تعمل دائمًا (showSignals/enableAlerts) حتى مع إخفاء اللوحة. مطلب «لا تنسَ ALERT» مكتمل.
+// v1.19.0/.1: (1) توحيد نصّ الإشارة الحيّة إلى رمز ✦/⚠ (كالتاريخيّة). (2) f_emitExit: إشارات الخروج (الفرصة الثالثة) تُرسَم تاريخيًّا عبر الموجة (✦، آخر ≤500 شمعة) — مع الدخول+الوقف+الهدف+RR كأخواتها.
+// v1.20.0: فريم تأكيد الرابعة بقاعدة الفريم الأصغر (قرار المستخدم): الأساسيّ >15د⇒15د · =15د⇒5د · <15د⇒1د. confDiv مُلغى.
+// v1.21.2: [تراجع تأكيد MTF] تأكيد «شمعة الفريم الأصغر تُغلِق خلف المنطقة» يتعارض مع «داخل المنطقة» عند الإغلاق (شمعة الأصغر تُحاذي إغلاق الأساسيّة الداخل في المنطقة) ⇒ لا وسم على 15د. رُجِع للتأكيد البنيويّ f_degree4 على الفريم الجديد (15/5/1) ⇒ يعمل. + إصلاح «تنبيه بلا إشارة» (alert داخل barstate.isconfirmed). ⚠ الإشارات/التنبيه ما زالا مقترنَين بـshowConc (فصل مؤجَّل). [النموذج «الاختراق» = إشارة الخروج، للنقاش.]
+// v1.18.0 (قرار المستخدم): (1) التزويج = لكلّ خطّ من الأحدث للأقدم ⇒ أقرب شريك سعريًّا في الموجة الحاليّة، فإن لم يوجد فالتاريخ+تاريخ التاريخ معًا (الأقرب). (2) مفتاح enableMerge (افتراض ON): مطفأ ⇒ تزويج ثنائيّ بلا دمج · مفعّل ⇒ ينمو العنقود بامتصاص القريبة (mergeRatio). (3) 🔴 استثناء الطرف الحيّ المعلّق (mediumDegree.pendingBar) من م.A والمناطق (كان يُرسَم على طرف غير مؤكَّد). حدّ الحجم zoneMaxRatio + منع الاحتواء/التصحيح المتجاور محفوظة.
 // v1.15.0: تحقّق رسم الخطوط (مستوى أفقيّ/جسم · سيولة مائل/ذيول/لا يُولَد مكسورًا · كلّها على الفعّال فقط) — مطابق درس08/09. + حارس R3 (slope عند b2≠b1، احترازيّ).
 // v1.16.0: قانون التغطية (الدرس05) طُبِّق على دوائر الكبيرة (كالمتوسطة): فعّال-مغطّى ⇒ أحمر (showCovered) — كان يظهر أزرق. تناظر الدرجات.
 // أداء P3 (v1.13.0): f_activeDir تُحسَب مرّة عند islast (bActVg/mActVg/sActVg) بدل 11× — مستويات/سيولة/لوحة/إشارات.
@@ -81,13 +86,14 @@ bool   covHist     = input.bool(true, "Coverage: history / التغطية: ال�
 bool   covHoH      = input.bool(false, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone)
 bool   dbgCov      = input.bool(false, "Diag: covered levels (red dashed) / تشخيص: المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
 float  zoneMaxRatio = input.float(0.25, "Max zone height (× current wave range) / أقصى ارتفاع للمنطقة (× نطاق الموجة)", minval = 0.02, maxval = 1.0, step = 0.01, group = grpZone, tooltip = "يمنع المناطق الكبيرة: ارتفاع المنطقة يجب ألّا يتجاوز هذه النسبة × نطاق الموجة الحاليّة (أعلى-أدنى). أصغر ⇒ مناطق أصغر. (نسبةً لموجات الدفع/التصحيح.)")
-float  mergeRatio   = input.float(0.05, "Merge-close threshold (× wave range) / عتبة دمج القريبة (× نطاق الموجة)", minval = 0.0, maxval = 0.5, step = 0.01, group = grpZone, tooltip = "المستويات التي الفجوة بينها ≤ هذه النسبة × نطاق الموجة تُدمَج في منطقة واحدة (عنقود). أكبر ⇒ دمج أكثر/مناطق أعرض. الحدّ الأقصى يبقى zoneMaxRatio.")
+bool   enableMerge  = input.bool(true, "Merge close levels into one zone / دمج الخطوط القريبة في منطقة واحدة", group = grpZone, tooltip = "مفعّل: العنقود ينمو بامتصاص كلّ خطّ م.A قريب (ضمن mergeGap) في منطقة واحدة. مطفأ: تزويج ثنائيّ فقط (الأحدث ← أقرب شريك، بلا دمج).")
+float  mergeRatio   = input.float(0.05, "Merge-close threshold (× wave range) / عتبة دمج القريبة (× نطاق الموجة)", minval = 0.0, maxval = 0.5, step = 0.01, group = grpZone, tooltip = "عند تفعيل الدمج: المستويات التي الفجوة بينها ≤ هذه النسبة × نطاق الموجة تُدمَج في منطقة واحدة. أكبر ⇒ دمج أكثر. الحدّ الأقصى يبقى zoneMaxRatio.")
 
 // ─── ✅ الإشارات · المنطق والتنبيه [L2-04] ───
 string grpSig = "✅ Signals · Logic & Alerts / الإشارات · المنطق والتنبيه"
 bool   enableConf   = input.bool(true, "Enable 4th-degree confirmation / تفعيل تأكيد الرابعة", group = grpSig, tooltip = "كسر آخر قمّة/قاع على فريم أصغر (request.security) ⇒ يرقّي الفرصة القويّة إلى «دخول ✓». ⚠ يعيد الرسم على الشمعة الجارية (طبيعيّ للحظيّ).")
-bool   confAuto     = input.bool(true, "Auto TF (chart ÷ divisor) / فريم تلقائيّ (الشارت ÷ معامل)", group = grpSig)
-int    confDiv      = input.int(12, "Auto divisor (finer-degree factor) / معامل التنعيم", minval = 2, maxval = 60, group = grpSig, tooltip = "فريم التأكيد ≈ الشارت ÷ هذا المعامل. 12 ≈ درجة أنعم (1س→5د). اضبطه ليطابق «أنعم بدرجة من الصغيرة» في سوقك.")
+bool   confAuto     = input.bool(true, "Auto TF (>15m→15m · =15m→5m · <15m→1m) / فريم تلقائيّ", group = grpSig, tooltip = "قاعدة الفريم الأصغر: الأساسيّ أكبر من 15د ⇒ التأكيد 15د · يساوي 15د ⇒ 5د · أصغر ⇒ 1د. أطفئه لاختيار فريم يدويّ.")
+int    confDiv      = input.int(12, "(unused) Auto divisor / (مُلغى) معامل قديم", minval = 2, maxval = 60, group = grpSig, tooltip = "لم يعُد مستعملًا — التلقائيّ يتبع قاعدة الفريم الأصغر (15/5/1). للفريم اليدويّ أطفئ Auto.")
 string confTfManual = input.timeframe("5", "Manual TF (when Auto off) / الفريم اليدويّ (حين الإطفاء)", group = grpSig)
 bool   enableAlerts = input.bool(true, "Fire alert on confirmed entry / إطلاق تنبيه عند الدخول المؤكَّد", group = grpSig, tooltip = "يُطلِق alert() عند الفرصة المؤكَّدة (دخول ✓). نوع التنبيه (تطبيق/توست/صوت/إشعار) تختاره في نافذة «Create Alert» في TradingView — Pine يُطلِق الحدث فقط.")
 string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpSig, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
@@ -156,10 +162,12 @@ bool   showCovered = input.bool(true, "Covered pivots (red) / دوائر الم�
 
 // ─── 👁️ إظهار · الإشارات ───
 string grpShSig = "👁️ Show · Signals / إظهار · الإشارات"
-bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpShSig, tooltip = "المفتاح العامّ لكلّ الإشارات (الدرجات الثلاث). يُغلق كلّ الإشارات دفعةً.")
-bool   showSigL     = input.bool(true, "  ↳ large / الكبيرة", inline = "sigdeg", group = grpShSig)
-bool   showSigM     = input.bool(true, "  ↳ medium / المتوسطة", inline = "sigdeg", group = grpShSig)
-bool   showSigS     = input.bool(true, "  ↳ small / الصغيرة", inline = "sigdeg", group = grpShSig)
+bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpShSig, tooltip = "المفتاح العامّ لكلّ الإشارات. يُغلق الكلّ دفعةً.")
+bool   showSigMain  = input.bool(true, "  ↳ main: live confirmed / الرئيسيّة: الحيّة المؤكَّدة", group = grpShSig, tooltip = "الوسم الحيّ للفرصة المؤكَّدة على آخر شمعة (شراء/بيع + RR + وقف/هدف).")
+bool   showSigSub   = input.bool(true, "  ↳ sub: historical/degrees / الفرعيّة: التاريخيّة/الدرجات", group = grpShSig, tooltip = "الوسوم التاريخيّة عبر الشارت (تطرّفات الدرجات داخل المناطق ✦/⚠ + إشارات الخروج). تحتها مفاتيح الدرجات الثلاث.")
+bool   showSigL     = input.bool(true, "      ↳ large / الكبيرة", inline = "sigdeg", group = grpShSig)
+bool   showSigM     = input.bool(true, "      ↳ medium / المتوسطة", inline = "sigdeg", group = grpShSig)
+bool   showSigS     = input.bool(true, "      ↳ small / الصغيرة", inline = "sigdeg", group = grpShSig)
 
 // ─── 👁️ إظهار · اللوحات (لكلّ لوحة مفتاح مستقلّ) ───
 string grpShPanel = "👁️ Show · Panels / إظهار · اللوحات"
@@ -1722,9 +1730,9 @@ f_degree4() =>
     bool brokeDn = not na(lastPL) and close < lastPL and close[1] >= lastPL   // كسر آخر قاع ⇒ تأكيد بيع
     [brokeUp, brokeDn]
 
-// [تأكيد الرابعة MTF] فريم التأكيد التلقائيّ ≈ الشارت ÷ المعامل (أو اليدويّ) ثمّ سحب الكسر عبر request.security (استدعاء واحد، بلا تبديل فريم):
+// [تأكيد الدرجة الأصغر] كسر آخر قمّة/قاع على فريم أصغر (بقاعدة المستخدم: >15د⇒15د · =15د⇒5د · <15د⇒1د) = «بداية مشاركة عامّة جديدة». عبر request.security (يعيد الرسم على الجارية — طبيعيّ لحظيًّا).
 float  confChartSec = timeframe.in_seconds()
-string confTfEff    = confAuto ? timeframe.from_seconds(math.max(60, int(confChartSec / confDiv))) : confTfManual
+string confTfEff    = confAuto ? (confChartSec > 900 ? "15" : confChartSec == 900 ? "5" : "1") : confTfManual
 bool   confValid    = enableConf and timeframe.in_seconds(confTfEff) > 0 and timeframe.in_seconds(confTfEff) < confChartSec
 [confUpRaw, confDnRaw] = request.security(syminfo.tickerid, confTfEff, f_degree4(), lookahead = barmerge.lookahead_off)
 bool confUp = confValid and confUpRaw   // تأكيد شراء (كسر آخر قمّة على الفريم الأصغر)
@@ -1862,7 +1870,7 @@ if barstate.islast
         [wHiZ, wLoZ] = f_rangeHiLo(hL1z, bar_index)                                 // نطاق سعر الموجة الحاليّة (للاستثناء)
         int nz = array.size(mcBar)
         for i = 0 to (nz > 0 ? nz - 1 : 0)
-            if nz > 0 and array.get(mcEff, i)
+            if nz > 0 and array.get(mcEff, i) and not (mediumDegree.pendingType != 0 and array.get(mcBar, i) == mediumDegree.pendingBar)   // 🔴 لا م.A على الطرف الحيّ المعلّق للموجة الحاليّة (غير مؤكَّد)
                 bool covered = f_coveredAt(mcBar, mcTop, mcPrc, i, hL1z, hL2z, wHiZ, wLoZ, mcCovLg)
                 if not covered or dbgCov                                    // المغطّى يُخفى (إلّا في وضع التشخيص ⇒ أحمر متقطّع)
                     int o = bar_index - array.get(mcBar, i)
@@ -1894,7 +1902,7 @@ if barstate.islast
         array<bool>  eTp  = array.new<bool>()
         int nz2 = array.size(mcBar)
         for i = 0 to (nz2 > 0 ? nz2 - 1 : 0)
-            if nz2 > 0 and array.get(mcEff, i) and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB, mcCovLg)
+            if nz2 > 0 and array.get(mcEff, i) and not (mediumDegree.pendingType != 0 and array.get(mcBar, i) == mediumDegree.pendingBar) and not f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB, mcCovLg)   // 🔴 لا منطقة على الطرف الحيّ المعلّق
                 int o = bar_index - array.get(mcBar, i)
                 if o >= 0
                     array.push(eIdx, i)
@@ -1904,69 +1912,54 @@ if barstate.islast
         if en >= 2
             array<bool> usedZ = array.new<bool>(en, false)
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
-            float mergeGap = mergeRatio * (wHiB - wLoB)             // [عنقدة] «قريب جدًّا» = نسبة من نطاق الموجة (بذرة الزوج + نموّ العنقود)
-            // **ثلاث مراحل بالأولويّة**: ج1 الموجة الحاليّة · ج2 استعارة (حاليّ↔تاريخ) · ج3 الماضي بينه (تاريخ/تاريخ-التاريخ — كي لا يبقى خطّ بلا منطقة).
-            //   داخل كلّ مرحلة: greedy **الأصغر مسافةً عالميًّا** (الأزواج الأضيق أوّلًا ⇒ لا تزويج بعيد كبير).
-            for pass = 1 to 3
-                array<int>   pAi = array.new<int>()
-                array<int>   pBi = array.new<int>()
-                array<float> pD  = array.new<float>()
-                for a = 0 to en - 2
-                    bool aCur = array.get(mcBar, array.get(eIdx, a)) >= histLeft
-                    for b = a + 1 to en - 1
-                        bool bCur   = array.get(mcBar, array.get(eIdx, b)) >= histLeft
-                        bool tierOk = pass == 1 ? (aCur and bCur) : pass == 2 ? ((aCur or bCur) and not (aCur and bCur)) : (not aCur and not bCur)   // ج1 كلاهما حاليّ · ج2 واحد حاليّ+واحد ماضٍ · ج3 كلاهما ماضٍ
-                        bool adjc   = (b - a) == 1
-                        bool oppc   = array.get(eTp, a) != array.get(eTp, b)
-                        float dAB   = math.abs(array.get(eLvl, a) - array.get(eLvl, b))
-                        if tierOk and not (adjc and oppc) and dAB <= mergeGap   // 🔴 لا تصحيح متجاور · [عنقدة] بذرة الزوج قريبة فقط (≤ mergeGap) ⇒ لا تزويج بعيد كبير
-                            array.push(pAi, a)
-                            array.push(pBi, b)
-                            array.push(pD, dAB)
-                int np = array.size(pD)
-                if np > 0
-                    array<bool> pDone = array.new<bool>(np, false)
-                    for _it = 1 to np
-                        int   best = -1
-                        float bd   = 1e18
-                        for x = 0 to np - 1                                     // الأصغر مسافةً وطرفاه غير مستهلَكين
-                            if not array.get(pDone, x) and not array.get(usedZ, array.get(pAi, x)) and not array.get(usedZ, array.get(pBi, x))
-                                if array.get(pD, x) < bd
-                                    bd   := array.get(pD, x)
-                                    best := x
-                        if best < 0
-                            break
-                        array.set(pDone, best, true)
-                        int aa = array.get(pAi, best)
-                        int bb = array.get(pBi, best)
+            // [تزويج — قرار المستخدم] لكلّ خطّ من **الأحدث للأقدم**: ابحث عن **أقرب شريك سعريًّا في الموجة الحاليّة**، فإن لم تجد فالتاريخ. (eIdx زمنيّ تصاعديّ ⇒ الأحدث = الأخير)
+            for oi = 0 to en - 1
+                int aa = en - 1 - oi                                    // الأحدث أوّلًا
+                if not array.get(usedZ, aa)
+                    int   bb = -1
+                    float bd = 1e18
+                    for ph2 = 1 to 2                                    // ج1 شريك في الموجة الحاليّة · ج2 في التاريخ (إن لم يوجد حاليّ)
+                        if bb < 0
+                            for c = 0 to en - 1
+                                if c != aa and not array.get(usedZ, c)
+                                    bool cCur   = array.get(mcBar, array.get(eIdx, c)) >= histLeft
+                                    bool tierOk = ph2 == 1 ? cCur : not cCur
+                                    bool adjOpp = math.abs(c - aa) == 1 and array.get(eTp, c) != array.get(eTp, aa)   // 🔴 لا تصحيح متجاور
+                                    float d     = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
+                                    bool sizeOk = (wHiB - wLoB) <= 0 or d <= zoneMaxRatio * (wHiB - wLoB)             // 🔴 لا منطقة كبيرة
+                                    if tierOk and not adjOpp and sizeOk and d < bd
+                                        bd := d
+                                        bb := c
+                    if bb >= 0
                         float cT = math.max(array.get(eLvl, aa), array.get(eLvl, bb))
                         float cB = math.min(array.get(eLvl, aa), array.get(eLvl, bb))
-                        // [عنقدة — يحلّ #2 الدمج + #1 الحجم] نمِّ العنقود: امتصّ أيّ طرف فعّال غير مستهلَك قريب (ضمن mergeGap من نطاق العنقود) ما دام الارتفاع ≤ الحدّ الأقصى ⇒ الخطوط القريبة تُدمَج في منطقة واحدة صغيرة (بدل «منع الثالث»)
-                        float capH = (wHiB - wLoB) > 0 ? zoneMaxRatio * (wHiB - wLoB) : 1e18
                         array<int> mem = array.new<int>()
                         array.push(mem, aa)
                         array.push(mem, bb)
-                        bool grew = true
-                        while grew
-                            grew := false
-                            for c = 0 to en - 1
-                                if not array.get(usedZ, c) and not array.includes(mem, c)
-                                    float lc = array.get(eLvl, c)
-                                    float nT = math.max(cT, lc)
-                                    float nB = math.min(cB, lc)
-                                    if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH
-                                        array.push(mem, c)
-                                        cT := nT
-                                        cB := nB
-                                        grew := true
-                        // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة (نادرة مع العناقيد المنفصلة سعريًّا)
+                        if enableMerge                                  // [دمج اختياريّ] نمِّ العنقود بامتصاص الخطوط القريبة (ضمن mergeGap) ما دام ≤ الحدّ الأقصى
+                            float capH     = (wHiB - wLoB) > 0 ? zoneMaxRatio * (wHiB - wLoB) : 1e18
+                            float mergeGap = mergeRatio * (wHiB - wLoB)
+                            bool grew = true
+                            while grew
+                                grew := false
+                                for c = 0 to en - 1
+                                    if not array.get(usedZ, c) and not array.includes(mem, c)
+                                        float lc = array.get(eLvl, c)
+                                        float nT = math.max(cT, lc)
+                                        float nB = math.min(cB, lc)
+                                        if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH
+                                            array.push(mem, c)
+                                            cT := nT
+                                            cB := nB
+                                            grew := true
+                        // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة
                         bool contain = false
                         int zc = array.size(zTop)
                         if zc > 0
                             for k = 0 to zc - 1
                                 if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
                                     contain := true
-                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)   // 🔴 حدّ الحجم الصارم (احتياطيّ — النموّ يحترمه أصلًا)
+                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)   // 🔴 حدّ الحجم الصارم
                         if not contain and not tooBig
                             int nm = array.size(mem)
                             int leftBar = bar_index
@@ -1983,8 +1976,11 @@ if barstate.islast
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var array<label> sigMarks = array.new<label>()   // علامات إشارات ثابتة (تُرسم عند إغلاق الشمعة وتبقى في مكانها — لا تتحرك مع السعر)
 var table concTbl = table.new(f_pos(concPos), 2, 13, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
-if showConc and barstate.islast
-    table.set_position(concTbl, f_pos(concPos))
+if barstate.islast
+    if not showConc                                             // [فصل الإشارات/التنبيه عن اللوحة] إخفاء اللوحة يمسح خلاياها فقط — الحساب والإشارات والتنبيه تعمل دائمًا (تُحرَس الخلايا بـshowConc)
+        table.clear(concTbl, 0, 0, 1, 12)
+    if showConc
+        table.set_position(concTbl, f_pos(concPos))
     // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
     array<int>  dB = scBar
     array<bool> dT = scTop
@@ -2009,21 +2005,31 @@ if showConc and barstate.islast
     color  histCol = bigLvlDir == 1 ? cUp : bigLvlDir == -1 ? cDn : pMute
     string liqTxt  = not cDef ? f_t("غير محدّد", "Undefined") : cRng ? f_t("عرضيّ (Range)", "Range") : cLiq == 1 ? f_t("صاعدة", "Up") : f_t("هابطة", "Down")
     color  liqCol  = not cDef ? pMute : cRng ? cRngC : cLiq == 1 ? cUp : cDn
-    table.cell(concTbl, 0, 0, f_t("لوحة القرار", "Decision Panel"), text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
-    table.cell(concTbl, 1, 0, "", bgcolor = pHdr)
-    table.cell(concTbl, 0, 1, f_t("اتجاه الموجة التاريخية", "Historical wave dir"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 1, histTxt, text_color = color.white, bgcolor = histCol, text_size = size.small)
-    table.cell(concTbl, 0, 2, f_t("اتجاه السيولة", "Liquidity dir"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 0, f_t("لوحة القرار", "Decision Panel"), text_color = pMain, bgcolor = pHdr, text_size = size.normal, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 0, "", bgcolor = pHdr)
+    if showConc
+        table.cell(concTbl, 0, 1, f_t("اتجاه الموجة التاريخية", "Historical wave dir"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 1, histTxt, text_color = color.white, bgcolor = histCol, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 2, f_t("اتجاه السيولة", "Liquidity dir"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 2, liqTxt, text_color = color.white, bgcolor = liqCol, text_size = size.small)
     // [درس10] قوّة لكلّ درجة (تداخل تطرّفاتها: قاع↔قمّة قبله بـ3) · العامّة من الصغيرة · الدخول من اتجاه مستوى المتوسطة+الكبيرة
     int    stB = f_liqStrength(lgBar, lgTop, lgEff, bigLvlDir)
     int    stM = f_liqStrength(mcBar, mcTop, mcEff, medLvlDir)
     int    stS = f_liqStrength(dB, dT, dE, smallLvlDir)
     int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير)
-    table.cell(concTbl, 0, 3, f_t("قوة السيولة", "Liquidity strength"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 3, f_stTxt(stS), text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : stS == 2 ? cRngC : pMute, text_size = size.small)
-    table.cell(concTbl, 0, 4, f_t("الدخول المتاح", "Available entry"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 4, entry == 1 ? f_t("شراء فقط", "Buy only") : entry == -1 ? f_t("بيع فقط", "Sell only") : entry == 2 ? f_t("بيع/شراء", "Buy/Sell") : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 3, f_t("قوة السيولة", "Liquidity strength"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 3, f_stTxt(stS), text_color = color.white, bgcolor = stS == 1 ? cUp : stS == -1 ? cDn : stS == 2 ? cRngC : pMute, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 4, f_t("الدخول المتاح", "Available entry"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 4, entry == 1 ? f_t("شراء فقط", "Buy only") : entry == -1 ? f_t("بيع فقط", "Sell only") : entry == 2 ? f_t("بيع/شراء", "Buy/Sell") : "—", text_color = color.white, bgcolor = entry == 1 ? cUp : entry == -1 ? cDn : entry == 2 ? cRngC : pMute, text_size = size.small)
     // [درس11/م-أ] المرحلة **بجانب كلّ درجة** (خليّة مدمجة): مشاركة عامّة (السيولة محترَمة) ⟷ ذعر (كُسِرت بنصف الجسم). يأس/تجميع/تصريف = م11-ب
     int    phS   = f_phase(dB, dT, dE, smallLvlDir)            // 0 مشاركة · 1 ذعر · 2 يأس · 3 تجميع · 4 تصريف · -1 لا سيولة
     int    phM   = f_phase(mcBar, mcTop, mcEff, medLvlDir)
@@ -2034,21 +2040,33 @@ if showConc and barstate.islast
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     string dUp = f_t("صاعدة", "Up")
     string dDn = f_t("هابطة", "Down")
-    table.cell(concTbl, 0, 5, f_t("الصغيرة", "Small"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? dUp : smallLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stS) + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 6, f_t("المتوسطة", "Medium"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 6, (medLvlDir == 1 ? dUp : medLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stM) + " · " + phsM, text_color = color.white, bgcolor = medLvlDir == 0 ? pMute : medLvlDir == 1 ? cUp : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 7, f_t("الكبيرة", "Large"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 7, (bigLvlDir == 1 ? dUp : bigLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stB) + " · " + phsB, text_color = color.white, bgcolor = bigLvlDir == 0 ? pMute : bigLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 5, f_t("الصغيرة", "Small"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 5, (smallLvlDir == 1 ? dUp : smallLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stS) + " · " + phsS, text_color = color.white, bgcolor = smallLvlDir == 0 ? pMute : smallLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 6, f_t("المتوسطة", "Medium"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 6, (medLvlDir == 1 ? dUp : medLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stM) + " · " + phsM, text_color = color.white, bgcolor = medLvlDir == 0 ? pMute : medLvlDir == 1 ? cUp : cDn, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 7, f_t("الكبيرة", "Large"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 7, (bigLvlDir == 1 ? dUp : bigLvlDir == -1 ? dDn : "—") + " · " + f_stTxt(stB) + " · " + phsB, text_color = color.white, bgcolor = bigLvlDir == 0 ? pMute : bigLvlDir == 1 ? cUp : cDn, text_size = size.small)
     // [ط4-أ-3] موضع السعر من المناطق: داخل منطقة (in_zone، نشطة) · أو خارجها ⇒ أقرب منطقة فوق=مقاومة / تحت=دعم
     bool   inZone = false
+    float  zaTop  = na                                          // حافّة المنطقة التي فيها السعر (للتأكيد MTF والوقف)
+    float  zaBot  = na
     int    nzc    = array.size(zTop)
     for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
         if nzc > 0 and close <= array.get(zTop, zi) and close >= array.get(zBot, zi)
             inZone := true
+            zaTop := array.get(zTop, zi)
+            zaBot := array.get(zBot, zi)
     string zTxt   = inZone ? f_t("داخل منطقة ✓", "In zone ✓") : nzc == 0 ? "—" : f_t("خارج منطقة", "Out of zone")
-    table.cell(concTbl, 0, 8, f_t("موضع السعر", "Price position"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 8, f_t("موضع السعر", "Price position"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
     // [ط4-ب الفرصة المُدرَّجة] القرار = داخل منطقة ؟ (اتجاه + درجة الفرصة حسب مرحلة الصغيرة) : انتظار (الدرس L2-03):
     //   تجميع (اكتمل التصحيح ذعر→يأس) ⇒ **قويّة** · ذعر/يأس (تصحيح جارٍ) ⇒ **مخاطرة** · مشاركة (ترند) ⇒ **متاحة**.
     // [L2-04 التأكيد بدرجة الصفقة] متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF):
@@ -2062,16 +2080,10 @@ if showConc and barstate.islast
             else
                 lstSmB := array.get(scPrc, si)
     bool isMedTrade = tradeDeg == "Medium / متوسطة"
-    bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة · صغيرة←الرابعة
+    bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة (نفس الشارت) · صغيرة←كسر بنيويّ على الفريم الأصغر (15/5/1)
     bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
     bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
-    // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. يُحسَب أوّلًا ليدخل قرار الأطلس (لا هدف ⇒ لا تداول).
-    float zaTop = na
-    float zaBot = na
-    for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
-        if nzc > 0 and close <= array.get(zTop, zi) and close >= array.get(zBot, zi)
-            zaTop := array.get(zTop, zi)
-            zaBot := array.get(zBot, zi)
+    // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. (zaTop/zaBot حُسِبا في حلقة inZone أعلاه.)
     float stp = na
     float tgt = na
     if inZone and entry == 1                                              // شراء: الوقف أسفل المنطقة · الهدف أقرب منطقة فوق (حافّتها السفلى)
@@ -2087,16 +2099,24 @@ if showConc and barstate.islast
     // [بحث الأطلس] صفّ القرار = فئة FSM كاملة من الحالة (متّسق مع الإشارات)
     [decTxt, decK] = f_atlasDecision(entry, inZone, phS, confOk, phB, not na(tgt))
     color decBg = decK == 1 ? cUp : decK == -1 ? cDn : decK == 2 ? cRngC : (decK == 3 or decK == 9) ? color.new(#FF9800, 0) : pMute
-    table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
-    table.cell(concTbl, 0, 10, f_t("الوقف", "Stop"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 10, na(stp) ? "—" : str.tostring(stp, format.mintick), text_color = color.white, bgcolor = na(stp) ? pMute : cDn, text_size = size.small)
-    table.cell(concTbl, 0, 11, f_t("الهدف", "Target"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(concTbl, 1, 11, na(tgt) ? "—" : str.tostring(tgt, format.mintick), text_color = color.white, bgcolor = na(tgt) ? pMute : cUp, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 9, decTxt, text_color = color.white, bgcolor = decBg, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 10, f_t("الوقف", "Stop"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 10, na(stp) ? "—" : str.tostring(stp, format.mintick), text_color = color.white, bgcolor = na(stp) ? pMute : cDn, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 11, f_t("الهدف", "Target"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+    if showConc
+        table.cell(concTbl, 1, 11, na(tgt) ? "—" : str.tostring(tgt, format.mintick), text_color = color.white, bgcolor = na(tgt) ? pMute : cUp, text_size = size.small)
     // [بحث الأطلس] الكتلة (السياق): A ك↑م↑(شراء) · B ك↑م↓(تعارض) · C ك↓م↓(بيع) · D ك↓م↑(تعارض) · E خاصّة (ذعر/يأس كبير)
     string blk = (phB == 1 or phB == 2) ? f_t("الكبيرة ذعر/يأس ⇒ مراجعة (E)", "Large panic/despair ⇒ review (E)") : (bigLvlDir == 1 and medLvlDir == 1) ? f_t("توافق صعود ⇒ شراء (A)", "Up-agreement ⇒ buy (A)") : (bigLvlDir == -1 and medLvlDir == -1) ? f_t("توافق هبوط ⇒ بيع (C)", "Down-agreement ⇒ sell (C)") : (bigLvlDir == 1 and medLvlDir == -1) ? f_t("تعارض: الكبيرة صاعدة، المتوسطة هابطة (B)", "Conflict: Large up, Medium down (B)") : (bigLvlDir == -1 and medLvlDir == 1) ? f_t("تعارض: الكبيرة هابطة، المتوسطة صاعدة (D)", "Conflict: Large down, Medium up (D)") : "—"
-    table.cell(concTbl, 0, 12, f_t("الكتلة (أطلس)", "Block (Atlas)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سياق السوق حسب الأطلس (توافق الدرجتين). الرموز: ك=الكبيرة · م=المتوسطة · ↑صاعدة · ↓هابطة.\nA (ك↑م↑) توافق صعود ⇒ شراء · C (ك↓م↓) توافق هبوط ⇒ بيع · B/D تعارض (جهة المنطقة صارمة) · E الكبيرة في ذعر/يأس ⇒ مراجعة/إدارة.", "Market context per the Atlas (agreement of both degrees). Symbols: L=Large · M=Medium · ↑up · ↓down.\nA (L↑M↑) up-agreement ⇒ buy · C (L↓M↓) down-agreement ⇒ sell · B/D conflict (strict zone side) · E large in panic/despair ⇒ review/manage."))
-    table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
+    if showConc
+        table.cell(concTbl, 0, 12, f_t("الكتلة (أطلس)", "Block (Atlas)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سياق السوق حسب الأطلس (توافق الدرجتين). الرموز: ك=الكبيرة · م=المتوسطة · ↑صاعدة · ↓هابطة.\nA (ك↑م↑) توافق صعود ⇒ شراء · C (ك↓م↓) توافق هبوط ⇒ بيع · B/D تعارض (جهة المنطقة صارمة) · E الكبيرة في ذعر/يأس ⇒ مراجعة/إدارة.", "Market context per the Atlas (agreement of both degrees). Symbols: L=Large · M=Medium · ↑up · ↓down.\nA (L↑M↑) up-agreement ⇒ buy · C (L↓M↓) down-agreement ⇒ sell · B/D conflict (strict zone side) · E large in panic/despair ⇒ review/manage."))
+    if showConc
+        table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
     bool basicSig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)                  // أساسيّة: تجميع مكتمل + تأكيد (داخل المنطقة)
     bool hrSig    = inZone and (phS == 1 or phS == 2) and confOk and (entry == 1 or entry == -1)    // عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس) + تأكيد (داخل المنطقة)
@@ -2140,26 +2160,27 @@ if showConc and barstate.islast
                     bTgt := na(bTgt) or zb < bTgt ? zb : bTgt
     bool inZoneSig = (basicSig or hrSig) and not na(tgt)
     bool brkSig    = (brkSell or brkBuy) and not na(bTgt)
-    if showSignals and (inZoneSig or brkSig) and not (phB == 1 or phB == 2)   // 🔴 لا إشارة بلا هدف · [تدقيق] لا دخول جديد حين الكبيرة ذعر/يأس (مراجعة E — اتّساق مع قرار الأطلس)
+    if showSignals and (inZoneSig or brkSig) and not (phB == 1 or phB == 2)   // 🔴 لا إشارة بلا هدف · [تدقيق] لا دخول جديد حين الكبيرة ذعر/يأس (مراجعة E)
         bool   isBrk = brkSig and not inZoneSig
         bool   up    = isBrk ? brkBuy : entry == 1
         bool   isBas = isBrk or phS == 3                         // [قرار المستخدم] إشارة الخروج (انعكاس+تأكيد) = أساسيّة · وداخل المنطقة: أساسيّة إن اكتملت المرحلة (تجميع/تصريف phS==3) وإلّا مخاطرة (تصحيح جارٍ)
         float  sStp  = isBrk ? bStp : stp
         float  sTgt  = isBrk ? bTgt : tgt
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
-        string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // لا «كسر» — أساسيّة/مخاطرة كأخواتها
-        string sigTx = (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + sTyp + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")
+        string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // للـtooltip/التنبيه (وصفيّ)
+        string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد] رمز ✦/⚠ كالإشارات التاريخيّة (لا «أساسية/مخاطرة» نصًّا)
         // tooltip تصميم القديم: شراء ⇒ الهدف/الدخول/الوقف · بيع ⇒ الوقف/الدخول/الهدف
         string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + f_t("\nنوع: ", "\nType: ") + sTyp + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
         // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
         if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
-            array.push(sigMarks, label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small, tooltip = sigTip))
-            int sigCap = 200                                     // [تدقيق L1] سقف العلامات الثابتة — يمنع تجاوز max_labels_count=500 وحذف Pine الصامت للأقدم (تنافس مع دوائر الدرجات/إليوت)
-            while array.size(sigMarks) > sigCap
-                label.delete(array.shift(sigMarks))
-        if enableAlerts                                          // يُطلِق الحدث (داخل المنطقة + الكسر)؛ نوع التنبيه من نافذة Create Alert
-            alert("M-Waves: " + sigTx + (not na(sStp) ? f_t(" · وقف ", " · Stop ") + str.tostring(sStp, format.mintick) : "") + (not na(sTgt) ? f_t(" · هدف ", " · Target ") + str.tostring(sTgt, format.mintick) : ""), alert.freq_once_per_bar_close)
+            if showSigMain                                       // [مفتاح] الوسم الرئيسيّ الحيّ — مستقلّ عن التنبيه
+                array.push(sigMarks, label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small, tooltip = sigTip))
+                int sigCap = 200                                 // [تدقيق L1] سقف العلامات الثابتة — يمنع تجاوز max_labels_count=500 وحذف Pine الصامت للأقدم
+                while array.size(sigMarks) > sigCap
+                    label.delete(array.shift(sigMarks))
+            if enableAlerts                                      // التنبيه مستقلّ (داخل حارس الإغلاق ⇒ لا تنبيه شبحيّ · يُطلَق حتى لو أُخفي الوسم الرئيسيّ)
+                alert("M-Waves: " + sigTx + (not na(sStp) ? f_t(" · وقف ", " · Stop ") + str.tostring(sStp, format.mintick) : "") + (not na(sTgt) ? f_t(" · هدف ", " · Target ") + str.tostring(sTgt, format.mintick) : ""), alert.freq_once_per_bar_close)
 
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
 //   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
@@ -2220,6 +2241,56 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                 array.push(sigLabels, label.new(array.get(aBar, si), pp, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
 
+// [ط4-ج — الفرصة الثالثة تاريخيًّا] إشارة الخروج عبر الموجة: لكلّ شمعة، خروج صحيح من منطقة (لمس ثمّ إغلاق خلفها بشمعة صحيحة 15د×1/5د×2) باتجاه الترند + هدف ⇒ ✦ خروج. (تُعيد رسم ما كان حيًّا-فقط على آخر شمعة.)
+f_emitExit(int sigDir, int fromBar) =>
+    int  nzx = array.size(zTop)
+    bool oneBarE = timeframe.in_seconds() >= 900
+    if nzx > 0 and sigDir != 0
+        for b = fromBar to bar_index
+            int o = bar_index - b
+            if o >= 0 and o + 1 <= bar_index
+                bool vR  = close[o] < open[o] and (open[o] - close[o]) >= (high[o] - open[o]) and (open[o] - close[o]) >= (close[o] - low[o])
+                bool vG  = close[o] > open[o] and (close[o] - open[o]) >= (high[o] - close[o]) and (close[o] - open[o]) >= (open[o] - low[o])
+                bool vR1 = close[o+1] < open[o+1] and (open[o+1] - close[o+1]) >= (high[o+1] - open[o+1]) and (open[o+1] - close[o+1]) >= (close[o+1] - low[o+1])
+                bool vG1 = close[o+1] > open[o+1] and (close[o+1] - open[o+1]) >= (high[o+1] - close[o+1]) and (close[o+1] - open[o+1]) >= (open[o+1] - low[o+1])
+                bool redN2 = oneBarE ? vR : (vR and vR1)
+                bool grnN2 = oneBarE ? vG : (vG and vG1)
+                bool drew = false
+                for z = 0 to nzx - 1
+                    if not drew
+                        float zt = array.get(zTop, z)
+                        float zb = array.get(zBot, z)
+                        if sigDir == -1 and redN2 and (high[o] >= zb or high[o+1] >= zb) and close[o] < zb and (oneBarE or close[o+1] < zb)   // بيع: كسر تحت مقاومة بعد لمسها
+                            float t = na
+                            for z2 = 0 to nzx - 1
+                                if array.get(zTop, z2) < close[o]
+                                    t := na(t) or array.get(zTop, z2) > t ? array.get(zTop, z2) : t
+                            if not na(t)
+                                float e   = close[o]                                   // الدخول = إغلاق الخروج
+                                float s   = zt                                         // الوقف = أعلى المنطقة المكسورة
+                                float rrx = (s > e and e > t) ? (e - t) / (s - e) : na
+                                string tpx = f_t("خروج (بيع أساسية)", "Exit (Sell basic)") + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
+                                array.push(sigLabels, label.new(b, e, "✦" + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tpx))
+                                if not na(rrx)
+                                    color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
+                                    array.push(sigLabels, label.new(b, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
+                                drew := true
+                        if sigDir == 1 and grnN2 and (low[o] <= zt or low[o+1] <= zt) and close[o] > zt and (oneBarE or close[o+1] > zt)   // شراء: كسر فوق دعم بعد لمسه
+                            float t = na
+                            for z2 = 0 to nzx - 1
+                                if array.get(zBot, z2) > close[o]
+                                    t := na(t) or array.get(zBot, z2) < t ? array.get(zBot, z2) : t
+                            if not na(t)
+                                float e   = close[o]                                   // الدخول = إغلاق الخروج
+                                float s   = zb                                         // الوقف = أسفل المنطقة المكسورة
+                                float rrx = (t > e and e > s) ? (t - e) / (e - s) : na
+                                string tpx = f_t("خروج (شراء أساسية)", "Exit (Buy basic)") + f_t("\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
+                                array.push(sigLabels, label.new(b, e, "✦" + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tpx))
+                                if not na(rrx)
+                                    color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
+                                    array.push(sigLabels, label.new(b, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
+                                drew := true
+
 if barstate.islast
     if array.size(sigLabels) > 0
         for li = 0 to array.size(sigLabels) - 1
@@ -2233,13 +2304,14 @@ if barstate.islast
     int sBLvl  = bActVg
     int sMLvl  = mActVg
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
-    if showSignals and nzs > 0 and sigDir != 0
+    if showSignals and showSigSub and nzs > 0 and sigDir != 0
         if showSigS
             f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg)     // إشارات الصغيرة (تأكيدها بالرابعة)
         if showSigM
             f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg)    // إشارات المتوسطة (تأكيدها بالصغيرة)
         if showSigL
             f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"), lgCovLg)      // إشارات الكبيرة (تأكيدها بالمتوسطة)
+        f_emitExit(sigDir, math.max(histLs, bar_index - 500))                                                                  // [#2] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة من الموجة الحاليّة (حدّ أداء)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
