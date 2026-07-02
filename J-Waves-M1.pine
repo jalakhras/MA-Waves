@@ -3,8 +3,10 @@
 // J-Waves — M1 (الموجة التاريخية)
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// الإصدار: v1.15.0 — [تحقّق الخطوط + حارس القسمة] سجلّ الإصدارات في git
-// v1.15.0: تحقّق رسم الخطوط (مستوى أفقيّ/جسم · سيولة مائل/ذيول/لا يُولَد مكسورًا · كلّها على الفعّال فقط aEff) — مطابق درس08/09. + حارس R3: slope عند b2≠b1 (احترازيّ، لا أثر عند الحالة العاديّة).
+// الإصدار: v1.17.0 — [المناطق: عنقدة ذكيّة] سجلّ الإصدارات في git
+// v1.17.0: المناطق = عنقدة بالقرب بدل التزويج الثنائيّ+منع الثالث. بذرة زوج قريب (≤ mergeGap=mergeRatio×نطاق الموجة) ثمّ ينمو بامتصاص كلّ خطّ قريب ضمن الحدّ الأقصى zoneMaxRatio ⇒ يدمج الخطوط القريبة في منطقة واحدة (#2) + لا منطقة كبيرة (#1، البذرة قريبة + سقف صارم). م.A على الفعّال فقط (#3، أصلًا). صون الأولويّة (3 مراحل: حاليّ→استعارة→تاريخ) + منع الاحتواء/التصحيح المتجاور. mergeRatio مُدخَل (0.05).
+// v1.15.0: تحقّق رسم الخطوط (مستوى أفقيّ/جسم · سيولة مائل/ذيول/لا يُولَد مكسورًا · كلّها على الفعّال فقط) — مطابق درس08/09. + حارس R3 (slope عند b2≠b1، احترازيّ).
+// v1.16.0: قانون التغطية (الدرس05) طُبِّق على دوائر الكبيرة (كالمتوسطة): فعّال-مغطّى ⇒ أحمر (showCovered) — كان يظهر أزرق. تناظر الدرجات.
 // أداء P3 (v1.13.0): f_activeDir تُحسَب مرّة عند islast (bActVg/mActVg/sActVg) بدل 11× — مستويات/سيولة/لوحة/إشارات.
 // أداء P1 (v1.14.0): f_covLater يحسب «مُغطّى بلاحقة أكثر تطرّفًا» بتمريرة O(n) واحدة لكلّ درجة (scCovLg/mcCovLg/lgCovLg) ⇒ f_coveredAt صار O(1)؛ استهلاك المناطق/الإشارات من O(n²) إلى O(n). دلالة مطابقة. المتبقّي: P2 (حدّ en) · P4 (cache f_liqAdj).
 // إليوت ⑥ (v1.12.0): f_drawElliott — ق3 (لا تراكب) صارت قابلة للتخفيف بـewStrict (كان يبدّل p4>p2 الإرشاديّة خطأً · spec §2 القطريّة). f_drawElliott تُعيد عدد الدفعات + تشخيص «دفعات الكبيرة» في ewDbg.
@@ -79,6 +81,7 @@ bool   covHist     = input.bool(true, "Coverage: history / التغطية: ال�
 bool   covHoH      = input.bool(false, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone)
 bool   dbgCov      = input.bool(false, "Diag: covered levels (red dashed) / تشخيص: المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
 float  zoneMaxRatio = input.float(0.25, "Max zone height (× current wave range) / أقصى ارتفاع للمنطقة (× نطاق الموجة)", minval = 0.02, maxval = 1.0, step = 0.01, group = grpZone, tooltip = "يمنع المناطق الكبيرة: ارتفاع المنطقة يجب ألّا يتجاوز هذه النسبة × نطاق الموجة الحاليّة (أعلى-أدنى). أصغر ⇒ مناطق أصغر. (نسبةً لموجات الدفع/التصحيح.)")
+float  mergeRatio   = input.float(0.05, "Merge-close threshold (× wave range) / عتبة دمج القريبة (× نطاق الموجة)", minval = 0.0, maxval = 0.5, step = 0.01, group = grpZone, tooltip = "المستويات التي الفجوة بينها ≤ هذه النسبة × نطاق الموجة تُدمَج في منطقة واحدة (عنقود). أكبر ⇒ دمج أكثر/مناطق أعرض. الحدّ الأقصى يبقى zoneMaxRatio.")
 
 // ─── ✅ الإشارات · المنطق والتنبيه [L2-04] ───
 string grpSig = "✅ Signals · Logic & Alerts / الإشارات · المنطق والتنبيه"
@@ -1270,15 +1273,32 @@ if barstate.islast
     int   prevTmB  = na
     float prevPrcB = na
     int nLg = array.size(lgBar)
+    int   hL1L = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0          // [تناظر التغطية مع المتوسطة] نفس حدود الطبقات + نطاق الموجة
+    int   hL2L = array.size(segLefts) > 1 ? array.get(segLefts, 1) : hL1L
+    [wHiL, wLoL] = f_rangeHiLo(hL1L, bar_index)
     for i = 0 to (nLg > 0 ? nLg - 1 : 0)
         if nLg > 0
             float p   = array.get(lgPrc, i)
             int   t   = array.get(lgTm, i)
+            int   b   = array.get(lgBar, i)
             bool  eff = array.get(lgEff, i)
+            // [تناظر التغطية مع المتوسطة/الدرس05] فعّال-مغطّى = وُجد لاحقًا أكثر تطرّفًا من نوعه ⇒ يُعتَم أحمر (نفس منطق f_coveredAt، نقاط الكبيرة قليلة)
+            bool covdL = false
+            if eff
+                bool covOnL = b >= hL1L ? covCur : b >= hL2L ? covHist : covHoH
+                if covOnL and not (not na(wHiL) and not na(wLoL) and (p > wHiL or p < wLoL))
+                    bool tiL = array.get(lgTop, i)
+                    for k = 0 to (nLg > 0 ? nLg - 1 : 0)
+                        if nLg > 0 and k != i and array.get(lgTop, k) == tiL and array.get(lgBar, k) > b
+                            if tiL ? (array.get(lgPrc, k) > p) : (array.get(lgPrc, k) < p)
+                                covdL := true
             if not na(p)
                 if showLarge
-                    if eff
+                    if eff and not covdL
                         f_drawMedCircle(bigCircles, t, p, cBig, cBigBorder, largeCircleSize)
+                    else if eff and covdL
+                        if showCovered
+                            f_drawMedCircle(bigCircles, t, p, cBigDead, cBigDeadBorder, nonEffBigSize)   // مغطّى ⇒ أحمر (يُخفى إن أُطفئ showCovered)
                     else if showNonEffBig
                         f_drawMedCircle(bigCircles, t, p, cBigDead, cBigDeadBorder, nonEffBigSize)
                 if eff
@@ -1884,6 +1904,7 @@ if barstate.islast
         if en >= 2
             array<bool> usedZ = array.new<bool>(en, false)
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
+            float mergeGap = mergeRatio * (wHiB - wLoB)             // [عنقدة] «قريب جدًّا» = نسبة من نطاق الموجة (بذرة الزوج + نموّ العنقود)
             // **ثلاث مراحل بالأولويّة**: ج1 الموجة الحاليّة · ج2 استعارة (حاليّ↔تاريخ) · ج3 الماضي بينه (تاريخ/تاريخ-التاريخ — كي لا يبقى خطّ بلا منطقة).
             //   داخل كلّ مرحلة: greedy **الأصغر مسافةً عالميًّا** (الأزواج الأضيق أوّلًا ⇒ لا تزويج بعيد كبير).
             for pass = 1 to 3
@@ -1897,10 +1918,11 @@ if barstate.islast
                         bool tierOk = pass == 1 ? (aCur and bCur) : pass == 2 ? ((aCur or bCur) and not (aCur and bCur)) : (not aCur and not bCur)   // ج1 كلاهما حاليّ · ج2 واحد حاليّ+واحد ماضٍ · ج3 كلاهما ماضٍ
                         bool adjc   = (b - a) == 1
                         bool oppc   = array.get(eTp, a) != array.get(eTp, b)
-                        if tierOk and not (adjc and oppc)                       // 🔴 لا تصحيح متجاور — يُسمح قمّة+قاع بعيدين بنفس المستوى
+                        float dAB   = math.abs(array.get(eLvl, a) - array.get(eLvl, b))
+                        if tierOk and not (adjc and oppc) and dAB <= mergeGap   // 🔴 لا تصحيح متجاور · [عنقدة] بذرة الزوج قريبة فقط (≤ mergeGap) ⇒ لا تزويج بعيد كبير
                             array.push(pAi, a)
                             array.push(pBi, b)
-                            array.push(pD, math.abs(array.get(eLvl, a) - array.get(eLvl, b)))
+                            array.push(pD, dAB)
                 int np = array.size(pD)
                 if np > 0
                     array<bool> pDone = array.new<bool>(np, false)
@@ -1919,27 +1941,40 @@ if barstate.islast
                         int bb = array.get(pBi, best)
                         float cT = math.max(array.get(eLvl, aa), array.get(eLvl, bb))
                         float cB = math.min(array.get(eLvl, aa), array.get(eLvl, bb))
-                        // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة
+                        // [عنقدة — يحلّ #2 الدمج + #1 الحجم] نمِّ العنقود: امتصّ أيّ طرف فعّال غير مستهلَك قريب (ضمن mergeGap من نطاق العنقود) ما دام الارتفاع ≤ الحدّ الأقصى ⇒ الخطوط القريبة تُدمَج في منطقة واحدة صغيرة (بدل «منع الثالث»)
+                        float capH = (wHiB - wLoB) > 0 ? zoneMaxRatio * (wHiB - wLoB) : 1e18
+                        array<int> mem = array.new<int>()
+                        array.push(mem, aa)
+                        array.push(mem, bb)
+                        bool grew = true
+                        while grew
+                            grew := false
+                            for c = 0 to en - 1
+                                if not array.get(usedZ, c) and not array.includes(mem, c)
+                                    float lc = array.get(eLvl, c)
+                                    float nT = math.max(cT, lc)
+                                    float nB = math.min(cB, lc)
+                                    if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH
+                                        array.push(mem, c)
+                                        cT := nT
+                                        cB := nB
+                                        grew := true
+                        // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة (نادرة مع العناقيد المنفصلة سعريًّا)
                         bool contain = false
                         int zc = array.size(zTop)
                         if zc > 0
                             for k = 0 to zc - 1
                                 if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
                                     contain := true
-                        // بوّابة المجاورة: لا مستوى ثالث (أيّ طبقة) بين الحدّين سعريًّا ⇒ كلّ المناطق تبقى صغيرة (حاليّة وماضية)
-                        bool thirdBetween = false
-                        for k = 0 to en - 1
-                            if k != aa and k != bb
-                                float lk = array.get(eLvl, k)
-                                if lk > cB and lk < cT
-                                    thirdBetween := true
-                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)   // 🔴 حدّ الحجم: منطقة صغيرة نسبةً لموجة الدفع/التصحيح (نطاق الموجة)
-                        if not contain and not thirdBetween and not tooBig
-                            array.set(usedZ, aa, true)
-                            array.set(usedZ, bb, true)
+                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)   // 🔴 حدّ الحجم الصارم (احتياطيّ — النموّ يحترمه أصلًا)
+                        if not contain and not tooBig
+                            int nm = array.size(mem)
+                            int leftBar = bar_index
+                            for mi = 0 to nm - 1
+                                array.set(usedZ, array.get(mem, mi), true)
+                                leftBar := math.min(leftBar, array.get(mcBar, array.get(eIdx, array.get(mem, mi))))
                             array.push(zTop, cT)
                             array.push(zBot, cB)
-                            int leftBar = math.min(array.get(mcBar, array.get(eIdx, aa)), array.get(mcBar, array.get(eIdx, bb)))
                             int loL     = bar_index - leftBar
                             int leftTm2 = loL >= 0 ? time[loL] : time
                             color zf = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill   // [ط4-أ-3] فوق المنطقة⇒دعم(أخضر) · تحتها⇒مقاومة(أحمر) · داخلها⇒نشطة
