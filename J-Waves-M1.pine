@@ -5,7 +5,8 @@
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
 // الإصدار: v1.24.0 — [إعادة ترتيب الإعدادات بالميزة] سجلّ الإصدارات في git
 // v1.24.0/.1/.2: الإعدادات مرتّبة **بالميزة** (12 مجموعة) · حُذف confDiv.
-// v1.25.0: إليوت ⑥-ب — الموجة الجارية (1?)-(5?): بعد آخر دفعة+تصحيح، الأرجل الجارية غير المكتملة تُرقَّم تنبّؤيًّا بلون أفتح (مفتاح showEWForm، ON). عرض فقط. الأزرق يظهر ✅ (المستخدم).
+// v1.25.0: إليوت ⑥-ب — الموجة الجارية (1?)-(5?): بعد آخر دفعة+تصحيح، الأرجل الجارية بلون أفتح (showEWForm، ON). الأزرق يظهر ✅.
+// v1.26.0: إليوت — a-b-c مربوط بمراحل داو (قرار المستخدم): a=ذعر · b=تصحيح · c=يأس؛ c مؤكَّد (c) فقط إن كان أعمق من a (يأس أعمق من الذعر) وإلّا (c?) تنبّؤيّ + tooltip داو. عرض فقط.
 // v1.22.0: showSigMain (الوسم الحيّ) · showSigSub (التاريخيّة/الدرجات) · enableAlerts (مستقلّ) — كلّها ON.
 // v1.23.0: [فصل الإشارات/التنبيه عن اللوحة] كتلة اللوحة صارت `if barstate.islast` (بدل showConc)؛ كلّ خليّة محروسة بـshowConc + مسح عند الإخفاء؛ الإشارات/التنبيه تعمل دائمًا (showSignals/enableAlerts) حتى مع إخفاء اللوحة. مطلب «لا تنسَ ALERT» مكتمل.
 // v1.19.0/.1: (1) توحيد نصّ الإشارة الحيّة إلى رمز ✦/⚠ (كالتاريخيّة). (2) f_emitExit: إشارات الخروج (الفرصة الثالثة) تُرسَم تاريخيًّا عبر الموجة (✦، آخر ≤500 شمعة) — مع الدخول+الوقف+الهدف+RR كأخواتها.
@@ -945,13 +946,17 @@ f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int 
                     bool  tp  = array.get(pTop, idx)
                     float ly  = tp ? array.get(pP, idx) + (1 + degLvl) * off : array.get(pP, idx) - (1 + degLvl) * off   // فوق القمّة/تحت القاع؛ كلّ درجة خطوة أبعد ⇒ تتكدّس النقاط المتقاطعة بألوانها
                     array.push(lbls, label.new(array.get(pTm, idx), ly, "(" + str.tostring(k) + ")", xloc = xloc.bar_time, yloc = yloc.price, style = tp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع فوق الدائرة
+                // [⑥ ربط المراحل — a-b-c داو] a=ذعر (أوّل تطرّف مضادّ) · b=تصحيح (ارتداد) · c=يأس (أعمق من الذعر). c مؤكَّد فقط إن كان أعمق من a (زجزاج مكتمل)، وإلّا (c?) تنبّؤيّ.
+                bool   t6d    = array.get(pTop, e)              // اتجاه الدفعة (قمّة ⇒ صاعدة ⇒ تصحيح هابط)
+                bool   cDeep  = (e + 3 < n) and (t6d ? (array.get(pP, e + 3) < array.get(pP, e + 1)) : (array.get(pP, e + 3) > array.get(pP, e + 1)))   // c (يأس) أعمق من a (ذعر)
+                string abcTip = f_t("تصحيح داو: a=ذعر · b=تصحيح · c=يأس (أعمق)", "Dow correction: a=Panic · b=Correction · c=Despair (deeper)")
                 for j = 1 to 3                                  // a·b·c على التصحيح (النقاط الثلاث بعد الدفعة) إن وُجدت
                     int aidx = e + j
                     if aidx < n
                         bool   atp  = array.get(pTop, aidx)
-                        string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : "(c)"   // نمط القديم: تصحيح مقوّس (a)(b)(c)
+                        string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : (cDeep ? "(c)" : "(c?)")   // c مؤكَّد إن يأس أعمق · وإلّا تنبّؤيّ
                         float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
-                        array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع
+                        array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small, tooltip = abcTip))   // شكل مرفوع + tooltip داو
             // [⑥-ب الموجة الجارية] بعد آخر دفعة+تصحيح (الأصل = c عند lastLbl)، رقّم الأرجل الجارية (1?)-(5?) تنبّؤيًّا بلون أفتح — غير مؤكَّدة (تكتمل حين تحقّق القواعد وتصير دفعة مرقَّمة)
             if showEWForm
                 int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)   // نهاية آخر بنية مكتملة (c) = أصل الموجة الجارية
