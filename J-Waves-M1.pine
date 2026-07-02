@@ -6,7 +6,8 @@
 // الإصدار: v1.24.0 — [إعادة ترتيب الإعدادات بالميزة] سجلّ الإصدارات في git
 // v1.24.0/.1/.2: الإعدادات مرتّبة **بالميزة** (12 مجموعة) · حُذف confDiv.
 // v1.25.0: إليوت ⑥-ب — الموجة الجارية (1?)-(5?): بعد آخر دفعة+تصحيح، الأرجل الجارية بلون أفتح (showEWForm، ON). الأزرق يظهر ✅.
-// v1.26.0: إليوت — a-b-c مربوط بمراحل داو (قرار المستخدم): a=ذعر · b=تصحيح · c=يأس؛ c مؤكَّد (c) فقط إن كان أعمق من a (يأس أعمق من الذعر) وإلّا (c?) تنبّؤيّ + tooltip داو. عرض فقط.
+// v1.26.0: إليوت — a-b-c مربوط بمراحل داو (a=ذعر·b=تصحيح·c=يأس؛ c مؤكَّد إن أعمق من a وإلّا c? + tooltip).
+// v1.27.0: بوّابة RR اختياريّة (minRR، افتراض 0=بلا منع): إن >0 تُمنَع الإشارة (الحيّة + f_emitDegSignals + f_emitExit) إن كان R:R أقلّ من الحدّ. لا يبوّبه الدرس ⇒ خيار مستخدم آمن (لا أثر عند 0).
 // v1.22.0: showSigMain (الوسم الحيّ) · showSigSub (التاريخيّة/الدرجات) · enableAlerts (مستقلّ) — كلّها ON.
 // v1.23.0: [فصل الإشارات/التنبيه عن اللوحة] كتلة اللوحة صارت `if barstate.islast` (بدل showConc)؛ كلّ خليّة محروسة بـshowConc + مسح عند الإخفاء؛ الإشارات/التنبيه تعمل دائمًا (showSignals/enableAlerts) حتى مع إخفاء اللوحة. مطلب «لا تنسَ ALERT» مكتمل.
 // v1.19.0/.1: (1) توحيد نصّ الإشارة الحيّة إلى رمز ✦/⚠ (كالتاريخيّة). (2) f_emitExit: إشارات الخروج (الفرصة الثالثة) تُرسَم تاريخيًّا عبر الموجة (✦، آخر ≤500 شمعة) — مع الدخول+الوقف+الهدف+RR كأخواتها.
@@ -101,6 +102,7 @@ bool   enableConf   = input.bool(true, "Enable 4th-degree confirmation / تفع�
 bool   confAuto     = input.bool(true, "Auto TF (>15m→15m · =15m→5m · <15m→1m) / فريم تلقائيّ", group = grpSig, tooltip = "قاعدة الفريم الأصغر: الأساسيّ أكبر من 15د ⇒ التأكيد 15د · يساوي 15د ⇒ 5د · أصغر ⇒ 1د. أطفئه لاختيار فريم يدويّ.")
 string confTfManual = input.timeframe("5", "Manual TF (when Auto off) / الفريم اليدويّ (حين الإطفاء)", group = grpSig)
 bool   enableAlerts = input.bool(true, "Fire alert on confirmed entry / إطلاق تنبيه عند الدخول المؤكَّد", group = grpSig, tooltip = "يُطلِق alert() عند الفرصة المؤكَّدة (دخول ✓). نوع التنبيه (تطبيق/توست/صوت/إشعار) تختاره في نافذة «Create Alert» في TradingView — Pine يُطلِق الحدث فقط.")
+float  minRR        = input.float(0.0, "Min R:R to fire (reward÷risk, 0=off) / أدنى R:R لإطلاق الإشارة (ربح÷خسارة، 0=بلا منع)", minval = 0.0, maxval = 5.0, step = 0.1, group = grpSig, tooltip = "R:R = الربح المحتمل ÷ الخسارة المحتملة = |الهدف−الدخول| ÷ |الدخول−الوقف|. minRR=1 ⇒ يقبل فقط الربح≥الخسارة (1:1) · minRR=2 ⇒ الربح≥ضعف الخسارة (2:1). كلّما زاد ⇒ إشارات أقلّ وأفضل. 0 = بلا منع (RR للعرض فقط). خيار مستخدم (لا يبوّبه الدرس).")
 string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpSig, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
 
 // ─── 📊 المراحل · المنطق [درس11] ───
@@ -2155,6 +2157,7 @@ if barstate.islast
         float  sStp  = isBrk ? bStp : stp
         float  sTgt  = isBrk ? bTgt : tgt
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
+        bool   rrOk  = minRR <= 0 or (not na(rr) and rr >= minRR)   // [بوّابة RR اختياريّة] إن minRR>0: لا وسم/تنبيه إن RR<الحدّ
         string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // للـtooltip/التنبيه (وصفيّ)
         string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد] رمز ✦/⚠ كالإشارات التاريخيّة (لا «أساسية/مخاطرة» نصًّا)
         // tooltip تصميم القديم: شراء ⇒ الهدف/الدخول/الوقف · بيع ⇒ الوقف/الدخول/الهدف
@@ -2162,12 +2165,12 @@ if barstate.islast
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
         // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
         if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
-            if showSigMain                                       // [مفتاح] الوسم الرئيسيّ الحيّ — مستقلّ عن التنبيه
+            if showSigMain and rrOk                              // [مفتاح] الوسم الرئيسيّ الحيّ — مستقلّ عن التنبيه · [بوّابة RR]
                 array.push(sigMarks, label.new(bar_index, close, sigTx, yloc = yloc.price, style = up ? label.style_label_up : label.style_label_down, color = lc, textcolor = color.white, size = size.small, tooltip = sigTip))
                 int sigCap = 200                                 // [تدقيق L1] سقف العلامات الثابتة — يمنع تجاوز max_labels_count=500 وحذف Pine الصامت للأقدم
                 while array.size(sigMarks) > sigCap
                     label.delete(array.shift(sigMarks))
-            if enableAlerts                                      // التنبيه مستقلّ (داخل حارس الإغلاق ⇒ لا تنبيه شبحيّ · يُطلَق حتى لو أُخفي الوسم الرئيسيّ)
+            if enableAlerts and rrOk                             // التنبيه مستقلّ (داخل حارس الإغلاق · [بوّابة RR]) · يُطلَق حتى لو أُخفي الوسم
                 alert("M-Waves: " + sigTx + (not na(sStp) ? f_t(" · وقف ", " · Stop ") + str.tostring(sStp, format.mintick) : "") + (not na(sTgt) ? f_t(" · هدف ", " · Target ") + str.tostring(sTgt, format.mintick) : ""), alert.freq_once_per_bar_close)
 
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
@@ -2209,7 +2212,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
                         float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
                         string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
-                        if not na(t)                             // 🔴 لا إشارة بلا هدف (الهدف = المنطقة التالية شرطٌ في الدرس)
+                        if not na(t) and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · [بوّابة RR اختياريّة]
                             array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
                             if not na(rr)
                                 color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
@@ -2223,7 +2226,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
                         float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
                         string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
-                        if not na(t)                             // 🔴 لا إشارة بلا هدف (الهدف = المنطقة التالية شرطٌ في الدرس)
+                        if not na(t) and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · [بوّابة RR اختياريّة]
                             array.push(sigLabels, label.new(array.get(aBar, si), pp, mk + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = basic ? #F23645 : #E57373, textcolor = color.white, size = size.small, tooltip = tp))
                             if not na(rr)
                                 color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
@@ -2257,12 +2260,13 @@ f_emitExit(int sigDir, int fromBar) =>
                                 float e   = close[o]                                   // الدخول = إغلاق الخروج
                                 float s   = zt                                         // الوقف = أعلى المنطقة المكسورة
                                 float rrx = (s > e and e > t) ? (e - t) / (s - e) : na
-                                string tpx = f_t("خروج (بيع أساسية)", "Exit (Sell basic)") + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
-                                array.push(sigLabels, label.new(b, e, "✦" + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tpx))
-                                if not na(rrx)
-                                    color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
-                                    array.push(sigLabels, label.new(b, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
-                                drew := true
+                                if minRR <= 0 or (not na(rrx) and rrx >= minRR)   // [بوّابة RR اختياريّة]
+                                    string tpx = f_t("خروج (بيع أساسية)", "Exit (Sell basic)") + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
+                                    array.push(sigLabels, label.new(b, e, "✦" + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tpx))
+                                    if not na(rrx)
+                                        color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
+                                        array.push(sigLabels, label.new(b, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
+                                    drew := true
                         if sigDir == 1 and grnN2 and (low[o] <= zt or low[o+1] <= zt) and close[o] > zt and (oneBarE or close[o+1] > zt)   // شراء: كسر فوق دعم بعد لمسه
                             float t = na
                             for z2 = 0 to nzx - 1
@@ -2272,12 +2276,13 @@ f_emitExit(int sigDir, int fromBar) =>
                                 float e   = close[o]                                   // الدخول = إغلاق الخروج
                                 float s   = zb                                         // الوقف = أسفل المنطقة المكسورة
                                 float rrx = (t > e and e > s) ? (t - e) / (e - s) : na
-                                string tpx = f_t("خروج (شراء أساسية)", "Exit (Buy basic)") + f_t("\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
-                                array.push(sigLabels, label.new(b, e, "✦" + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tpx))
-                                if not na(rrx)
-                                    color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
-                                    array.push(sigLabels, label.new(b, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
-                                drew := true
+                                if minRR <= 0 or (not na(rrx) and rrx >= minRR)   // [بوّابة RR اختياريّة]
+                                    string tpx = f_t("خروج (شراء أساسية)", "Exit (Buy basic)") + f_t("\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
+                                    array.push(sigLabels, label.new(b, e, "✦" + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tpx))
+                                    if not na(rrx)
+                                        color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
+                                        array.push(sigLabels, label.new(b, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
+                                    drew := true
 
 if barstate.islast
     if array.size(sigLabels) > 0
