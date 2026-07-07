@@ -3,7 +3,8 @@
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.1.0 — [G2 · بوّابة اليأس تتبع درجة الصفقة] ═══
+// ═══ الإصدار: v2.2.0 — [2-أ · بنية f_phaseAt: تعميم زمنيّ للمرحلة] ═══
+//   v2.2.0 [2-أ · بنية تحتيّة، صفر تغيير سلوك]: f_liqPairAt + f_phaseAt = تعميم f_liqPair/f_phase لتقبل بارًا مرجعيًّا atBar (تحسب المرحلة كما كانت عند تطرّف تاريخيّ). f_liqPair/f_phase صارا غلافين رفيعين (atBar=bar_index) **مطابقين بايتيًّا** (جدول تطابق معماريّ). تمهيدٌ لـ2-ب (بوّابة+تأكيد الأسهم التاريخيّة). المتوقّع: الشارت **بلا أيّ تغيير** عن v2.1.0.
 //   v2.1.0 [G2 · إصلاح فجوة]: بوّابة الدخول (أساسيّة/مخاطرة + قرار الأطلس + نوع الوسم) تقرأ المرحلة من **درجة الصفقة** لا phS دائمًا: gatePh=(useMedGate & isMedTrade)?phM:phS. سند حرفيّ درس L2-04 س30 «اليأس المحدِّد للدخول = المتوسطة لا الصغيرة، الخلط يُدخِل مبكّرًا» + مصعب3 س75. مفتاح useMedGate (ON). أطفئه ⇒ السلوك السابق (phS).
 //   المستوى الثاني مكتمل: الدرجات الثلاث · الخطوط (مستوى/سيولة) · الكسور الثلاثة · المناطق (عنقدة) · مستويات م.A · الإشارات (3 فرص + خروج + تأكيد الفريم الأصغر + بوّابة RR) · المراحل الخمس · الأطلس · إليوت (1-5 + a-b-c داو + الموجة الجارية). QC نظيف. سجلّ التفاصيل في git (v1.09→v1.27).
 // الإصدار السابق: v1.24.0 — [إعادة ترتيب الإعدادات بالميزة] سجلّ الإصدارات في git
@@ -1370,13 +1371,15 @@ f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
 
 // [إصلاح] انتقاء طرفَي خطّ السيولة = آخر **دعم/مقاومة متّسق مع الاتجاه** (قاعان متصاعدان صعودًا · قمّتان متنازلتان هبوطًا) —
 //   لا «آخر طرفين حرفيًّا» (قد يكونان قاعَي تصحيح هابط في صعود ⇒ خطّ غريب يناقض الاتجاه). إن لم يوجد متّسق ⇒ آخر طرفين (احتياطيّ).
-f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+// [2-أ · تعميم زمنيّ] انتقاء طرفَي خطّ السيولة كما كان عند atBar: يستثني كلّ نقطة لم تتكوّن بعد (aBar>atBar).
+//   الذيل يبقى high[bar_index-aBar] (حقيقة تاريخيّة، الفهرسة [] نسبةً لبار التنفيذ لا atBar). atBar=bar_index ⇒ مطابق حرفيًّا.
+f_liqPairAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
     bool wantTop = wdir == -1
     array<int>   px = array.new<int>()                      // مؤشّرات أطراف الأساس في aBar (بالترتيب)
     array<float> pw = array.new<float>()                     // ذيلها
     int n = array.size(aBar)
     for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop
+        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop and array.get(aBar, i) <= atBar
             int o = bar_index - array.get(aBar, i)
             if o >= 0
                 array.push(px, i)
@@ -1396,6 +1399,11 @@ f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
             r1 := array.get(px, m - 2)
             r2 := array.get(px, m - 1)
     [r1, r2]
+
+// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index) — مطابق بايتيًّا للأصل.
+f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    [q1, q2] = f_liqPairAt(aBar, aTop, aEff, wdir, bar_index)
+    [q1, q2]
 
 f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir) =>
     line ln = na
@@ -1542,10 +1550,12 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 //   • تجميع: ارتداد عن الأعمق بعد الكسر (تبَنٍّ عرضيّ قبل استئناف المشاركة). • تصريف [مصعب2]: كُسِر آخر دعم صغير (صعودًا)/مقاومة صغيرة (هبوطًا) والسيولة الكبرى سليمة (قُبيل الكسر الكامل).
 //   الانقلاب (مشاركة معاكسة) يقوده كسر المستوى (f_activeDir يقلب wdir ⇒ زوج/سيولة جديدة ⇒ مشاركة جديدة). wdir = الاتجاه الفعّال للدرجة.
 //   يُرجِع: 0 مشاركة · 1 ذعر · 2 يأس · 3 تجميع · 4 تصريف · -1 لا اتجاه (—). [اتجاه بلا خطّ سيولة ⇒ مشاركة افتراضيًّا، لا «—»]
-f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+// [2-أ · تعميم زمنيّ للمرحلة] يحسب مرحلة داو للدرجة كما كانت عند atBar (لبوّابة الإشارات التاريخيّة).
+//   (أ) ذيول النقاط: تبقى high[bar_index-aBar] + مرشّح aBar<=atBar. (ب) لحظة «الآن»: تُزاح إلى atBar. f_phaseAt(...,bar_index) ≡ f_phase الأصليّة بايتيًّا.
+f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
     int  ph = wdir != 0 ? 0 : -1                              // اتجاه موجود بلا خطّ سيولة (الكبيرة قليلة النقاط) ⇒ مشاركة افتراضيًّا (ترند بلا كسر) · لا اتجاه ⇒ —
     bool wantTop = wdir == -1
-    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
+    [i1, i2] = f_liqPairAt(aBar, aTop, aEff, wdir, atBar)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1559,19 +1569,23 @@ f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
             float wp1a  = wantTop ? w1 + f_liqAdj(b1, b2, w1, slope, wantTop) : w1 - f_liqAdj(b1, b2, w1, slope, wantTop)   // نفس إزاحة الرسم (اتّساق مع الخطّ المرسوم)
             // [إصلاح المرحلة] = موضع السعر **الحاليّ** من خطّ السيولة المرسوم (المائل) — لا latch تاريخيّ يَعلَق، ولا عتبة أفقيّة تفوت:
             //   تحت المقاومة/فوق الدعم الآن ⇒ مشاركة · تجاوزه الآن ⇒ ذعر. يطابق ما يراه المستخدم على الخطّ نفسه (يتحدّث مع السعر/الخطوط الجديدة).
-            float lineNow   = wp1a + slope * (bar_index - b1)         // قيمة الخطّ المرسوم عند البار الحاليّ (نفس إسقاط f_liqLine)
+            float lineNow   = wp1a + slope * (atBar - b1)             // [2-أ] قيمة الخطّ المرسوم عند atBar (بدل bar_index)
             // [درس11 — محفّز المرحلة] كسر المرحلة = إغلاق خلف الخطّ **بأكثر من نصف الجسم** (منتصف الجسم يتجاوز الخطّ) — لا لمسة ذيل (تلك للاستخراج). فصلٌ عن عتبة الاستخراج (فتيل) والبنيويّ (شمعتان).
-            float midNow    = (open + close) / 2
+            int   oAt       = bar_index - atBar                       // [2-أ] إزاحة بار التقييم
+            float midNow    = (open[oAt] + close[oAt]) / 2            // [2-أ] منتصف جسم شمعة atBar (بدل الحاليّة)
             bool  nowBroken = wantTop ? (midNow > lineNow) : (midNow < lineNow)
             int   brkBar = -1
             if nowBroken
-                for k = b2 + 1 to bar_index                           // مكسور الآن ⇒ ابحث بداية الكسر (أوّل تجاوز بنصف الجسم) لعدّ يأس/تجميع
-                    int ok = bar_index - k
-                    if ok >= 0 and brkBar < 0
-                        float lk  = wp1a + slope * (k - b1)
-                        float mk  = (open[ok] + close[ok]) / 2
-                        if wantTop ? (mk > lk) : (mk < lk)
-                            brkBar := k
+                if atBar >= b2 + 1                                    // [2-أ] حارس: المدى صالح ⇒ ابحث بداية الكسر في [b2+1, atBar]
+                    for k = b2 + 1 to atBar                           // مكسور عند atBar ⇒ ابحث بداية الكسر (أوّل تجاوز بنصف الجسم) لعدّ يأس/تجميع
+                        int ok = bar_index - k
+                        if ok >= 0 and brkBar < 0
+                            float lk  = wp1a + slope * (k - b1)
+                            float mk  = (open[ok] + close[ok]) / 2
+                            if wantTop ? (mk > lk) : (mk < lk)
+                                brkBar := k
+                else                                                 // [2-أ] atBar==b2 (حدّ): يطابق سلوك الأصل المعكوس (يقيّم شمعة atBar وحدها)
+                    brkBar := atBar
             if brkBar >= 0
                 ph := 1                                              // ذعر (كُسِرت السيولة)
                 float aExt    = na                                   // قاع الذعر A (أوّل تطرّف مضادّ بعد الكسر)
@@ -1580,7 +1594,7 @@ f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                 int   cnt = 0
                 int   n = array.size(aBar)
                 for j = 0 to (n > 0 ? n - 1 : 0)
-                    if n > 0 and array.get(aEff, j) and array.get(aTop, j) == wantTop and array.get(aBar, j) > brkBar
+                    if n > 0 and array.get(aEff, j) and array.get(aTop, j) == wantTop and array.get(aBar, j) > brkBar and array.get(aBar, j) <= atBar
                         int oj = bar_index - array.get(aBar, j)
                         if oj >= 0
                             float wj = wantTop ? high[oj] : low[oj]
@@ -1601,13 +1615,17 @@ f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
                 float lastPiv = na                                  // آخر نقطة دعم/مقاومة فعّالة للدرجة (الأحدث زمنيًّا)
                 int   nt = array.size(aBar)
                 for j = 0 to (nt > 0 ? nt - 1 : 0)
-                    if nt > 0 and array.get(aEff, j) and array.get(aTop, j) == (not wantSup)   // صعود ⇒ قيعان (aTop=false) · هبوط ⇒ قمم (aTop=true)
+                    if nt > 0 and array.get(aEff, j) and array.get(aTop, j) == (not wantSup) and array.get(aBar, j) <= atBar   // صعود ⇒ قيعان (aTop=false) · هبوط ⇒ قمم (aTop=true)
                         int oj = bar_index - array.get(aBar, j)
                         if oj >= 0
                             lastPiv := wantSup ? low[oj] : high[oj]
                 if not na(lastPiv) and (wantSup ? (midNow < lastPiv) : (midNow > lastPiv))   // [F2] كسر بنصف الجسم (midNow) لا الفتيل — اتّساق عتبة المرحلة
                     ph := 4                                          // تصريف (كُسِر آخر دعم/مقاومة صغير بنصف الجسم والسيولة سليمة ⇒ قُبيل الكسر الكامل)
     ph
+
+// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index) — مطابق بايتيًّا للأصل.
+f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    f_phaseAt(aBar, aTop, aEff, wdir, bar_index)
 
 // [بحث الأطلس — L2-03/04] قرار FSM من الحالة الكاملة (عرض فقط، جدول قرار قاعديّ لا سلاسل if متضخّمة). الأولويّة:
 //   الكبيرة انعطاف(E)⇒مراجعة · خارج منطقة⇒لا تداول · تعارض⇒النطاق فقط · توافق داخل منطقة: لا هدف⇒لا تداول · تجميع مكتمل+تأكيد⇒شراء/بيع · تصحيح جارٍ/بانتظار⇒انتظار.
