@@ -4,7 +4,9 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.6.1 — [حجم الموجة مؤتمت بالكامل: يقيس جلسة الأداة الفعليّة] ═══
+// ═══ الإصدار: v2.7.0 — [تنظيف مدخلات الموجة: قائمة واحدة (تلقائيّ/يدويّ/دمج)] ═══
+//   v2.7.0 [UX · دمج المقابض المتداخلة]: طريقة تحديد الموجة صارت **قائمة واحدة** `waveMode`: تلقائيّ(أيّام، waveScaleDays)·يدويّ(شموع، histBars)·**دمج**(متوسّط الاثنين ثمّ يرسو على أقرب حدّ leg — يحافظ على الرسو للتطرّف). حُذِف useHistN/useAutoScale/ampLen، وصار legMinRatio ثابتًا (LEG_MIN_RATIO=0.45) والسعة دائمًا زمنيّة. مقبض واحد للحجم (waveScaleDays). مرساة السعر تبحث عن حدّ leg المطابق (مستقلّة عن الوضع).
+// ═══ v2.6.1 — [حجم الموجة مؤتمت بالكامل: يقيس جلسة الأداة الفعليّة] ═══
 //   v2.6.1 [أتمتة]: شموع-اليوم تُقاس من البيانات الفعليّة (lookB=200: barsPerDay=200×86400000/(time-time[200])) بدل افتراض 24س ⇒ يتكيّف مع **جلسة الأداة** (24س فوركس/مؤشّرات أو جلسة أسهم محدودة) تلقائيًّا. فولباك = تقدير الفريم. لا ضبط يدويّ لأيّ أداة/فريم.
 //   v2.6.0 [درس03 خ6 · نصّ+مرئيّ]: نافذة السعة كانت 500 شمعة ثابتة ⇒ مدّتها تختلف بالفريم (15د~5أيّام·1س~21يومًا·4س~83يومًا). صارت **زمنيّة**: ampBars=waveScaleDays(21)×شموع-اليوم، محدودة [50,4900]. الموجة ~3 أسابيع (متوسطاتها 2-8 أيّام، t028: 150بار/8.5ي·124بار/7.4ي). الرسو على التطرّف (leg). اللوحة تُصادِق (خ6).
 // ═══ v2.5.1 — [معايرة خ7: المتوسطة 2-7 أيّام (مطابقة ملخّص المستوى الأول)] ═══
@@ -75,16 +77,15 @@ f_t(string ar, string en) => uiLang == "AR / عربيّة" ? ar : en   // مبد
 // ═══════════════ القسم ① — الضبط والمنطق (Setup & Logic) ═══════════════
 // ─── 🌊 الموجة والإطار · الضبط (ابدأ هنا) ───
 string grpWave = "🌊 Wave & Frame · Setup / الموجة والإطار · الضبط (ابدأ هنا)"
-bool   useHistN = input.bool(false, "Set wave by candle count / تحديد الموجة بعدد الشموع", group = grpWave, tooltip = "On: bounds over the last N candles. Off: auto — current move from its origin to now.\nمفعّل: آخر N شمعة. مطفأ: تلقائيّ — الحركة الحاليّة من أصلها إلى الآن.")
-int    histBars = input.int(100, "Historical wave candles / عدد شموع الموجة", minval = 1, group = grpWave)
-bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحديد تاريخ التاريخ بعدد الشموع", group = grpWave, tooltip = "On: N candles. Off: same length as the historical wave before it.\nمفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
-int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpWave)
-int    histDepth = input.int(7, "Auto history depth (legs) / عمق التواريخ التلقائيّ (سيقان)", minval = 1, maxval = 12, group = grpWave, tooltip = "في الوضع التلقائيّ: كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة. كلّ ساق = موجة واحدة (اتجاه واحد) تُحلَّل بقوانينها.")
-float  legMinRatio  = input.float(0.45, "Auto wave-leg size (× wave amplitude) / حجم ساق الموجة (× السعة)", minval = 0.05, maxval = 1.0, step = 0.05, group = grpWave, tooltip = "الضابط الرئيسيّ لحجم الموجة التلقائيّة: عتبة انعكاس الساق = هذه النسبة × سعة الموجة. أكبر ⇒ موجة أكبر.")
-bool   useAutoScale = input.bool(true, "Auto wave scale (measures instrument+TF) / حجم الموجة تلقائيّ (يقيس الأداة+الفريم)", group = grpWave, tooltip = "[درس03 خ6 · مؤتمت بالكامل] مفعّل: نافذة السعة = waveScaleDays × **شموع-اليوم المقيسة من بيانات الأداة الفعليّة** (تشمل جلستها — 24س/فوركس أو جلسة أسهم محدودة) ⇒ الموجة ~waveScaleDays يومًا على أيّ أداة/فريم بلا ضبط. مطفأ: نافذة ampLen اليدويّة الثابتة.")
-float  waveScaleDays = input.float(21.0, "Wave scale (days, when auto) / مقياس الموجة (أيّام)", minval = 1.0, step = 1.0, group = grpWave, tooltip = "[درس03: الموجة التاريخية ~3 أسابيع تحتوي ~3 موجات متوسطة 2-8 أيّام] نافذة السعة الزمنيّة. أكبر ⇒ موجة أكبر. اللوحة تُصادِق (المتوسطة يجب 2-10 أيّام). الرسو دائمًا على التطرّف (أدنى صعودًا/أعلى هبوطًا).")
-int    ampLen       = input.int(500, "Amplitude window (manual, when auto off) / نافذة السعة اليدويّة", minval = 50, maxval = 4900, group = grpWave, tooltip = "نافذة حساب سعة الموجة (المقياس فقط) حين useAutoScale مطفأ. سخيّة لتغطّي الموجة. الحدّ 4900 (max_bars_back).")
+// ◈ طريقة تحديد حجم الموجة — خيار واحد (أو «دمج» يجمع الاثنين بمتوسّط ثمّ يرسو على أقرب تطرّف)
+string waveMode = input.string("Auto (days) / تلقائيّ (أيّام)", "◈ Wave sizing method / طريقة تحديد الموجة", options = ["Auto (days) / تلقائيّ (أيّام)", "Manual (candles) / يدويّ (شموع)", "Combine / دمج (متوسّط)"], group = grpWave, tooltip = "طريقة واحدة لتحديد حجم الموجة التاريخية:\n• **تلقائيّ (أيّام)**: بالمقبض «حجم الموجة (أيّام)» — يقيس جلسة الأداة، يرسو على التطرّف. (موصى)\n• **يدويّ (شموع)**: بالمقبض «عدد شموع الموجة».\n• **دمج**: متوسّط الطريقتين ثمّ يرسو على أقرب تطرّف (leg) — أفضل نتيجة.")
+float  waveScaleDays = input.float(21.0, "  ↳ Wave size (days) / حجم الموجة (أيّام)", minval = 1.0, step = 1.0, group = grpWave, tooltip = "🔑 حجم الموجة بالأيّام (وضعا «تلقائيّ» و«دمج»). [درس03: الموجة ~3 أسابيع = ~3 موجات متوسطة 2-8 أيّام] أكبر⇒أكبر. يقيس جلسة الأداة الفعليّة (أيّ أداة/فريم بلا ضبط). الرسو على التطرّف (أدنى صعودًا/أعلى هبوطًا). اللوحة تُصادِق (المتوسطة 2-10 أيّام).")
+int    histBars = input.int(100, "  ↳ Wave candles (manual) / عدد شموع الموجة", minval = 1, group = grpWave, tooltip = "حجم الموجة بعدد الشموع (وضعا «يدويّ» و«دمج»).")
+float  LEG_MIN_RATIO = 0.45      // [ثابت داخليّ] عتبة انعكاس الساق = هذه النسبة × السعة. مدموجة في waveScaleDays (مقبض واحد). السعة دائمًا زمنيّة (تقيس الجلسة).
 int    bigMinSwings = input.int(2, "Min candles per leg / أدنى شموع للساق", minval = 1, maxval = 10, group = grpWave, tooltip = "يكبح السيقان الصغيرة جدًّا.")
+int    histDepth = input.int(7, "History depth (legs) / عمق التواريخ (سيقان)", minval = 1, maxval = 12, group = grpWave, tooltip = "كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة (تاريخ التاريخ). كلّ ساق = موجة واحدة.")
+bool   useHohN  = input.bool(false, "Prior-history by candle count / تاريخ التاريخ بعدد الشموع", group = grpWave, tooltip = "مفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
+int    hohBars  = input.int(100, "  ↳ Prior-history candles / شموع تاريخ التاريخ", minval = 1, group = grpWave)
 
 // ─── 🧪 مساعد الإطار · الضبط ───
 string grpFH = "🧪 Frame Helper · Setup / مساعد الإطار · الضبط"
@@ -258,7 +259,7 @@ int    liqExtend = input.int(24, "Liquidity extension (candles) / مدى امت�
 int    zoneExtend  = input.int(24, "Zone extension (candles) / مدى امتداد المنطقة (شموع)", minval = 0, maxval = 500, group = grpZone)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
-//   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة يدويًّا عبر useHistN/histBars.
+//   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة عبر waveMode (تلقائيّ/يدويّ/دمج).
 //   ⚠️ رقم عرض لا عتبة منطق — إن أُريد اشتقاقه (مثلًا نسبة من ampLen) فهو تغيير سلوكيّ للاحتياطيّ (يُعرَض قبل التطبيق).
 int AUTO_WAVE_LEN = 150
 
@@ -292,15 +293,15 @@ f_rangeDays(int leftB, int rightB) =>
     (time[bar_index - rightB] - time[bar_index - leftB]) / 86400000.0
 
 // ═════════ [درس04] محرّك الـleg — حدود الموجة وحجمها من السعر الخام (ZigZag بعتبة نسبيّة، لا ATR) ═════════
-//   العتبة = legMinRatio × سعة الموجة (ampHist). تطرّفات متناوبة؛ كلّ طرف مؤكَّد = حدّ موجة. per-bar على الشموع المغلقة.
-//   يستبدل النافذة الثابتة 150: الموجة التلقائيّة = الساق الجارية (آخر طرف leg ⇒ الآن)، حجمها يُضبَط بـlegMinRatio.
+//   العتبة = LEG_MIN_RATIO(ثابت) × سعة الموجة (ampHist على نافذة زمنيّة). تطرّفات متناوبة؛ كلّ طرف مؤكَّد = حدّ موجة. per-bar على الشموع المغلقة.
+//   الموجة التلقائيّة = الساق الجارية (آخر طرف leg ⇒ الآن)، حجمها يُضبَط بـwaveScaleDays (المقبض الوحيد).
 // [درس03 خ6 · مؤتمت] نافذة السعة زمنيّة تتكيّف تلقائيًّا مع **الفريم والأداة معًا**: تُقاس شموع-اليوم التقويميّ من البيانات الفعليّة (تشمل عطل جلسة الأداة) لا بافتراض 24س.
 int   lookB      = math.min(bar_index, 200)                                  // نافذة تقدير شموع-اليوم
 float spanMs     = lookB > 0 ? (time - time[lookB]) : na                     // المدّة التقويميّة الفعليّة لآخر lookB شمعة
 float barsPerDay = (not na(spanMs) and spanMs > 0) ? (lookB * 86400000.0 / spanMs) : (86400.0 / timeframe.in_seconds())   // شموع/يوم تقويميّ (فولباك: تقدير الفريم)
-int   ampBars    = useAutoScale ? math.min(4900, math.max(50, int(math.round(waveScaleDays * barsPerDay)))) : ampLen       // الموجة ~waveScaleDays يومًا تقويميًّا على أيّ أداة/فريم
+int   ampBars    = math.min(4900, math.max(50, int(math.round(waveScaleDays * barsPerDay))))                            // الموجة ~waveScaleDays يومًا تقويميًّا على أيّ أداة/فريم (السعة دائمًا زمنيّة)
 float ampHist = ta.highest(high, ampBars) - ta.lowest(low, ampBars)  // سعة مرجعيّة (مقياس العتبة فقط — لا حدود الموجة)
-float legTh   = legMinRatio * ampHist
+float legTh   = LEG_MIN_RATIO * ampHist
 // الاتجاه المستقرّ (hysteresis): القمّة أحدث ⇒ صاعد؛ لا ينقلب إلّا بفصلٍ معتبَر (يمنع التذبذب)
 int hbW = ta.highestbars(high, ampBars)
 int lbW = ta.lowestbars(low, ampBars)
@@ -360,10 +361,26 @@ if barstate.isconfirmed
         array.shift(legPs)
         array.shift(legTops)
 
-// يسار الموجة التاريخية: يدويّ (نافذة آخر N) أو تلقائيّ (= آخر حدّ leg = أصل الساق الجارية). احتياطيّ قبل أوّل leg = AUTO_WAVE_LEN.
+// يسار الموجة التاريخية حسب waveMode: تلقائيّ (آخر حدّ leg = أصل الساق) · يدويّ (آخر N شمعة) · دمج (متوسّط الاثنين ثمّ يرسو على أقرب تطرّف leg — يحافظ على الرسو).
 f_waveLeft() =>
-    int autoL = array.size(legBars) > 0 ? array.get(legBars, array.size(legBars) - 1) : math.max(bar_index - AUTO_WAVE_LEN + 1, 0)
-    useHistN ? math.max(bar_index - f_waveLen(histBars) + 1, 0) : autoL
+    int autoL = array.size(legBars) > 0 ? array.get(legBars, array.size(legBars) - 1) : math.max(bar_index - AUTO_WAVE_LEN + 1, 0)   // تلقائيّ: آخر حدّ leg (تطرّف)
+    int barL  = math.max(bar_index - f_waveLen(histBars) + 1, 0)                                                                     // يدويّ: نافذة آخر N شمعة
+    int res   = autoL
+    if waveMode == "Manual (candles) / يدويّ (شموع)"
+        res := barL
+    else if waveMode == "Combine / دمج (متوسّط)"
+        int avgL = int((autoL + barL) / 2)                                   // متوسّط الطريقتين (int: القسمة float في Pine)
+        int best  = avgL                                                     // ثمّ يرسو على أقرب حدّ leg (تطرّف) — حفاظًا على قاعدة الرسو
+        int bd    = 2147483647
+        if array.size(legBars) > 0
+            for i = 0 to array.size(legBars) - 1
+                int lb = array.get(legBars, i)
+                int d  = math.abs(lb - avgL)
+                if d < bd
+                    bd   := d
+                    best := lb
+        res := best
+    res
 
 // ─── الرسم (islast فقط — منفصل عن الحساب) ───
 var box   waveBox = na
@@ -391,12 +408,19 @@ if barstate.islast
     [wHi, wLo] = f_rangeHiLo(wL, wR)
     array.push(segLefts, wL)                     // المقطع 0 = الموجة الحالية (يُحلَّل دائمًا)
     array.push(segRights, wR)
-    array.push(segLeftPx, (not useHistN and array.size(legPs) > 0) ? array.get(legPs, array.size(legPs) - 1) : na)  // سعر طرف الـleg عند wL (تلقائيّ) — للإرساء
-    array.push(segLeftTop, (not useHistN and array.size(legTops) > 0) ? array.get(legTops, array.size(legTops) - 1) : true)  // نوع طرف wL (للكبيرة)
+    float wLpx  = na                                                         // سعر طرف leg المطابق لـwL (إن كان تطرّفًا) — للإرساء
+    bool  wLtop = true
+    if array.size(legBars) > 0
+        for i = 0 to array.size(legBars) - 1
+            if array.get(legBars, i) == wL
+                wLpx  := array.get(legPs, i)
+                wLtop := array.get(legTops, i)
+    array.push(segLeftPx, wLpx)                  // موجود في تلقائيّ/دمج (wL=حدّ leg تطرّف) · na في يدويّ (نافذة)
+    array.push(segLeftTop, wLtop)
     if showHist and not na(wHi) and not na(wLo)
         color hBd = f_dark(cHist)
         waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 0, bgcolor = cHist)
-        string hTxt = useHistN ? "الموجة التاريخية (يدوي)" : "الموجة التاريخية (تلقائي)"
+        string hTxt = waveMode == "Manual (candles) / يدويّ (شموع)" ? "الموجة التاريخية (يدوي)" : waveMode == "Combine / دمج (متوسّط)" ? "الموجة التاريخية (دمج)" : "الموجة التاريخية (تلقائي)"
         waveLbl := label.new(wL, wHi, hTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_lower_right, color = hBd, textcolor = color.white, size = size.tiny)
     // ===== التواريخ: تلقائيّ = سيقان leg متتالية خلف الموجة (مُسقَطة على legPs، بنيويّة) · يدويّ = نافذة واحدة =====
     for bx in hohBoxes
