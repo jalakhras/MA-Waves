@@ -4,7 +4,9 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.5.0 — [تحمّل الأسطر · مكتبة JW_Elliott (إثبات النمط)] ═══
+// ═══ الإصدار: v2.5.1 — [معايرة خ7: المتوسطة 2-7 أيّام (مطابقة ملخّص المستوى الأول)] ═══
+//   v2.5.1: swingMaxDays 10⇒7 (ملخّص المستوى الأول خ7: المتوسطة يومان-سبعة أيّام). عرض فقط (تصنيف لوحة الموجة). تحقّق المستوى الأول: خ11 (HH/HL عبر ق6/ق7)·ن1 (cDef)·ن3 (f_liqStrength منقَّح) مؤكَّدة أمينة.
+// ═══ v2.5.0 — [تحمّل الأسطر · مكتبة JW_Elliott (إثبات النمط)] ═══
 //   v2.5.0 [هجرة مكتبات · المرحلة1]: طبقة إليوت (f_drawElliott+f_ewRun، ~86 سطرًا) استُخرِجت لمكتبة **JW_Elliott** (Jassar_Mahmoud/JW_Elliott/1) وتُستدعى jwew.ewRun. القيم (ewStrict/ewOffset/showEWForm/arrScale/اللغة) تُمرَّر وسائط (لا input في المكتبة). يُثبِت نمط ×10 سعة (1M توكن مستورَد مقابل 100K/سكربت) للمستويات م3-م13. المنطق مطابق — إليوت يظهر كما كان.
 // ═══ v2.4.0 — [إشارات الخروج بنمط الكسر+إعادة الاختبار+الارتداد] ═══
 //   v2.4.0 [قرار المستخدم]: f_emitExit أُعيد بناؤه من «إشارة عند كلّ كسر» إلى **الكسر ثمّ إعادة الاختبار ثمّ الارتداد** (SMC break-retest): لكلّ منطقة (1) كسر مؤكَّد خلفها (شمعة>15د/شمعتان≤15د، مُغلَقة) ثمّ (2) أوّل شمعة مُغلَقة يلمس ذيلها الحافّة المكسورة وتُغلِق ثانيةً خلفها ⇒ ✦ **مرّة واحدة** (لا تكرار/لا ارتدادات لاحقة). الدخول=إغلاق الارتداد · الوقف=الحافّة المقابلة للمنطقة · الهدف=المنطقة التالية. showSigExit صار ON.
@@ -82,7 +84,7 @@ int    bigMinSwings = input.int(2, "Min candles per leg / أدنى شموع لل
 // ─── 🧪 مساعد الإطار · الضبط ───
 string grpFH = "🧪 Frame Helper · Setup / مساعد الإطار · الضبط"
 float  swingMinDays = input.float(2.0, "Swing lower bound (days/wave) — below = Scalp / حدّ السوينغ الأدنى", minval = 0.1, step = 0.5, group = grpFH, tooltip = "زمن الموجة أقلّ من هذا ⇒ مضاربة ⇒ اصعد فريمًا.")
-float  swingMaxDays = input.float(10.0, "Swing upper bound (days/wave) — above = Invest / حدّ السوينغ الأعلى", minval = 0.5, step = 0.5, group = grpFH, tooltip = "زمن الموجة أكثر من هذا ⇒ استثمار ⇒ انزل فريمًا.")
+float  swingMaxDays = input.float(7.0, "Swing upper bound (days/wave) — above = Invest / حدّ السوينغ الأعلى", minval = 0.5, step = 0.5, group = grpFH, tooltip = "زمن الموجة أكثر من هذا ⇒ استثمار ⇒ انزل فريمًا. [ملخّص المستوى الأول خ7: المتوسطة 2-7 أيّام] الافتراض 7 مطابقًا للملخّص (كان 10).")
 string fhPos        = input.string("Top L", "Frame-helper position / موضع مساعد الإطار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpFH)
 
 // ─── 🔴 الصغيرة · المنطق (حالة السوق والدخول) ───
