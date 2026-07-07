@@ -1,9 +1,12 @@
 //@version=6
+import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.4.0 — [إشارات الخروج بنمط الكسر+إعادة الاختبار+الارتداد] ═══
+// ═══ الإصدار: v2.5.0 — [تحمّل الأسطر · مكتبة JW_Elliott (إثبات النمط)] ═══
+//   v2.5.0 [هجرة مكتبات · المرحلة1]: طبقة إليوت (f_drawElliott+f_ewRun، ~86 سطرًا) استُخرِجت لمكتبة **JW_Elliott** (Jassar_Mahmoud/JW_Elliott/1) وتُستدعى jwew.ewRun. القيم (ewStrict/ewOffset/showEWForm/arrScale/اللغة) تُمرَّر وسائط (لا input في المكتبة). يُثبِت نمط ×10 سعة (1M توكن مستورَد مقابل 100K/سكربت) للمستويات م3-م13. المنطق مطابق — إليوت يظهر كما كان.
+// ═══ v2.4.0 — [إشارات الخروج بنمط الكسر+إعادة الاختبار+الارتداد] ═══
 //   v2.4.0 [قرار المستخدم]: f_emitExit أُعيد بناؤه من «إشارة عند كلّ كسر» إلى **الكسر ثمّ إعادة الاختبار ثمّ الارتداد** (SMC break-retest): لكلّ منطقة (1) كسر مؤكَّد خلفها (شمعة>15د/شمعتان≤15د، مُغلَقة) ثمّ (2) أوّل شمعة مُغلَقة يلمس ذيلها الحافّة المكسورة وتُغلِق ثانيةً خلفها ⇒ ✦ **مرّة واحدة** (لا تكرار/لا ارتدادات لاحقة). الدخول=إغلاق الارتداد · الوقف=الحافّة المقابلة للمنطقة · الهدف=المنطقة التالية. showSigExit صار ON.
 // ═══ v2.3.3 — [تخفيف بوّابة 2-ب + جدول تشخيص القمع] ═══
 //   v2.3.3: (1) تخفيف بوّابة f_emitDegSignals: okPh=phAt≥0 (كان ≥1 يقتل التصحيحات الضحلة ⇒ شبه معدومة) — التأكيد(الكسر) هو الفلتر الأساسيّ، المرحلة للتصنيف. (2) f_emitDegSignals تُرجِع قمعًا [داخل منطقة، تأكّد، أُطلِق]، وجدول تشخيص showSigDiag (أسفل يسار) لكلّ درجة + تسميات الخروج ⇒ يكشف أين تُفقَد الإشارات.
@@ -923,92 +926,7 @@ f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bo
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(szStr)))    // الحافة (أكبر، خلف)
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(szStr)))   // التعبئة (أصغر، أمام)
 
-// ─── [⑥ عدّ إليوت — الترقيم، طبقة وصفيّة] نافذة 6 نقاط فعّالة ⇒ ترقيم (1)-(5) إن حقّقت قواعد إليوت الثلاث (فروست/بريكتر ص13؛ مطابق LuxAlgo) ───
-//   النقاط: p1 أصل (بلا وسم) · p2..p6 ⇒ (1)-(5). القواعد (صاعد، والمرآة للهابط): ق1 p3>p1 (م2 لا ترتدّ>100% م1) · ق2 م3 ليست الأقصر · ق3 p5>p2 (م4 لا تتراكب م1) + تقدّم (p4>p2, p6>p4).
-//   دفعات غير متداخلة (تحجز 3 خانات لـa-b-c لاحقًا). يقرأ نقاطنا الفعّالة (لا zigzag). لا يمسّ المنطق. يدفع الوسوم لـlbls للتنظيف.
-f_drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int maxSets, int degLvl, array<label> lbls) =>
-    int n = array.size(pP)
-    int found = 0
-    if n >= 6
-        array<int> ends = array.new<int>()
-        int lastEnd = -1
-        for e = 5 to n - 1
-            if e - 5 >= lastEnd
-                bool t6 = array.get(pTop, e)                    // قمّة ⇒ دفعة صاعدة · قاع ⇒ هابطة
-                bool alt = array.get(pTop, e-4) == t6 and array.get(pTop, e-2) == t6 and array.get(pTop, e-5) != t6 and array.get(pTop, e-3) != t6 and array.get(pTop, e-1) != t6
-                if alt
-                    float p1 = array.get(pP, e-5)
-                    float p2 = array.get(pP, e-4)
-                    float p3 = array.get(pP, e-3)
-                    float p4 = array.get(pP, e-2)
-                    float p5 = array.get(pP, e-1)
-                    float p6 = array.get(pP, e)
-                    bool ok = false
-                    if t6                                       // صاعدة — ق1 م2 لا تحت بداية م1 (p3>p1) · ق2 م3 ليست الأقصر · ق3 م4 لا تدخل قمّة م1 (p5>p2). [إصلاح] ق3 قابلة للتخفيف: ewStrict مطفأ ⇒ يسمح بالقطريّة/التراكب (spec §2) فتظهر الكبيرة.
-                        float mn = math.min(p2 - p1, math.min(p4 - p3, p6 - p5))
-                        ok := p3 > p1 and (p4 - p3) != mn and (not ewStrict or p5 > p2)
-                    else                                        // هابطة: المرآة
-                        float mn = math.min(p1 - p2, math.min(p3 - p4, p5 - p6))
-                        ok := p3 < p1 and (p3 - p4) != mn and (not ewStrict or p5 < p2)
-                    if ok
-                        array.push(ends, e)
-                        lastEnd := e + 3                        // احجز خانات a·b·c (⑥-ب)
-        int total = array.size(ends)
-        found := total
-        int fromI = (maxSets > 0 and total > maxSets) ? total - maxSets : 0
-        if total > 0
-            float off = ewOffset * nz(arrScale)                // إزاحة سعريّة أصيلة (× النطاق) لرفع الوسم عن الدائرة
-            for s = fromI to total - 1
-                int e = array.get(ends, s)
-                for k = 1 to 5                                  // (1)-(5) على p2..p6؛ p1 (e-5) أصل بلا وسم
-                    int   idx = e - 5 + k
-                    bool  tp  = array.get(pTop, idx)
-                    float ly  = tp ? array.get(pP, idx) + (1 + degLvl) * off : array.get(pP, idx) - (1 + degLvl) * off   // فوق القمّة/تحت القاع؛ كلّ درجة خطوة أبعد ⇒ تتكدّس النقاط المتقاطعة بألوانها
-                    array.push(lbls, label.new(array.get(pTm, idx), ly, "(" + str.tostring(k) + ")", xloc = xloc.bar_time, yloc = yloc.price, style = tp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))   // شكل (صندوق ملوّن) مرفوع فوق الدائرة
-                // [⑥ ربط المراحل — a-b-c داو] a=ذعر (أوّل تطرّف مضادّ) · b=تصحيح (ارتداد) · c=يأس (أعمق من الذعر). c مؤكَّد فقط إن كان أعمق من a (زجزاج مكتمل)، وإلّا (c?) تنبّؤيّ.
-                bool   t6d    = array.get(pTop, e)              // اتجاه الدفعة (قمّة ⇒ صاعدة ⇒ تصحيح هابط)
-                bool   cDeep  = (e + 3 < n) and (t6d ? (array.get(pP, e + 3) < array.get(pP, e + 1)) : (array.get(pP, e + 3) > array.get(pP, e + 1)))   // c (يأس) أعمق من a (ذعر)
-                string abcTip = f_t("تصحيح داو: a=ذعر · b=تصحيح · c=يأس (أعمق)", "Dow correction: a=Panic · b=Correction · c=Despair (deeper)")
-                for j = 1 to 3                                  // a·b·c على التصحيح (النقاط الثلاث بعد الدفعة) إن وُجدت
-                    int aidx = e + j
-                    if aidx < n
-                        bool   atp  = array.get(pTop, aidx)
-                        string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : (cDeep ? "(c)" : "(c?)")   // c مؤكَّد إن يأس أعمق · وإلّا تنبّؤيّ
-                        float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
-                        array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small, tooltip = abcTip))   // شكل مرفوع + tooltip داو
-            // [⑥-ب الموجة الجارية] بعد آخر دفعة+تصحيح (الأصل = c عند lastLbl)، رقّم الأرجل الجارية (1?)-(5?) تنبّؤيًّا بلون أفتح — غير مؤكَّدة (تكتمل حين تحقّق القواعد وتصير دفعة مرقَّمة)
-            if showEWForm
-                int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)   // نهاية آخر بنية مكتملة (c) = أصل الموجة الجارية
-                int formCnt = math.min(n - 1 - lastLbl, 5)                       // أرجل جارية (≤5 قبل اكتمال الدفعة)
-                if formCnt >= 1
-                    for fk = 1 to formCnt
-                        int   fidx = lastLbl + fk
-                        bool  ftp  = array.get(pTop, fidx)
-                        float fly  = ftp ? array.get(pP, fidx) + (1 + degLvl) * off : array.get(pP, fidx) - (1 + degLvl) * off
-                        array.push(lbls, label.new(array.get(pTm, fidx), fly, "(" + str.tostring(fk) + "?)", xloc = xloc.bar_time, yloc = yloc.price, style = ftp ? label.style_label_down : label.style_label_up, color = color.new(col, 45), textcolor = color.white, size = size.small))
-    found                                                       // [تشخيص] عدد الدفعات المكتشَفة (للكشف: هل القواعد رفضت الكبيرة أم رُسمت خارج الشاشة)
-
-// ─── [⑥] مساعد: يبني نقاط درجة الفعّالة (سعر/زمن/نوع) ثمّ يستدعي الترقيم — يُستدعى لكلّ درجة ───
-f_ewRun(array<int> pBar, array<float> pPrc, array<bool> pTop, array<int> pTm, array<bool> pEff, color col, int maxSets, int degLvl, array<label> lbls) =>
-    array<float> eP  = array.new<float>()
-    array<int>   eTm = array.new<int>()
-    array<bool>  eTp = array.new<bool>()
-    int nn = array.size(pBar)
-    for i = 0 to (nn > 0 ? nn - 1 : 0)                         // كلّ تأرجحات الموجة + ضمان التناوب الصارم (قمّة/قاع) كالـzigzag: تتالي نوعين متماثلين ⇒ أبقِ الأشدّ تطرّفًا
-        if nn > 0
-            bool tp = array.get(pTop, i)
-            int  sz = array.size(eTp)
-            if sz > 0 and array.get(eTp, sz - 1) == tp         // نفس نوع الأخير ⇒ ادمج (قمّة⇒الأعلى · قاع⇒الأدنى) بدل كسر التناوب
-                float lp = array.get(eP, sz - 1)
-                float cp = array.get(pPrc, i)
-                if tp ? cp > lp : cp < lp
-                    array.set(eP,  sz - 1, cp)
-                    array.set(eTm, sz - 1, array.get(pTm, i))
-            else
-                array.push(eP,  array.get(pPrc, i))
-                array.push(eTm, array.get(pTm, i))
-                array.push(eTp, tp)
-    f_drawElliott(eP, eTm, eTp, col, maxSets, degLvl, lbls)
+// ─── [⑥ عدّ إليوت] مُستخرَج إلى مكتبة JW_Elliott (jwew.ewRun) — تحمّل الأسطر ×10. القيم (ewStrict/ewOffset/showEWForm/arrScale/اللغة) تُمرَّر وسائط عند النداء ───
 
 // ─── رسم الدرجة الصغيرة: مؤجَّل لما بعد بناء السلسلة الصغيرة (scBar) ليُرسَم عبر التاريخ كالمتوسطة/الكبيرة ───
 var array<polyline> smallArrows = array.new<polyline>()
@@ -1329,11 +1247,11 @@ if barstate.islast
     int ewBigSets = 0                                           // [تشخيص] عدد دفعات الكبيرة المكتشَفة (>0 ⇒ رُسمت؛ 0 ⇒ القواعد رفضت)
     if showEW                                                  // الترتيب: الصغيرة ثمّ المتوسطة ثمّ **الكبيرة أخيرًا** (تنجو من حذف Pine للأقدم عند تجاوز سقف الوسوم)
         if showEWSmall
-            f_ewRun(scBar, scPrc, scTop, scTm, scEff, cEWSmall, ewMaxSets, 0, ewLabels)
+            jwew.ewRun(scBar, scPrc, scTop, scTm, cEWSmall, ewMaxSets, 0, ewLabels, ewStrict, ewOffset, showEWForm, arrScale, uiLang == "AR / عربيّة")
         if showEWMed
-            f_ewRun(mcBar, mcPrc, mcTop, mcTm, mcEff, cEWMed, ewMaxSets, 1, ewLabels)
+            jwew.ewRun(mcBar, mcPrc, mcTop, mcTm, cEWMed, ewMaxSets, 1, ewLabels, ewStrict, ewOffset, showEWForm, arrScale, uiLang == "AR / عربيّة")
         if showEWBig
-            ewBigSets := f_ewRun(lgBar, lgPrc, lgTop, lgTm, lgEff, cEWBig, ewMaxSets, 2, ewLabels)
+            ewBigSets := jwew.ewRun(lgBar, lgPrc, lgTop, lgTm, cEWBig, ewMaxSets, 2, ewLabels, ewStrict, ewOffset, showEWForm, arrScale, uiLang == "AR / عربيّة")
         if ewDbg                                                // تشخيص: عدد الكبيرة الخام + بعد الدمج (تناوب) + عدد قممها ⇒ يكشف: تناوب مكسور (دُمجت<6) أم القواعد (دُمجت≥6 بلا دفعة)
             int lgColl = 0
             int lgTops = 0
