@@ -3,7 +3,8 @@
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.0.0 — [J-Waves M2 · إطلاق المستوى الثاني] ═══
+// ═══ الإصدار: v2.1.0 — [G2 · بوّابة اليأس تتبع درجة الصفقة] ═══
+//   v2.1.0 [G2 · إصلاح فجوة]: بوّابة الدخول (أساسيّة/مخاطرة + قرار الأطلس + نوع الوسم) تقرأ المرحلة من **درجة الصفقة** لا phS دائمًا: gatePh=(useMedGate & isMedTrade)?phM:phS. سند حرفيّ درس L2-04 س30 «اليأس المحدِّد للدخول = المتوسطة لا الصغيرة، الخلط يُدخِل مبكّرًا» + مصعب3 س75. مفتاح useMedGate (ON). أطفئه ⇒ السلوك السابق (phS).
 //   المستوى الثاني مكتمل: الدرجات الثلاث · الخطوط (مستوى/سيولة) · الكسور الثلاثة · المناطق (عنقدة) · مستويات م.A · الإشارات (3 فرص + خروج + تأكيد الفريم الأصغر + بوّابة RR) · المراحل الخمس · الأطلس · إليوت (1-5 + a-b-c داو + الموجة الجارية). QC نظيف. سجلّ التفاصيل في git (v1.09→v1.27).
 // الإصدار السابق: v1.24.0 — [إعادة ترتيب الإعدادات بالميزة] سجلّ الإصدارات في git
 // v1.24.0/.1/.2: الإعدادات مرتّبة **بالميزة** (12 مجموعة) · حُذف confDiv.
@@ -25,7 +26,7 @@
 // جولة1 (v1.09.0): F1 محفّز المرحلة نصف الجسم · F2 التصريف نصف الجسم · S13 مواءمة الأطلس · S12 تحقّق.
 // جولة2 آمنة: حارس phB (لا إشارة/تنبيه حين الكبيرة ذعر/يأس ⇒ مراجعة E) · L1 سقف sigMarks (200) يمنع حذف Pine الصامت عند 500.
 // الفرص الثلاث (قرار المستخدم + spec §51-52): (1) أساسية = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) عالية مخاطرة = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) خروج/fallback = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
-// جولة2 تصويب: G2 الانعكاس = خروج فعليّ من المنطقة · G3 الخروج = أساسيّة (isBas=isBrk or phS==3) · حارس phB · سقف sigMarks. المناطق فوق السعر=مقاومات، تحته=دعوم.
+// جولة2 تصويب: G2 الانعكاس = خروج فعليّ من المنطقة · G3 الخروج = أساسيّة (isBas=isBrk or gatePh==3، v2.1.0) · حارس phB · سقف sigMarks. المناطق فوق السعر=مقاومات، تحته=دعوم.
 // مؤجَّل موثَّق: إشارات داخل-المنطقة في الرينج (استباقيّة، مع الترند فقط حاليًّا) · G1 بوّابة RR أدنى · R1 عتبة bigDir · P1-P4/L2/L3 أداء. (R2 f_degree4 مرفوضة.)
 // ════════════════════════════════════════════════════════════════════════════
 indicator("J-Waves M2", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 300, max_polylines_count = 100, max_bars_back = 5000)
@@ -106,6 +107,7 @@ string confTfManual = input.timeframe("5", "Manual TF (when Auto off) / الفر
 bool   enableAlerts = input.bool(true, "Fire alert on confirmed entry / إطلاق تنبيه عند الدخول المؤكَّد", group = grpSig, tooltip = "يُطلِق alert() عند الفرصة المؤكَّدة (دخول ✓). نوع التنبيه (تطبيق/توست/صوت/إشعار) تختاره في نافذة «Create Alert» في TradingView — Pine يُطلِق الحدث فقط.")
 float  minRR        = input.float(0.0, "Min R:R to fire (reward÷risk, 0=off) / أدنى R:R لإطلاق الإشارة (ربح÷خسارة، 0=بلا منع)", minval = 0.0, maxval = 5.0, step = 0.1, group = grpSig, tooltip = "R:R = الربح المحتمل ÷ الخسارة المحتملة = |الهدف−الدخول| ÷ |الدخول−الوقف|. minRR=1 ⇒ يقبل فقط الربح≥الخسارة (1:1) · minRR=2 ⇒ الربح≥ضعف الخسارة (2:1). كلّما زاد ⇒ إشارات أقلّ وأفضل. 0 = بلا منع (RR للعرض فقط). خيار مستخدم (لا يبوّبه الدرس).")
 string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpSig, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
+bool   useMedGate   = input.bool(true, "Entry gate follows trade degree (Medium despair) [G2] / بوّابة اليأس تتبع درجة الصفقة", group = grpSig, tooltip = "[G2 · درس L2-04 «شروط الانعكاس» س30: «اليأس الذي يحدّد الدخول هو يأس الدرجة **المتوسطة**، وليس الصغيرة. الخلط بينهما سيجعلك تدخل مبكّرًا جدًّا» — يؤكّده مصعب3 س75] مفعّل + درجة الصفقة متوسطة ⇒ بوّابة اليأس تُقرأ من **المتوسطة** (phM). درجة الصفقة صغيرة ⇒ من الصغيرة (phS). أطفئه للسلوك السابق (phS دائمًا) للمقارنة قبل/بعد.")
 
 // ─── 📊 المراحل · المنطق [درس11] ───
 string grpPhase  = "📊 Phases / المراحل"
@@ -2075,6 +2077,7 @@ if barstate.islast
     bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة (نفس الشارت) · صغيرة←كسر بنيويّ على الفريم الأصغر (15/5/1)
     bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
     bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
+    int    gatePh = (useMedGate and isMedTrade) ? phM : phS                    // [G2 · L2-04 س30] بوّابة اليأس تتبع درجة الصفقة: متوسطة⇒المتوسطة(phM) · صغيرة⇒الصغيرة(phS). مصدر موحّد للقرار+الإشارة+نوع الوسم.
     // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. (zaTop/zaBot حُسِبا في حلقة inZone أعلاه.)
     float stp = na
     float tgt = na
@@ -2089,7 +2092,7 @@ if barstate.islast
             if nzc > 0 and array.get(zTop, zi) < close
                 tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
     // [بحث الأطلس] صفّ القرار = فئة FSM كاملة من الحالة (متّسق مع الإشارات)
-    [decTxt, decK] = f_atlasDecision(entry, inZone, phS, confOk, phB, not na(tgt))
+    [decTxt, decK] = f_atlasDecision(entry, inZone, gatePh, confOk, phB, not na(tgt))   // [G2] القرار يتبع بوّابة درجة الصفقة (اتّساق اللوحة مع الإشارة)
     color decBg = decK == 1 ? cUp : decK == -1 ? cDn : decK == 2 ? cRngC : (decK == 3 or decK == 9) ? color.new(#FF9800, 0) : pMute
     if showConc
         table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
@@ -2110,8 +2113,8 @@ if barstate.islast
     if showConc
         table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
-    bool basicSig = inZone and phS == 3 and confOk and (entry == 1 or entry == -1)                  // أساسيّة: تجميع مكتمل + تأكيد (داخل المنطقة)
-    bool hrSig    = inZone and (phS == 1 or phS == 2) and confOk and (entry == 1 or entry == -1)    // عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس) + تأكيد (داخل المنطقة)
+    bool basicSig = inZone and gatePh == 3 and confOk and (entry == 1 or entry == -1)                  // [G2] أساسيّة: تجميع مكتمل (بدرجة الصفقة) + تأكيد (داخل المنطقة)
+    bool hrSig    = inZone and (gatePh == 1 or gatePh == 2) and confOk and (entry == 1 or entry == -1) // [G2] عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس بدرجة الصفقة) + تأكيد (داخل المنطقة)
     // [شروط الانعكاس بعد خروج السعر من المنطقة] كسر المنطقة بشمعتين **صحيحتين** (جسم ≥ كلّ ذيل): بيع = كسر للأسفل (حمراوان) · شراء = كسر للأعلى (خضراوان)
     bool vRed  = close    < open    and (open    - close)    >= (high    - open)     and (open    - close)    >= (close    - low)
     bool vRed1 = close[1] < open[1] and (open[1] - close[1]) >= (high[1] - open[1])  and (open[1] - close[1]) >= (close[1] - low[1])
@@ -2155,7 +2158,7 @@ if barstate.islast
     if showSignals and (inZoneSig or brkSig) and not (phB == 1 or phB == 2)   // 🔴 لا إشارة بلا هدف · [تدقيق] لا دخول جديد حين الكبيرة ذعر/يأس (مراجعة E)
         bool   isBrk = brkSig and not inZoneSig
         bool   up    = isBrk ? brkBuy : entry == 1
-        bool   isBas = isBrk or phS == 3                         // [قرار المستخدم] إشارة الخروج (انعكاس+تأكيد) = أساسيّة · وداخل المنطقة: أساسيّة إن اكتملت المرحلة (تجميع/تصريف phS==3) وإلّا مخاطرة (تصحيح جارٍ)
+        bool   isBas = isBrk or gatePh == 3                      // [G2] إشارة الخروج (انعكاس+تأكيد) = أساسيّة · وداخل المنطقة: أساسيّة إن اكتملت المرحلة (تجميع/تصريف بدرجة الصفقة gatePh==3) وإلّا مخاطرة (تصحيح جارٍ)
         float  sStp  = isBrk ? bStp : stp
         float  sTgt  = isBrk ? bTgt : tgt
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
