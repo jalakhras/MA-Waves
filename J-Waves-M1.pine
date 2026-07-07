@@ -3,7 +3,9 @@
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.3.2 — [مفتاح مستقلّ لإشارات الخروج ✦ (تنظيف الشارت)] ═══
+// ═══ الإصدار: v2.3.3 — [تخفيف بوّابة 2-ب + جدول تشخيص القمع] ═══
+//   v2.3.3: (1) تخفيف بوّابة f_emitDegSignals: okPh=phAt≥0 (كان ≥1 يقتل التصحيحات الضحلة ⇒ شبه معدومة) — التأكيد(الكسر) هو الفلتر الأساسيّ، المرحلة للتصنيف. (2) f_emitDegSignals تُرجِع قمعًا [داخل منطقة، تأكّد، أُطلِق]، وجدول تشخيص showSigDiag (أسفل يسار) لكلّ درجة + تسميات الخروج ⇒ يكشف أين تُفقَد الإشارات.
+// ═══ v2.3.2 — [مفتاح مستقلّ لإشارات الخروج ✦ (تنظيف الشارت)] ═══
 //   v2.3.2 [عزل]: إشارات الخروج (f_emitExit ✦) كانت مدمجة تحت «الفرعيّة» (showSigSub) بلا مفتاح خاصّ ⇒ تُغرِق الشارت وتحجب إشارات الدرجات (شروط الانعكاس). أُضيف مفتاح **showSigExit مستقلّ (افتراض OFF)** ⇒ الشارت يُظهر الآن إشارات الدرجات (f_emitDegSignals، المؤكَّدة بالبوّابة+الكسر) وحدها. أشعِل showSigExit لعرض الخروج.
 // ═══ v2.3.1 — [2-ب إصلاح · لا وميض شامل + بوّابة عند التطرّف] ═══
 //   v2.3.1 [إصلاحان]: (1) 🔴 f_emitExit كان يعمل على الشمعة الجارية (b→bar_index) ⇒ إشارات خروج تومض؛ صار على شموع **مُغلَقة فقط** (bar_index-1، o≥1). (2) بوّابة 2-ب كانت تقيس المرحلة عند الكسر cB (=مشاركة مستأنَفة ⇒ رفض أغلب الإشارات)؛ صارت عند **التطرّف sBar** (عمق التصحيح): phAt≥1 تصحيح فعليّ · phAt≥2 نضج=✦ · ذعر(1)=⚠. الآن كلّ الأنظمة الثلاثة لا تُعيد رسمًا.
@@ -177,6 +179,7 @@ bool   showSigL     = input.bool(true, "      ↳ large / الكبيرة", inlin
 bool   showSigM     = input.bool(true, "      ↳ medium / المتوسطة", inline = "sigdeg", group = grpSig)
 bool   showSigS     = input.bool(true, "      ↳ small / الصغيرة", inline = "sigdeg", group = grpSig)
 bool   showSigExit  = input.bool(false, "  ↳ exit/breakout signals (✦ zone-break) / إشارات الخروج (كسر منطقة)", group = grpSig, tooltip = "«الفرصة الثالثة» (الخروج): عند خروج السعر من منطقة بشمعة صحيحة **مُغلَقة** ⇒ ✦. منفصلة عن إشارات الدرجات (شروط الانعكاس). افتراض OFF لتنظيف الشارت — أشعِلها لعرضها. (كانت مدمجة تحت «الفرعيّة» فتُغرِق الشارت.)")
+bool   showSigDiag  = input.bool(true, "  ↳ diag: signal funnel [تشخيص القمع] / تشخيص قمع الإشارات", group = grpSig, tooltip = "جدول تشخيصيّ لكلّ درجة: كم تطرّفًا **داخل منطقة** ← كم **تأكّد بكسر** ← كم **أُطلِق** + تسميات الخروج. يكشف أين تُفقَد الإشارات. أطفئه بعد الضبط.")
 
 bool   showConc        = input.bool(true, "Decision panel / لوحة القرار", group = grpPanel, tooltip = "إظهار/إخفاء لوحة القرار (الاتجاه · السيولة · القوّة · الدخول · القرار · الكتلة). عرض فقط بلا ربط بالاستخراج (درس09 م1).")
 bool   showFrameHelper = input.bool(true, "Wave-test (frame helper) panel / لوحة اختبار الموجة (مساعد الإطار)", group = grpPanel, tooltip = "إظهار/إخفاء لوحة اختبار الموجة: زمن الموجة ⇒ نوع التداول المناسب (مضاربة/سوينغ/استثمار).")
@@ -2213,6 +2216,9 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
     int  nzs = array.size(zTop)
     bool wantBot = sigDir == 1
     int  gLo = math.max(hL1, bar_index - 500)                                                        // [2-ب] حدّ أداء: البوّابة/التأكيد لآخر ≤500 بار (كـf_emitExit)
+    int  cInZ = 0                                                                                     // [تشخيص] عدّاد: تطرّفات داخل منطقة
+    int  cCnf = 0                                                                                     // [تشخيص] عدّاد: منها ما تأكّد بكسر
+    int  cEmt = 0                                                                                     // [تشخيص] عدّاد: منها ما أُطلِق فعلًا
     for si = 0 to (nps > 0 ? nps - 1 : 0)
         if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= hL1 and not f_coveredAt(aBar, aTop, aPrc, si, hL1, hL2, wHi, wLo, covLater)   // فعّال + غير مُغطّى (اتّساق مع المناطق/خطوط m.A)
             float pp   = array.get(aPrc, si)
@@ -2227,6 +2233,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                         ztC := array.get(zTop, zi)
                         zbC := array.get(zBot, zi)
                 if not na(zbC)
+                    cInZ := cInZ + 1
                     // [2-ب · L2-04] مرجع التأكيد = آخر تطرّف **معاكس** من نفس الدرجة قبل التطرّف (القمّة التي يُكسَر عندها للشراء · القاع للبيع)
                     float refPx = na
                     if si >= 1
@@ -2243,9 +2250,10 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                             if ok >= 1 and cB < 0 and (wantBot ? (close[ok] > refPx) : (close[ok] < refPx))
                                 cB := k
                     if cB >= 0
+                        cCnf := cCnf + 1
                         int  phAt  = f_phaseAt(aBar, aTop, aEff, wdirDeg, sBar)                       // [2-ب · بوّابة G2] المرحلة عند **التطرّف** (عمق التصحيح) — لا عند الكسر (فالكسر = مشاركة مستأنَفة)
-                        bool okPh  = phAt >= 1                                                         // تصحيح فعليّ (ذعر/يأس/تجميع/تصريف) — يتخطّى مشاركة(0) الترند و«لا سيولة»(-1)
-                        bool basic = phAt >= 2                                                        // يأس/تجميع/تصريف (نضج) ⇒ ✦أساسيّة · ذعر فقط(1) ⇒ ⚠مخاطرة
+                        bool okPh  = phAt >= 0                                                         // [تخفيف v2.3.3] التأكيد(الكسر) هو الفلتر الأساسيّ؛ المرحلة للتصنيف فقط — نستبعد «لا اتجاه/لا سيولة»(-1) فحسب
+                        bool basic = phAt >= 2                                                        // يأس/تجميع/تصريف (نضج) ⇒ ✦أساسيّة · ذعر(1)/مشاركة(0) ⇒ ⚠مخاطرة
                         if okPh
                             int    cOff = bar_index - cB
                             float  eC   = close[cOff]                                                 // الدخول = إغلاق شمعة الكسر (لا التطرّف)
@@ -2260,6 +2268,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
                                 string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
                                 if not na(t) and e > s and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · الدخول فوق الوقف (شراء) · [بوّابة RR]
+                                    cEmt := cEmt + 1
                                     array.push(sigLabels, label.new(cB, e, mk + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
                                     if not na(rr)
                                         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
@@ -2274,12 +2283,14 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
                                 string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
                                 if not na(t) and s > e and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · الوقف فوق الدخول (بيع) · [بوّابة RR]
+                                    cEmt := cEmt + 1
                                     array.push(sigLabels, label.new(cB, e, mk + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = basic ? #F23645 : #E57373, textcolor = color.white, size = size.small, tooltip = tp))
                                     if not na(rr)
                                         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                         array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
+    [cInZ, cCnf, cEmt]                                                                                // [تشخيص] القمع: داخل منطقة · تأكّد · أُطلِق
 
-// [ط4-ج — الفرصة الثالثة تاريخيًّا] إشارة الخروج عبر الموجة: لكلّ شمعة، خروج صحيح من منطقة (لمس ثمّ إغلاق خلفها بشمعة صحيحة 15د×1/5د×2) باتجاه الترند + هدف ⇒ ✦ خروج. (تُعيد رسم ما كان حيًّا-فقط على آخر شمعة.)
+// [ط4-ج — الفرصة الثالثة تاريخيّا] إشارة الخروج عبر الموجة: لكلّ شمعة، خروج صحيح من منطقة (لمس ثمّ إغلاق خلفها بشمعة صحيحة 15د×1/5د×2) باتجاه الترند + هدف ⇒ ✦ خروج. (تُعيد رسم ما كان حيًّا-فقط على آخر شمعة.)
 f_emitExit(int sigDir, int fromBar) =>
     int  nzx = array.size(zTop)
     bool oneBarE = timeframe.in_seconds() >= 900
@@ -2344,15 +2355,63 @@ if barstate.islast
     int sBLvl  = bActVg
     int sMLvl  = mActVg
     int sigDir = (sMLvl == 1 and sBLvl == 1) ? 1 : (sMLvl == -1 and sBLvl == -1) ? -1 : 0
+    int sIz = 0
+    int sCf = 0
+    int sEm = 0
+    int mIz = 0
+    int mCf = 0
+    int mEm = 0
+    int lIz = 0
+    int lCf = 0
+    int lEm = 0
+    int xEm = 0
     if showSignals and showSigSub and nzs > 0 and sigDir != 0
         if showSigS
-            f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg, sActVg)     // إشارات الصغيرة (بوّابة+تأكيد بدرجتها)
+            [siz, scf, sem] = f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg, sActVg)     // إشارات الصغيرة (بوّابة+تأكيد بدرجتها)
+            sIz := siz
+            sCf := scf
+            sEm := sem
         if showSigM
-            f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg, mActVg)    // إشارات المتوسطة (بوّابة+تأكيد بدرجتها)
+            [miz, mcf, mem] = f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg, mActVg)    // إشارات المتوسطة (بوّابة+تأكيد بدرجتها)
+            mIz := miz
+            mCf := mcf
+            mEm := mem
         if showSigL
-            f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"), lgCovLg, bActVg)      // إشارات الكبيرة (بوّابة+تأكيد بدرجتها)
+            [liz, lcf, lem] = f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"), lgCovLg, bActVg)      // إشارات الكبيرة (بوّابة+تأكيد بدرجتها)
+            lIz := liz
+            lCf := lcf
+            lEm := lem
         if showSigExit                                                                                                          // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات — افتراض OFF لتنظيف الشارت
+            int xN0 = array.size(sigLabels)
             f_emitExit(sigDir, math.max(histLs, bar_index - 500))                                                              // [#2] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
+            xEm := array.size(sigLabels) - xN0
+    // [تشخيص القمع] جدول: لكلّ درجة كم تطرّفًا داخل منطقة ← تأكّد بكسر ← أُطلِق (لكشف مكان الفقد)
+    if showSigDiag and showSignals
+        var table dgT = table.new(position.bottom_left, 4, 6, bgcolor = color.new(#1E222D, 0), border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+        table.cell(dgT, 0, 0, f_t("تشخيص الإشارات", "Signal diag"), text_color = #D1D4DC, bgcolor = #2A2E39, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 0, f_t("منطقة", "InZone"), text_color = #787B86, bgcolor = #2A2E39, text_size = size.small)
+        table.cell(dgT, 2, 0, f_t("تأكّد", "Conf"), text_color = #787B86, bgcolor = #2A2E39, text_size = size.small)
+        table.cell(dgT, 3, 0, f_t("أُطلِق", "Emit"), text_color = #787B86, bgcolor = #2A2E39, text_size = size.small)
+        table.cell(dgT, 0, 1, f_t("صغيرة", "Small"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 1, str.tostring(sIz), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 1, str.tostring(sCf), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 1, str.tostring(sEm), text_color = sEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 0, 2, f_t("متوسطة", "Medium"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 2, str.tostring(mIz), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 2, str.tostring(mCf), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 2, str.tostring(mEm), text_color = mEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 0, 3, f_t("كبيرة", "Large"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 3, str.tostring(lIz), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 3, str.tostring(lCf), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 3, str.tostring(lEm), text_color = lEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 0, 4, f_t("خروج (تسميات)", "Exit (labels)"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 4, "—", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 4, "—", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 4, str.tostring(xEm), text_color = xEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 0, 5, "sigDir / tradeDeg", text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 5, sigDir == 1 ? "▲" : sigDir == -1 ? "▼" : "0", text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 5, tradeDeg, text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 5, "", bgcolor = #1E222D)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
