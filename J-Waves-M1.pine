@@ -4,8 +4,9 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.6.0 — [حجم الموجة التاريخية يتكيّف زمنيًّا مع الفريم/الأداة] ═══
-//   v2.6.0 [درس03 خ6 · نصّ+مرئيّ]: نافذة السعة كانت 500 شمعة ثابتة ⇒ مدّتها تختلف بالفريم (15د~5أيّام·1س~21يومًا·4س~83يومًا). صارت **زمنيّة**: ampBars=waveScaleDays(21)×شموع-اليوم(86400/ثوانِي-الفريم)، محدودة [50,4900]. ⇒ الموجة ~3 أسابيع (تحتوي ~3 متوسطة 2-8 أيّام، مُقاسة بصريًّا t028: 150بار/8.5ي·124بار/7.4ي) على أيّ فريم. الرسو يبقى على التطرّف (leg: أدنى صعودًا/أعلى هبوطًا). مفتاح useAutoScale(ON)+waveScaleDays. اللوحة تُصادِق (خ6).
+// ═══ الإصدار: v2.6.1 — [حجم الموجة مؤتمت بالكامل: يقيس جلسة الأداة الفعليّة] ═══
+//   v2.6.1 [أتمتة]: شموع-اليوم تُقاس من البيانات الفعليّة (lookB=200: barsPerDay=200×86400000/(time-time[200])) بدل افتراض 24س ⇒ يتكيّف مع **جلسة الأداة** (24س فوركس/مؤشّرات أو جلسة أسهم محدودة) تلقائيًّا. فولباك = تقدير الفريم. لا ضبط يدويّ لأيّ أداة/فريم.
+//   v2.6.0 [درس03 خ6 · نصّ+مرئيّ]: نافذة السعة كانت 500 شمعة ثابتة ⇒ مدّتها تختلف بالفريم (15د~5أيّام·1س~21يومًا·4س~83يومًا). صارت **زمنيّة**: ampBars=waveScaleDays(21)×شموع-اليوم، محدودة [50,4900]. الموجة ~3 أسابيع (متوسطاتها 2-8 أيّام، t028: 150بار/8.5ي·124بار/7.4ي). الرسو على التطرّف (leg). اللوحة تُصادِق (خ6).
 // ═══ v2.5.1 — [معايرة خ7: المتوسطة 2-7 أيّام (مطابقة ملخّص المستوى الأول)] ═══
 //   v2.5.1: swingMaxDays 10⇒7 (ملخّص المستوى الأول خ7: المتوسطة يومان-سبعة أيّام). عرض فقط (تصنيف لوحة الموجة). تحقّق المستوى الأول: خ11 (HH/HL عبر ق6/ق7)·ن1 (cDef)·ن3 (f_liqStrength منقَّح) مؤكَّدة أمينة.
 // ═══ v2.5.0 — [تحمّل الأسطر · مكتبة JW_Elliott (إثبات النمط)] ═══
@@ -80,9 +81,9 @@ bool   useHohN  = input.bool(false, "Set prior-history by candle count / تحد�
 int    hohBars  = input.int(100, "Prior-history candles / عدد شموع تاريخ التاريخ", minval = 1, group = grpWave)
 int    histDepth = input.int(7, "Auto history depth (legs) / عمق التواريخ التلقائيّ (سيقان)", minval = 1, maxval = 12, group = grpWave, tooltip = "في الوضع التلقائيّ: كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة. كلّ ساق = موجة واحدة (اتجاه واحد) تُحلَّل بقوانينها.")
 float  legMinRatio  = input.float(0.45, "Auto wave-leg size (× wave amplitude) / حجم ساق الموجة (× السعة)", minval = 0.05, maxval = 1.0, step = 0.05, group = grpWave, tooltip = "الضابط الرئيسيّ لحجم الموجة التلقائيّة: عتبة انعكاس الساق = هذه النسبة × سعة الموجة. أكبر ⇒ موجة أكبر.")
-bool   useAutoScale = input.bool(true, "Auto amplitude window by time (days) / نافذة السعة زمنيًّا (تلقائيّ)", group = grpWave, tooltip = "[درس03 خ6] مفعّل: نافذة السعة تُحسَب من waveScaleDays×شموع-اليوم (من الفريم) ⇒ تتكيّف مع الفريم/الأداة (الموجة ~3 أسابيع، متوسطاتها 2-8 أيّام). مطفأ: النافذة اليدويّة ampLen الثابتة.")
+bool   useAutoScale = input.bool(true, "Auto wave scale (measures instrument+TF) / حجم الموجة تلقائيّ (يقيس الأداة+الفريم)", group = grpWave, tooltip = "[درس03 خ6 · مؤتمت بالكامل] مفعّل: نافذة السعة = waveScaleDays × **شموع-اليوم المقيسة من بيانات الأداة الفعليّة** (تشمل جلستها — 24س/فوركس أو جلسة أسهم محدودة) ⇒ الموجة ~waveScaleDays يومًا على أيّ أداة/فريم بلا ضبط. مطفأ: نافذة ampLen اليدويّة الثابتة.")
 float  waveScaleDays = input.float(21.0, "Wave scale (days, when auto) / مقياس الموجة (أيّام)", minval = 1.0, step = 1.0, group = grpWave, tooltip = "[درس03: الموجة التاريخية ~3 أسابيع تحتوي ~3 موجات متوسطة 2-8 أيّام] نافذة السعة الزمنيّة. أكبر ⇒ موجة أكبر. اللوحة تُصادِق (المتوسطة يجب 2-10 أيّام). الرسو دائمًا على التطرّف (أدنى صعودًا/أعلى هبوطًا).")
-int    ampLen       = input.int(500, "Amplitude window (manual, when auto off) / نافذة السعة اليدويّة", minval = 50, group = grpWave, tooltip = "نافذة حساب سعة الموجة (المقياس فقط) حين useAutoScale مطفأ. سخيّة لتغطّي الموجة.")
+int    ampLen       = input.int(500, "Amplitude window (manual, when auto off) / نافذة السعة اليدويّة", minval = 50, maxval = 4900, group = grpWave, tooltip = "نافذة حساب سعة الموجة (المقياس فقط) حين useAutoScale مطفأ. سخيّة لتغطّي الموجة. الحدّ 4900 (max_bars_back).")
 int    bigMinSwings = input.int(2, "Min candles per leg / أدنى شموع للساق", minval = 1, maxval = 10, group = grpWave, tooltip = "يكبح السيقان الصغيرة جدًّا.")
 
 // ─── 🧪 مساعد الإطار · الضبط ───
@@ -293,8 +294,11 @@ f_rangeDays(int leftB, int rightB) =>
 // ═════════ [درس04] محرّك الـleg — حدود الموجة وحجمها من السعر الخام (ZigZag بعتبة نسبيّة، لا ATR) ═════════
 //   العتبة = legMinRatio × سعة الموجة (ampHist). تطرّفات متناوبة؛ كلّ طرف مؤكَّد = حدّ موجة. per-bar على الشموع المغلقة.
 //   يستبدل النافذة الثابتة 150: الموجة التلقائيّة = الساق الجارية (آخر طرف leg ⇒ الآن)، حجمها يُضبَط بـlegMinRatio.
-// [درس03 خ6] نافذة السعة زمنيّة (تتكيّف مع الفريم): waveScaleDays × شموع-اليوم (86400/ثوانِي-الفريم)، محدودة [50,4900] (max_bars_back). أو ampLen اليدويّة.
-int ampBars = useAutoScale ? math.min(4900, math.max(50, int(math.round(waveScaleDays * 86400.0 / timeframe.in_seconds())))) : ampLen
+// [درس03 خ6 · مؤتمت] نافذة السعة زمنيّة تتكيّف تلقائيًّا مع **الفريم والأداة معًا**: تُقاس شموع-اليوم التقويميّ من البيانات الفعليّة (تشمل عطل جلسة الأداة) لا بافتراض 24س.
+int   lookB      = math.min(bar_index, 200)                                  // نافذة تقدير شموع-اليوم
+float spanMs     = lookB > 0 ? (time - time[lookB]) : na                     // المدّة التقويميّة الفعليّة لآخر lookB شمعة
+float barsPerDay = (not na(spanMs) and spanMs > 0) ? (lookB * 86400000.0 / spanMs) : (86400.0 / timeframe.in_seconds())   // شموع/يوم تقويميّ (فولباك: تقدير الفريم)
+int   ampBars    = useAutoScale ? math.min(4900, math.max(50, int(math.round(waveScaleDays * barsPerDay)))) : ampLen       // الموجة ~waveScaleDays يومًا تقويميًّا على أيّ أداة/فريم
 float ampHist = ta.highest(high, ampBars) - ta.lowest(low, ampBars)  // سعة مرجعيّة (مقياس العتبة فقط — لا حدود الموجة)
 float legTh   = legMinRatio * ampHist
 // الاتجاه المستقرّ (hysteresis): القمّة أحدث ⇒ صاعد؛ لا ينقلب إلّا بفصلٍ معتبَر (يمنع التذبذب)
