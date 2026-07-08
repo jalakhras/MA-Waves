@@ -4,7 +4,8 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.13.0 — [ط1: تصحيح نظيف — إعادة العدّ تُبقي الحارس المعاكس (لا محاور صغيرة داخل التصحيح)] ═══
+// ═══ الإصدار: v2.14.0 — [ط1: إكمال الكبيرة — تفريغ الطرف الكبير الجاري (تعشيش كامل: صغيرة+صفراء+زرقاء)] ═══
+//   v2.14.0 [ملاحظة المستخدم · تحقيق وكيل · فجوة #1]: قمّة معاكسة تكسر القمّة المتوسطة في هبوط كانت تظهر **صغيرة+صفراء بلا زرقاء** — لأنّ الكبيرة (خلاف المتوسطة) لا تُفرِّغ طرفها الجاري (محبوس في largeBreak.max/minSince حتّى الاستئناف). الإصلاح: مكافئ معلّق المتوسطة للكبيرة (تفريغ الطرف الجاري للموجة الجارية ⇒ lgBar بـeff=true ⇒ دائرة زرقاء). الاشتقاق كان سليمًا؛ المشكلة الرسم فقط. الهجين (كسر للجارية · leg للتاريخ) قائمٌ أصلًا في legLiveBreak (اتّجاه كلّ موجة من حدّها). دلالة الانعطاف (درس09) مؤجَّلة لـط2 (لا تلزم للرسم).
 //   v2.13.0 [فحص المستخدم الذهبيّ · درس06 · تحقيق وكيل]: كانت brokeLevel تُصفّر **كلا** مرجعَي الفعاليّة عند كلّ كسر قاع صغير ⇒ الحارس (قمّة المتوسطة) يصير na ⇒ na(lastEffTop) or … يجعل كلّ قاع تصحيحيّ مؤكَّدًا ⇒ **التصحيح يمتلئ محاور صغيرة** (يخالف «التصحيح المتوسط نظيف من الصغيرة»، درس06 س77/148) ويُفسِد nz في مخرج الاستئناف. الإصلاح: صفِّر **المكسور فقط**، أبقِ الحارس المعاكس ⇒ ق6/ق7 تكبتان محاور التصحيح ويُفعَّل التطرّف المُعشَّش (القاع المتوسط) وحده عند الاستئناف. إعادة العدّ مُرحَّلة للاستئناف (درس06 س9-11)، الانقلاب الحقيقيّ عبر waveDir!=trendDir سليم.
 //   v2.12.2 [قرار المستخدم · «ارسم الكلّ→صفِّ→احذف»]: كشف التحليل أنّ الرماديّة = **النقطة الجارية** (feedPivot لا يؤكّد المحور إلّا بمجيء المعاكس — أصيلٌ لا بوّابة v2.12.0). محرّك v2.12.0 يلتقط الأعمق/الأعلى بدقّة (المُراكِم)، وfeedPivot ينفّذ «ارسم الكلّ→تتابُع+فعاليّة→احذف الفاشل» داخليًّا (غير الفعّال مطفأ افتراضيًّا). الإصلاح: يُرسَم الطرف الجاري بلون المتوسطة العاديّ ⇒ يظهر الأعمق/الأعلى فورًا بلا رماديّ ولا تأخّر. (المغطّى الأحمر = قانون التغطية ط4، مفتاحه showCovered.)
 //   v2.12.1 [إصلاح crash · ط0 سابق]: «historical offset beyond buffer» عند شارت طويل + تاريخ leg قديم جدًّا. الحلّ: f_rangeHiLo يُقيّد الطرف الأيسر بنافذة مضمونة (bar_index-4900 < max_bars_back=5000) ويُرجِع na لنطاق أقدم كليًّا؛ وحلقة التواريخ تتخطّى الأرجل الأقدم من النافذة (تمنع مقطعًا بـsegL قديم فيتفادى crash في f_buildWave/الرسم). لا يمسّ المنطق، اكتمالٌ فقط (التواريخ البعيدة جدًّا تُتخطّى بأمان).
@@ -1358,6 +1359,41 @@ if barstate.islast
                         array.push(lgTop, array.get(segLeftTop, s))
                         array.push(lgTm,  time[lo])
                         array.push(lgEff, array.includes(largeDeg.effectiveBars, b) or (largeDeg.pendingType != 0 and b == largeDeg.pendingBar))
+    // [#1 · إكمال الكبيرة] تفريغ الطرف الكبير **الجاري** (الموجة الجارية) كنقطة كبيرة حيّة — مكافئ معلّق المتوسطة (س~938). لولاه يبقى الطرف محبوسًا في largeBreak.max/minSince حتّى الاستئناف فلا تُرسَم الزرقاء الجارية (تعشيش ناقص: صغيرة+صفراء بلا زرقاء).
+    float lgPendP   = na
+    int   lgPendB   = na
+    int   lgPendT   = na
+    bool  lgPendTop = false
+    int   curWaveDir = (not useBigBreak and legLiveBreak and array.size(segLeftTop) > 0) ? (array.get(segLeftTop, 0) ? -1 : 1) : bigDir   // [مراجعة] اتّجاه التفريغ = اتّجاه تغذية largeBreak: legLiveBreak غُذِّي بـsegDir[0] (لا bigDir ذي الـhysteresis) · useBigBreak بـbigDir
+    if curWaveDir == 1                                             // صعود: تصحيح ⇒ قاع كبير جارٍ (minSince) · دافعة ⇒ قمّة كبيرة جارية (maxSince)
+        if largeBreak.inCorr and not na(largeBreak.minSincePrice)
+            lgPendP := largeBreak.minSincePrice
+            lgPendB := largeBreak.minSinceBar
+            lgPendT := largeBreak.minSinceTime
+            lgPendTop := false
+        else if not na(largeBreak.maxSincePrice)
+            lgPendP := largeBreak.maxSincePrice
+            lgPendB := largeBreak.maxSinceBar
+            lgPendT := largeBreak.maxSinceTime
+            lgPendTop := true
+    else if curWaveDir == -1                                      // هبوط: تصحيح ⇒ قمّة كبيرة جارية (maxSince) · دافعة ⇒ قاع كبير جارٍ (minSince)
+        if largeBreak.inCorr and not na(largeBreak.maxSincePrice)
+            lgPendP := largeBreak.maxSincePrice
+            lgPendB := largeBreak.maxSinceBar
+            lgPendT := largeBreak.maxSinceTime
+            lgPendTop := true
+        else if not na(largeBreak.minSincePrice)
+            lgPendP := largeBreak.minSincePrice
+            lgPendB := largeBreak.minSinceBar
+            lgPendT := largeBreak.minSinceTime
+            lgPendTop := false
+    int lgWL0 = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
+    if not na(lgPendP) and lgPendB >= lgWL0                        // الموجة الجارية فقط (bar ≥ wL) — تفاديًا لتكرار إرساء التاريخ
+        array.push(lgBar, lgPendB)
+        array.push(lgPrc, lgPendP)
+        array.push(lgTop, lgPendTop)
+        array.push(lgTm,  lgPendT)
+        array.push(lgEff, true)
     // ===== الرسم الموحّد: دوائر (🔵 فعّال · 🔴 غير فعّال) + وصل الفعّالة =====
     for lb in bigCircles
         label.delete(lb)
