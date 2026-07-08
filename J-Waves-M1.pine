@@ -4,7 +4,9 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.14.0 — [ط1: إكمال الكبيرة — تفريغ الطرف الكبير الجاري (تعشيش كامل: صغيرة+صفراء+زرقاء)] ═══
+// ═══ الإصدار: v2.15.1 — [ط2·درس08: خطّ السيولة يصل الطرفين تمامًا (إزالة إزاحة f_liqAdj)] ═══
+//   v2.15.1 [ملاحظة المستخدم]: كان خطّ السيولة يُرفَع بإزاحة f_liqAdj (ليمرّ فوق كلّ ذيل بينهما) ⇒ **لا يمرّ بالقمّتين/القاعين** (يبدو منفصلًا فوقهما، خاصّةً حين تبرز قمّة وسطى كـ4365). الإصلاح: الخطّ يمرّ **بالطرفين تمامًا** (wp1/wp2 على الذيول) بلا إزاحة، في f_liqLine (الرسم) وf_liqBroken (الكسر) معًا. الامتداد يمينًا = liqExtend (24 افتراضًا، قابل للزيادة).
+//   v2.15.0 [ط2 · مواصفة درس08 · محكِّم مصادر]: كان مستوى تحديد الاتجاه يُرسَم/يُكسَر على **الجسم** — خطأ خلط مع مستويات MA للمناطق (L2). الحسم القاطع (أسماء صريحة «أرسمه على ذيل الشمعة»؛ الجسم يخصّ L2 لا درس08): مستوى الاتجاه على **الذيل** (high/low) في f_levelLine (الرسم) وf_activeDir (مرجع الكسر) معًا. [التالي درس08: ② خطّ السيولة آخر موجة فقط · ③ عتبة كسر المستوى ذيل واحد — يُحسَم مع درس09.]
 //   v2.14.0 [ملاحظة المستخدم · تحقيق وكيل · فجوة #1]: قمّة معاكسة تكسر القمّة المتوسطة في هبوط كانت تظهر **صغيرة+صفراء بلا زرقاء** — لأنّ الكبيرة (خلاف المتوسطة) لا تُفرِّغ طرفها الجاري (محبوس في largeBreak.max/minSince حتّى الاستئناف). الإصلاح: مكافئ معلّق المتوسطة للكبيرة (تفريغ الطرف الجاري للموجة الجارية ⇒ lgBar بـeff=true ⇒ دائرة زرقاء). الاشتقاق كان سليمًا؛ المشكلة الرسم فقط. الهجين (كسر للجارية · leg للتاريخ) قائمٌ أصلًا في legLiveBreak (اتّجاه كلّ موجة من حدّها). دلالة الانعطاف (درس09) مؤجَّلة لـط2 (لا تلزم للرسم).
 //   v2.13.0 [فحص المستخدم الذهبيّ · درس06 · تحقيق وكيل]: كانت brokeLevel تُصفّر **كلا** مرجعَي الفعاليّة عند كلّ كسر قاع صغير ⇒ الحارس (قمّة المتوسطة) يصير na ⇒ na(lastEffTop) or … يجعل كلّ قاع تصحيحيّ مؤكَّدًا ⇒ **التصحيح يمتلئ محاور صغيرة** (يخالف «التصحيح المتوسط نظيف من الصغيرة»، درس06 س77/148) ويُفسِد nz في مخرج الاستئناف. الإصلاح: صفِّر **المكسور فقط**، أبقِ الحارس المعاكس ⇒ ق6/ق7 تكبتان محاور التصحيح ويُفعَّل التطرّف المُعشَّش (القاع المتوسط) وحده عند الاستئناف. إعادة العدّ مُرحَّلة للاستئناف (درس06 س9-11)، الانقلاب الحقيقيّ عبر waveDir!=trendDir سليم.
 //   v2.12.2 [قرار المستخدم · «ارسم الكلّ→صفِّ→احذف»]: كشف التحليل أنّ الرماديّة = **النقطة الجارية** (feedPivot لا يؤكّد المحور إلّا بمجيء المعاكس — أصيلٌ لا بوّابة v2.12.0). محرّك v2.12.0 يلتقط الأعمق/الأعلى بدقّة (المُراكِم)، وfeedPivot ينفّذ «ارسم الكلّ→تتابُع+فعاليّة→احذف الفاشل» داخليًّا (غير الفعّال مطفأ افتراضيًّا). الإصلاح: يُرسَم الطرف الجاري بلون المتوسطة العاديّ ⇒ يظهر الأعمق/الأعلى فورًا بلا رماديّ ولا تأخّر. (المغطّى الأحمر = قانون التغطية ط4، مفتاحه showCovered.)
@@ -1466,8 +1468,8 @@ if barstate.islast
                         prevLt := cur
             array.push(ewLabels, label.new(bar_index, high, "EW · كبيرة=" + str.tostring(array.size(lgBar)) + " (دُمجت=" + str.tostring(lgColl) + " قمم=" + str.tostring(lgTops) + ") · دفعات الكبيرة=" + str.tostring(ewBigSets) + " · متوسطة=" + str.tostring(array.size(mcBar)) + " · وسوم=" + str.tostring(array.size(ewLabels)), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(color.gray, 15), textcolor = color.white, size = size.small))
 
-// ─── ج1 [درس08]: مستويات الاتجاه — خطّ أفقيّ عند آخر طرف فعّال من نوع الأساس (قاع صاعدًا/قمّة هابطًا) على **الجسم** ───
-//   معمّم لكلّ درجة (كبيرة→متوسطة→صغيرة). على الجسم تمييزًا عن السيولة. يمتدّ levelExtend شمعة بعد الآن.
+// ─── ج1 [درس08]: مستويات الاتجاه — خطّ أفقيّ عند آخر طرف فعّال من نوع الأساس (قاع صاعدًا/قمّة هابطًا) على **الذيل** ───
+//   [حسم المحكِّم درس08] على **الذيل** (أسماء صريحة: «مستوى تحديد الاتجاه أرسمه على ذيل الشمعة»؛ «الجسم» يخصّ مستويات MA للمناطق L2 لا درس08). التمييز عن السيولة = **أفقيّ** (طرف واحد) لا مائل. يمتدّ levelExtend شمعة بعد الآن.
 f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int dir) =>
     line ln = na
     bool wantTop = dir == -1                               // هابط ⇒ آخر قمّة فعّالة (مقاومة) · صاعد ⇒ آخر قاع فعّال (دعم) — dir = الاتجاه الفعّال
@@ -1480,9 +1482,9 @@ f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm,
     if found >= 0
         int o = bar_index - array.get(aBar, found)
         if o >= 0
-            float body = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])
+            float lvl = wantTop ? high[o] : low[o]         // [درس08] على الذيل (ذروة القمّة/القاع) لا الجسم
             int rightTm = time + levelExtend * timeframe.in_seconds() * 1000   // ينتهي بعد السعر الحاليّ بعدد شموع محدَّد (لا لانهائيّ)
-            ln := line.new(array.get(aTm, found), body, rightTm, body, xloc = xloc.bar_time, color = col, width = w)
+            ln := line.new(array.get(aTm, found), lvl, rightTm, lvl, xloc = xloc.bar_time, color = col, width = w)
     ln
 
 // ─── ج2 [درس08]: خطوط السيولة — وصل آخر تطرّفين فعّالين من نوع الأساس (قاعين صاعدًا/قمّتين هابطًا) على **الذيول** ───
@@ -1546,11 +1548,10 @@ f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, c
             int   b1  = array.get(aBar, i1)
             int   b2  = array.get(aBar, i2)
             float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0            // ميل خط السيولة لكلّ شمعة (b2>b1 مضمون: i2 الأحدث · حارس b2≠b1 احترازيّ)
-            float wp1a = wantTop ? wp1 + f_liqAdj(b1, b2, wp1, slope, wantTop) : wp1 - f_liqAdj(b1, b2, wp1, slope, wantTop)   // إزاحة ليمرّ على الذيول
             int   targetBar = bar_index + liqExtend
-            float projP = wp1a + slope * (targetBar - b1)    // مُسقَط من الطرف المُزاح (يحافظ على الميل)
+            float projP = wp1 + slope * (targetBar - b1)     // [درس08] يمرّ بالطرفين تمامًا (wp1 عند b1 · wp2 عند b2 بالميل) ثمّ يمتدّ يمينًا — **بلا إزاحة** (الإزاحة كانت ترفعه فوق الذيول فلا يصل القمّتين)
             int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
-            ln := line.new(array.get(aTm, i1), wp1a, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
+            ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
     ln
 
 // [درس09/م1] اتجاه السيولة = ميل خطّها (الطرف الأحدث أعلى⇒صاعد، أدنى⇒هابط) — عرض/تحقّق فقط، بلا ربط بالاستخراج
@@ -1622,27 +1623,27 @@ f_activeDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =
             first := array.get(aBar, fi)
         fi := fi + 1
     if first >= 0
-        bool  twoC    = lvlBreakMode == "2 candles"
-        float topBody = na                                 // جسم آخر قمّة فعّالة حتى البار الحاليّ في المحاكاة
-        float botBody = na                                 // جسم آخر قاع فعّال
-        int   pi      = 0
+        bool  twoC   = lvlBreakMode == "2 candles"
+        float topLvl = na                                  // [درس08] ذيل آخر قمّة فعّالة (المستوى على الذيل لا الجسم — مطابق f_levelLine) حتى البار الحاليّ
+        float botLvl = na                                  // ذيل آخر قاع فعّال
+        int   pi     = 0
         for j = first to bar_index
             int o = bar_index - j
             if o >= 0
-                while pi < n and array.get(aBar, pi) <= j   // فعّل كلّ تطرّف بلغ الباره ⇒ حدّث جسم القمّة/القاع المرجع
+                while pi < n and array.get(aBar, pi) <= j   // فعّل كلّ تطرّف بلغ الباره ⇒ حدّث ذيل القمّة/القاع المرجع
                     if array.get(aEff, pi)
                         int po = bar_index - array.get(aBar, pi)
                         if po >= 0
                             if array.get(aTop, pi)
-                                topBody := math.max(open[po], close[po])
+                                topLvl := high[po]
                             else
-                                botBody := math.min(open[po], close[po])
+                                botLvl := low[po]
                     pi := pi + 1
-                if dir == -1 and not na(topBody)            // هابط ⇒ كسر المقاومة (شمعتان فوق الجسم) ⇒ انقلاب لصاعد
-                    if twoC ? (o + 1 <= bar_index and close[o] > topBody and close[o + 1] > topBody) : high[o] > topBody
+                if dir == -1 and not na(topLvl)             // هابط ⇒ كسر المقاومة (فوق ذيل القمّة) ⇒ انقلاب لصاعد
+                    if twoC ? (o + 1 <= bar_index and close[o] > topLvl and close[o + 1] > topLvl) : high[o] > topLvl
                         dir := 1
-                else if dir == 1 and not na(botBody)        // صاعد ⇒ كسر الدعم (شمعتان تحت الجسم) ⇒ انقلاب لهابط
-                    if twoC ? (o + 1 <= bar_index and close[o] < botBody and close[o + 1] < botBody) : low[o] < botBody
+                else if dir == 1 and not na(botLvl)         // صاعد ⇒ كسر الدعم (تحت ذيل القاع) ⇒ انقلاب لهابط
+                    if twoC ? (o + 1 <= bar_index and close[o] < botLvl and close[o + 1] < botLvl) : low[o] < botLvl
                         dir := -1
     dir
 
@@ -1660,13 +1661,12 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
             int   b1  = array.get(aBar, i1)
             int   b2  = array.get(aBar, i2)
             float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0
-            float wp1a = wantTop ? wp1 + f_liqAdj(b1, b2, wp1, slope, wantTop) : wp1 - f_liqAdj(b1, b2, wp1, slope, wantTop)   // نفس إزاحة الرسم (اتّساق)
-            // يُلتقَط الكسر من **تاريخ** الخطّ المُسقَط (إغلاقان متتاليان خلفه في أيّ موضع بعد الطرف الأحدث) ⇒ يثبت مكسورًا حتى تطرّفين جديدين
+            // يُلتقَط الكسر من **تاريخ** الخطّ المُسقَط (إغلاقان متتاليان خلفه بعد الطرف الأحدث) ⇒ يثبت مكسورًا حتى تطرّفين جديدين — **بلا إزاحة** (مطابق f_liqLine: يمرّ بالطرفين تمامًا)
             for k = b2 + 1 to bar_index
                 int ok = bar_index - k
                 if ok >= 0
-                    float lk  = wp1a + slope * (k - b1)
-                    float lk1 = wp1a + slope * (k - 1 - b1)
+                    float lk  = wp1 + slope * (k - b1)
+                    float lk1 = wp1 + slope * (k - 1 - b1)
                     if wantTop ? (close[ok] > lk and close[ok + 1] > lk1) : (close[ok] < lk and close[ok + 1] < lk1)
                         broken := true
     broken
