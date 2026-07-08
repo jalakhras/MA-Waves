@@ -4,7 +4,9 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.7.3 — [ط1: الكبيرة بالكسر من المتوسطة افتراضًا (الأزرق يظهر)] ═══
+// ═══ الإصدار: v2.8.0 — [توحيد تصنيف الإشارة عبر المسارات الثلاثة (خطّ أحمر: الإشارة=اللوحة)] ═══
+//   v2.8.0 [مراجعة ط3/ط4 · قرار مستخدم]: توحيد بوّابة/تصنيف الإشارة على **التاريخيّ + الوسم الحيّ + قرار الأطلس** معًا: تُطلَق فقط في **تصحيح فعليّ {ذعر1·يأس2·تجميع3·تصريف4}** (تخطّي المشاركة0 الترند ولا-سيولة-1) · **أساسيّة=نضج{2,3,4}** · **ذعر(1)=مخاطرة**. يُصلح تعارُض v2.3.3 (التاريخيّ كان phAt≥0 يُطلِق على الترند ويخالف الوسم الحيّ basic=3). الآن المصادر الثلاثة متطابقة. (تصريف⟷ذعر: بانتظار مراجعة المستخدم للمصدر · G4-الحيّ/G3: قرارات مؤجَّلة.)
+// ═══ v2.7.3 — [ط1: الكبيرة بالكسر من المتوسطة افتراضًا (الأزرق يظهر)] ═══
 //   v2.7.3 [مراجعة ط1 · قرار مستخدم]: useBigBreak افتراضه true (كان false) ⇒ الكبيرة تُشتقّ بكسر المتوسطة (أنعم، الدرجة الزرقاء تظهر). مراجعة ط1 الشاملة: أمين لدروس05-07+الملخّص، سليم أداءً/صحّةً (وكيل الأقنعة الستّة). مؤجَّل مع مكتبة الدرجات: فصل useValid/minCorr وسائط + مكسب O(n) في حلقات الفعاليّة.
 // ═══ v2.7.2 — [اللغة أعلى القائمة ثمّ مجموعة الموجة كاملةً] ═══
 //   v2.7.2 [UX · عرض فقط]: ترتيب الإعدادات = اللغة (grpGen) **أعلى القائمة**، ثمّ مجموعة «🌊 الموجة» كاملةً (waveMode + الحجم + الاختبار swingMin/MaxDays + التاريخ). f_t/uiLang معرَّفتان قبل أوّل استعمال (س1287). صفر أثر منطقيّ.
@@ -1618,19 +1620,19 @@ f_atlasDecision(int entry, bool inZone, int phSm, bool confOk, int phBig, bool h
         if not hasTgt
             t := f_t("لا تداول (لا منطقة هدف)", "NoTrade (no target)")
             k := 0
-        else if phSm == 3 and confOk
+        else if (phSm == 2 or phSm == 3 or phSm == 4) and confOk     // [توحيد] نضج (يأس/تجميع/تصريف) + تأكيد ⇒ أساسيّة (تطابق basicSig)
             t := entry == 1 ? f_t("شراء ✓", "Buy ✓") : f_t("بيع ✓", "Sell ✓")
             k := entry
-        else if phSm == 3
+        else if phSm == 2 or phSm == 3 or phSm == 4                  // نضج بلا تأكيد ⇒ انتظار
             t := f_t("انتظار · " + dr + " (بانتظار تأكيد)", "Wait · " + dr + " (awaiting confirm)")
             k := 3
-        else if (phSm == 1 or phSm == 2) and confOk                  // [S13] تصحيح جارٍ + تأكيد ⇒ إشارة مخاطرة فعليّة (تطابق hrSig، لا «انتظار»)
+        else if phSm == 1 and confOk                                 // [توحيد S13] ذعر + تأكيد ⇒ مخاطرة (تطابق hrSig)
             t := entry == 1 ? f_t("شراء مخاطرة ⚠", "Buy risky ⚠") : f_t("بيع مخاطرة ⚠", "Sell risky ⚠")
             k := entry
-        else if phSm == 1 or phSm == 2                               // تصحيح جارٍ بلا تأكيد ⇒ انتظار
+        else if phSm == 1                                            // ذعر بلا تأكيد ⇒ انتظار
             t := f_t("انتظار · " + dr + " مخاطرة (تصحيح جارٍ، بلا تأكيد)", "Wait · risky " + dr + " (correction, no confirm)")
             k := 3
-        else
+        else                                                         // مشاركة(0)/لا سيولة(-1) ⇒ لا تصحيح ⇒ لا إشارة
             t := f_t("انتظار · " + dr + " (بانتظار تصحيح)", "Wait · " + dr + " (awaiting correction)")
             k := 3
     [t, k]
@@ -2102,8 +2104,8 @@ if barstate.islast
     if showConc
         table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
-    bool basicSig = inZone and gatePh == 3 and confOk and (entry == 1 or entry == -1)                  // [G2] أساسيّة: تجميع مكتمل (بدرجة الصفقة) + تأكيد (داخل المنطقة)
-    bool hrSig    = inZone and (gatePh == 1 or gatePh == 2) and confOk and (entry == 1 or entry == -1) // [G2] عالية مخاطرة: تصحيح بعد الذعر (ذعر/يأس بدرجة الصفقة) + تأكيد (داخل المنطقة)
+    bool basicSig = inZone and (gatePh == 2 or gatePh == 3 or gatePh == 4) and confOk and (entry == 1 or entry == -1)   // [G2+توحيد] أساسيّة: نضج (يأس/تجميع/تصريف بدرجة الصفقة) + تأكيد داخل المنطقة
+    bool hrSig    = inZone and gatePh == 1 and confOk and (entry == 1 or entry == -1)                                    // [G2+توحيد] مخاطرة: ذعر (بدرجة الصفقة) + تأكيد داخل المنطقة
     // [شروط الانعكاس بعد خروج السعر من المنطقة] كسر المنطقة بشمعتين **صحيحتين** (جسم ≥ كلّ ذيل): بيع = كسر للأسفل (حمراوان) · شراء = كسر للأعلى (خضراوان)
     bool vRed  = close    < open    and (open    - close)    >= (high    - open)     and (open    - close)    >= (close    - low)
     bool vRed1 = close[1] < open[1] and (open[1] - close[1]) >= (high[1] - open[1])  and (open[1] - close[1]) >= (close[1] - low[1])
@@ -2147,7 +2149,7 @@ if barstate.islast
     if showSignals and (inZoneSig or brkSig) and not (phB == 1 or phB == 2)   // 🔴 لا إشارة بلا هدف · [تدقيق] لا دخول جديد حين الكبيرة ذعر/يأس (مراجعة E)
         bool   isBrk = brkSig and not inZoneSig
         bool   up    = isBrk ? brkBuy : entry == 1
-        bool   isBas = isBrk or gatePh == 3                      // [G2] إشارة الخروج (انعكاس+تأكيد) = أساسيّة · وداخل المنطقة: أساسيّة إن اكتملت المرحلة (تجميع/تصريف بدرجة الصفقة gatePh==3) وإلّا مخاطرة (تصحيح جارٍ)
+        bool   isBas = isBrk or gatePh >= 2                      // [G2+توحيد] الخروج = أساسيّة · داخل المنطقة: أساسيّة إن نضجت المرحلة (يأس/تجميع/تصريف gatePh≥2) وإلّا مخاطرة (ذعر)
         float  sStp  = isBrk ? bStp : stp
         float  sTgt  = isBrk ? bTgt : tgt
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
@@ -2213,8 +2215,8 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                     if cB >= 0
                         cCnf := cCnf + 1
                         int  phAt  = f_phaseAt(aBar, aTop, aEff, wdirDeg, sBar)                       // [2-ب · بوّابة G2] المرحلة عند **التطرّف** (عمق التصحيح) — لا عند الكسر (فالكسر = مشاركة مستأنَفة)
-                        bool okPh  = phAt >= 0                                                         // [تخفيف v2.3.3] التأكيد(الكسر) هو الفلتر الأساسيّ؛ المرحلة للتصنيف فقط — نستبعد «لا اتجاه/لا سيولة»(-1) فحسب
-                        bool basic = phAt >= 2                                                        // يأس/تجميع/تصريف (نضج) ⇒ ✦أساسيّة · ذعر(1)/مشاركة(0) ⇒ ⚠مخاطرة
+                        bool okPh  = phAt >= 1                                                         // [توحيد] تصحيح فعليّ فقط {ذعر1·يأس2·تجميع3·تصريف4} — يتخطّى المشاركة(0) الترند و«لا سيولة»(-1) (يطابق الوسم الحيّ واللوحة)
+                        bool basic = phAt >= 2                                                        // يأس/تجميع/تصريف (نضج ≥2) ⇒ ✦أساسيّة · ذعر(1) ⇒ ⚠مخاطرة (المشاركة 0 مُستبعَدة بـokPh)
                         if okPh
                             int    cOff = bar_index - cB
                             float  eC   = close[cOff]                                                 // الدخول = إغلاق شمعة الكسر (لا التطرّف)
