@@ -4,7 +4,9 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.8.0 — [توحيد تصنيف الإشارة عبر المسارات الثلاثة (خطّ أحمر: الإشارة=اللوحة)] ═══
+// ═══ الإصدار: v2.8.1 — [G4 للوسم الحيّ + إسقاط G3 رسميًّا (إتمام ط4)] ═══
+//   v2.8.1 [إتمام مراجعة ط4]: (قذ3) **G4 للوسم الحيّ**: الوقف = أحدث تطرّف صغير **داخل المنطقة** (inZlow/inZhigh) بدل الحافّة (zaBot/zaTop)، فولباك الحافّة — يوحّده مع التاريخيّ. (قذ4) **G3 (usePreConfHR) مُسقَط رسميًّا**: لا مسار قبل-تأكيد (كلّ الإشارات تشترط التأكيد؛ مصعب: سحب السيولة). المتبقّي: تصريف⟷ذعر (مراجعة المستخدم).
+// ═══ v2.8.0 — [توحيد تصنيف الإشارة عبر المسارات الثلاثة (خطّ أحمر: الإشارة=اللوحة)] ═══
 //   v2.8.0 [مراجعة ط3/ط4 · قرار مستخدم]: توحيد بوّابة/تصنيف الإشارة على **التاريخيّ + الوسم الحيّ + قرار الأطلس** معًا: تُطلَق فقط في **تصحيح فعليّ {ذعر1·يأس2·تجميع3·تصريف4}** (تخطّي المشاركة0 الترند ولا-سيولة-1) · **أساسيّة=نضج{2,3,4}** · **ذعر(1)=مخاطرة**. يُصلح تعارُض v2.3.3 (التاريخيّ كان phAt≥0 يُطلِق على الترند ويخالف الوسم الحيّ basic=3). الآن المصادر الثلاثة متطابقة. (تصريف⟷ذعر: بانتظار مراجعة المستخدم للمصدر · G4-الحيّ/G3: قرارات مؤجَّلة.)
 // ═══ v2.7.3 — [ط1: الكبيرة بالكسر من المتوسطة افتراضًا (الأزرق يظهر)] ═══
 //   v2.7.3 [مراجعة ط1 · قرار مستخدم]: useBigBreak افتراضه true (كان false) ⇒ الكبيرة تُشتقّ بكسر المتوسطة (أنعم، الدرجة الزرقاء تظهر). مراجعة ط1 الشاملة: أمين لدروس05-07+الملخّص، سليم أداءً/صحّةً (وكيل الأقنعة الستّة). مؤجَّل مع مكتبة الدرجات: فصل useValid/minCorr وسائط + مكسب O(n) في حلقات الفعاليّة.
@@ -2057,13 +2059,20 @@ if barstate.islast
     // [L2-04 التأكيد بدرجة الصفقة] متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF):
     float lstSmT = na
     float lstSmB = na
+    float inZhigh = na                                                     // [G4-حيّ] أحدث قمّة صغيرة داخل منطقة الدخول
+    float inZlow  = na                                                     // [G4-حيّ] أحدث قاع صغير داخل منطقة الدخول
     int   nscc = array.size(scBar)
     for si = 0 to (nscc > 0 ? nscc - 1 : 0)
         if nscc > 0 and array.get(scEff, si)
+            float scp = array.get(scPrc, si)
             if array.get(scTop, si)
-                lstSmT := array.get(scPrc, si)
+                lstSmT := scp
+                if not na(zaBot) and scp >= zaBot and scp <= zaTop         // داخل المنطقة ⇒ مرشّح وقف البيع
+                    inZhigh := scp
             else
-                lstSmB := array.get(scPrc, si)
+                lstSmB := scp
+                if not na(zaBot) and scp >= zaBot and scp <= zaTop         // داخل المنطقة ⇒ مرشّح وقف الشراء
+                    inZlow := scp
     bool isMedTrade = tradeDeg == "Medium / متوسطة"
     bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة (نفس الشارت) · صغيرة←كسر بنيويّ على الفريم الأصغر (15/5/1)
     bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
@@ -2072,13 +2081,13 @@ if barstate.islast
     // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. (zaTop/zaBot حُسِبا في حلقة inZone أعلاه.)
     float stp = na
     float tgt = na
-    if inZone and entry == 1                                              // شراء: الوقف أسفل المنطقة · الهدف أقرب منطقة فوق (حافّتها السفلى)
-        stp := zaBot
+    if inZone and entry == 1                                              // شراء: الوقف عند أحدث قاع صغير داخل المنطقة [G4] (وإلّا حافّتها السفلى) · الهدف أقرب منطقة فوق
+        stp := not na(inZlow) ? inZlow : zaBot
         for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
             if nzc > 0 and array.get(zBot, zi) > close
                 tgt := na(tgt) or array.get(zBot, zi) < tgt ? array.get(zBot, zi) : tgt
-    else if inZone and entry == -1                                        // بيع: الوقف أعلى المنطقة · الهدف أقرب منطقة تحت (حافّتها العليا)
-        stp := zaTop
+    else if inZone and entry == -1                                        // بيع: الوقف عند أحدث قمّة صغيرة داخل المنطقة [G4] (وإلّا حافّتها العليا) · الهدف أقرب منطقة تحت
+        stp := not na(inZhigh) ? inZhigh : zaTop
         for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
             if nzc > 0 and array.get(zTop, zi) < close
                 tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
