@@ -4,7 +4,13 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.10.0 — [ط1: leg الكبيرة = سلسلة متوسطة متّصلة باتّجاه كلّ موجة (تعشيش+كثافة)] ═══
+// ═══ الإصدار: v2.13.0 — [ط1: تصحيح نظيف — إعادة العدّ تُبقي الحارس المعاكس (لا محاور صغيرة داخل التصحيح)] ═══
+//   v2.13.0 [فحص المستخدم الذهبيّ · درس06 · تحقيق وكيل]: كانت brokeLevel تُصفّر **كلا** مرجعَي الفعاليّة عند كلّ كسر قاع صغير ⇒ الحارس (قمّة المتوسطة) يصير na ⇒ na(lastEffTop) or … يجعل كلّ قاع تصحيحيّ مؤكَّدًا ⇒ **التصحيح يمتلئ محاور صغيرة** (يخالف «التصحيح المتوسط نظيف من الصغيرة»، درس06 س77/148) ويُفسِد nz في مخرج الاستئناف. الإصلاح: صفِّر **المكسور فقط**، أبقِ الحارس المعاكس ⇒ ق6/ق7 تكبتان محاور التصحيح ويُفعَّل التطرّف المُعشَّش (القاع المتوسط) وحده عند الاستئناف. إعادة العدّ مُرحَّلة للاستئناف (درس06 س9-11)، الانقلاب الحقيقيّ عبر waveDir!=trendDir سليم.
+//   v2.12.2 [قرار المستخدم · «ارسم الكلّ→صفِّ→احذف»]: كشف التحليل أنّ الرماديّة = **النقطة الجارية** (feedPivot لا يؤكّد المحور إلّا بمجيء المعاكس — أصيلٌ لا بوّابة v2.12.0). محرّك v2.12.0 يلتقط الأعمق/الأعلى بدقّة (المُراكِم)، وfeedPivot ينفّذ «ارسم الكلّ→تتابُع+فعاليّة→احذف الفاشل» داخليًّا (غير الفعّال مطفأ افتراضيًّا). الإصلاح: يُرسَم الطرف الجاري بلون المتوسطة العاديّ ⇒ يظهر الأعمق/الأعلى فورًا بلا رماديّ ولا تأخّر. (المغطّى الأحمر = قانون التغطية ط4، مفتاحه showCovered.)
+//   v2.12.1 [إصلاح crash · ط0 سابق]: «historical offset beyond buffer» عند شارت طويل + تاريخ leg قديم جدًّا. الحلّ: f_rangeHiLo يُقيّد الطرف الأيسر بنافذة مضمونة (bar_index-4900 < max_bars_back=5000) ويُرجِع na لنطاق أقدم كليًّا؛ وحلقة التواريخ تتخطّى الأرجل الأقدم من النافذة (تمنع مقطعًا بـsegL قديم فيتفادى crash في f_buildWave/الرسم). لا يمسّ المنطق، اكتمالٌ فقط (التواريخ البعيدة جدًّا تُتخطّى بأمان).
+//   v2.12.0 [تصحيح المستخدم · فجوة #2 · درس06]: كان مُولِّد الكسر يُثبّت الطرف المعاكس عند **الكاسر الأوّل** (n=2 فوريّ). الصحيح (درس06: «أقلّ سعر بعد الكسر قاع · أعلى سعر بعد الكسر قمّة»): آلة **بطورين** — الدافعة تراكم الطرف المتوافق ⇒ عند الكسر يُصدَر ويدخل التصحيح ⇒ يراكم **الطرف المعاكس (أدنى/أعلى بعد الكسر)** ⇒ يُصدَر عند **الاستئناف** (تجاوز الطرف المُصدَر) = فعاليّة المتوسطة ضمنيّة. حقلان جديدان (inCorr/breakPivotP)؛ المعلّق يتبع الطور. يمسّ المتوسطة والكبيرة (كلاهما عبر BreakProc). تحقّق المستخدم: «التصحيح المتوسط نظيفٌ من قمم/قيعان صغيرة» ⇒ دليل سلامة الصغيرة.
+//   v2.11.1 [تصحيح المستخدم · الاتجاه الصاعد]: مخرج v2.11.0 قاس على rHiP (آخر قمّة **مكتشَفة**، قد تكون مُسقَطة/غير متتالية) ⇒ يُصدِر القاع مبكّرًا. الصحيح (قاعدة المستخدم «كلّ قاع صالح شرطُه قمّة أعلى من السابقة»): القياس على **آخر قمّة/قاع فعّال** (lastEffTop/lastEffBottom عبر nz، فولباك rHiP/rLoP عند البداية) ⇒ يُطبَّق التتابُع (ق4/ق5) + الفعاليّة (ق6/ق7) معًا في الكشف. لا تغيّر في الترند النظيف (rHiP==lastEffTop)؛ يُصلَح فقط حالة القمّة/القاع غير المتتالي.
+//   v2.11.0 [فجوة #1]: طرف الدافعة كان يشترط شمعتَي استئناف (زائد عن الدرس) ⇒ قيعان V تسقط/الطرف الأخير لا يُرسَم/تجمّد. الإصلاح: مخرج استئناف في حالة الاستئناف فقط؛ بوّابة التصحيح (شمعتان، ق1) تبقى للطرف المُصحِّح. [التالي: فجوة #2 المتوسطة (القاع=أدنى بعد الكسر).]
 //   v2.10.0 [إصلاح قلّة النقاط الجذريّ · قانون التعشيش]: السبب الجذريّ (أكّده المستخدم): حدود leg نادرة (عتبة 45%×السعة ⇒ ~2-3 حدود) والتجزئة per-segment كانت تُغذّي كسرًا داخل موجة أحاديّة الاتّجاه ⇒ ~نقطة/موجة ⇒ قمّة+قاع واحد فقط. الحلّ: leg صارت تُغذّي **السلسلة المتوسطة الكاملة عبر مُولِّد كسر واحد متّصل** (كثافة كـuseBigBreak) لكن **باتّجاه كلّ موجة من حدّ الـleg** (segLeftTop عبر بحث segLefts) — يميّزه عن useBigBreak (اتّجاه عامّ واحد). عند كلّ حدّ موجة: تصفير حقول الاتّجاه الداخل + started=false ⇒ يُصدِر **بداية الموجة** (قمّة/قاع كبير مُعشَّش، مطابق لقانون المستخدم «بداية كلّ موجة قمّة/قاع كبير-متوسط-صغير»). يزيل تسرّب v2.9.1 (تصفير عند الحدّ) وصفر-نقاط v2.9.1 (لا حقن مرجع مُلغٍ).
 //   v2.9.0 [إصلاح مبدع · تحقيق+تصميم بوكلاء]: leg كان يُظهِر قمّة+قاعًا فقط (حدود leg نادرة: عتبة 45%×3أسابيع). الحلّ: في legLiveBreak (افتراض ON) صارت **كلّ مقاطع leg** تُشتقّ نقاطها الكبيرة من **المتوسطة الفعّالة (mcEff) بالكسر** (كانت للموجة الجارية فقط) ⇒ تعشيش مضمون (زرقاء على برتقاليّة) + ≥قمّتين+قاعين. حدود leg = مرساة اتّجاه/نطاق لكلّ موجة (يميّزه عن useBigBreak العامّ ⇒ الطريقتان تبقيان). legLiveBreak=false ⇒ leg نقيّ احتياطيّ. التجديد (feedPivot.brokeLevel) والنطاق (التاريخ/تاريخ التاريخ، سليم) بلا مساس.
 // ═══ v2.8.1 — [G4 للوسم الحيّ + إسقاط G3 رسميًّا (إتمام ط4)] ═══
@@ -289,11 +295,14 @@ f_waveLen(int nBars) =>
     math.min(math.max(nBars, 1), bar_index + 1)
 
 // أعلى/أدنى سعر ضمن نطاق بارات [leftB..rightB] (يُستدعى عند islast فقط — قليل التكلفة).
+//   [إصلاح buffer] يُقيَّد الطرفُ الأيسر بنافذة التاريخ المضمونة (max_bars_back=5000) ⇒ لا تجاوز buffer التاريخ؛
+//   نطاقٌ أقدم كليًّا من النافذة يُرجِع na فيُتخطّى المقطع القديم (لا crash، لا رسم لتاريخ لا يمكن قياسه).
 f_rangeHiLo(int leftB, int rightB) =>
     float hi = na
     float lo = na
-    if not na(leftB) and not na(rightB) and rightB >= leftB
-        for j = leftB to rightB
+    int safeLeft = na(leftB) ? na : math.max(leftB, bar_index - 4900)
+    if not na(safeLeft) and not na(rightB) and rightB >= safeLeft
+        for j = safeLeft to rightB
             int off = bar_index - j
             if off >= 0
                 hi := na(hi) or high[off] > hi ? high[off] : hi
@@ -459,7 +468,7 @@ if barstate.islast
         int   li       = n - 1
         while li >= 0 and drawn < histDepth
             int legB = array.get(legBars, li)
-            if legB < rightBar                               // طرف leg خلف الحدّ الحاليّ ⇒ ساق متتالية متّصلة
+            if legB < rightBar and bar_index - legB <= 4900  // [إصلاح buffer] طرف leg خلف الحدّ + ضمن نافذة التاريخ المضمونة (تُتخطّى الأرجل الأقدم لتفادي تجاوز buffer في f_buildWave/الرسم)
                 float pL = array.get(legPs, li)
                 [rh, rl] = f_rangeHiLo(legB, rightBar)        // مدى المقطع [legB → rightBar] (ساق واحدة)
                 if not na(rh) and not na(rl)
@@ -623,8 +632,11 @@ method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int tm, int 
     //   لو صُفِّر قبلًا لأعاد تفعيلُ القمّة/القاع القديم ضبطَ المرجع فأبطله. الآن: تُرسم النقطة الكاسرة طبيعيًّا
     //   ثمّ تُصفَّر المراجع ⇒ الموجة الجديدة تقارن بنفسها فتُرسم نقاطها. (تأكيد المستخدم 2026-06-24: «النقطة الكاسرة تُرسم».)
     if brokeLevel
-        self.lastEffTopPrice    := na
-        self.lastEffBottomPrice := na
+        // [#3 · تصحيح نظيف · درس06 س77/148] صفِّر **المرجع المكسور فقط** (يمنع إعادة إطلاق brokeLevel)، وأبقِ **الحارس المعاكس** (قمّة المتوسطة صعودًا / قاعها هبوطًا) حتّى الاستئناف ⇒ ق6/ق7 يكبتان محاور التصحيح، فيُفعَّل التطرّف المُعشَّش وحده عند الاستئناف. الانقلاب الحقيقيّ يُصفّر الاثنين عبر waveDir!=trendDir (س601). كان يُصفّر الاثنين محلّيًّا ⇒ يفتح التصحيح لمحاور زائفة.
+        if self.trendDir == 1
+            self.lastEffBottomPrice := na
+        else if self.trendDir == -1
+            self.lastEffTopPrice := na
 
 // [درس06] إلحاق نقطة متوسطة **خام** (مواضع الرسم: كلّ أزواج قاعدة ب). الفرز فعّال/غير فعّال يتمّ بنسخة mediumEff (feedPivot) موازيةً.
 method appendEff(DegreeLaws self, bool isTop, float price, int bar, int tm) =>
@@ -634,25 +646,29 @@ method appendEff(DegreeLaws self, bool isTop, float price, int bar, int tm) =>
     array.push(self.effectiveTimes,  tm)
 
 // ═════════════════════════════════════════════════════════════════════════════
-// مُولِّد الكسر [درس 06 — قاعدة (ب)] — منطقان **منفصلان** (هبوط/صعود) كي لا يتأثّر أحدهما بإصلاح الآخر.
-//   المُحفِّز = كسر التطرّف الصغير السابق من نوع المرجع. عند الكسر: زوج (المقابل=أدنى/أعلى منذ التصفير، ثم الكاسر) + تصفير.
-//   أوّل-بعد-التصفير يضبط المرجع بلا كسر. كلّ زوج كسر = نقطتان متوسطتان (لا دمج لاحقًا). يُرجع [n, t1..tm2].
+// مُولِّد الكسر [درس 06 — قاعدة (ب)] — آلة حالة **بطورين** (منطقان منفصلان هبوط/صعود).
+//   [#2 · درس06 حرفيًّا] طور الدافعة: يراكم الطرف المتوافق (أعلى قمّة صعودًا/أدنى قاع هبوطًا).
+//   عند كسر التطرّف الصغير المرجع ⇒ يُصدِر ذلك الطرف ويدخل **طور التصحيح**؛ فيه يراكم **أدنى/أعلى نقطة بعد الكسر**
+//   (الطرف المعاكس = «أقلّ سعر بعد الكسر قاع» / «أعلى سعر بعد الكسر قمّة»)، ويُصدِره عند **الاستئناف** (تجاوز الطرف المُصدَر)
+//   ⇒ فعاليّة المتوسطة ضمنيّة. نقطة واحدة لكلّ حدث (n≤1). يُرجع [n, t1..tm2].
 // ═════════════════════════════════════════════════════════════════════════════
 type BreakProc
     bool  started      = false // هل غُذِّي أوّل طرف متوسط (بداية الموجة)؟
     float refTopPrice  = na    // هبوطًا: آخر قمّة صغيرة (مرجع الكسر) — تُحدَّث مع كل قمّة لا تكسر
     float refBotPrice  = na    // صعودًا: آخر قاع صغير (مرجع الكسر)
-    float minSincePrice = na   // هبوطًا: أدنى قاع منذ آخر تصفير (الطرف المقابل) — الأدنى لا الأخير
+    float minSincePrice = na   // أدنى قاع متراكم (الدافعة هبوطًا / التصحيح صعودًا) — الأدنى لا الأخير
     int   minSinceBar  = na
     int   minSinceTime = na
-    float maxSincePrice = na   // صعودًا: أعلى قمّة منذ آخر تصفير
+    float maxSincePrice = na   // أعلى قمّة متراكمة (الدافعة صعودًا / التصحيح هبوطًا)
     int   maxSinceBar  = na
     int   maxSinceTime = na
+    bool  inCorr       = false // [#2] طور التصحيح (بعد الكسر): نتتبّع الطرف المعاكس حتّى الاستئناف
+    float breakPivotP  = na    // [#2] الطرف المتوافق المُصدَر عند الكسر (بوّابة الاستئناف)
 
 newBreakProc() =>
     BreakProc.new()
 
-// ── هبوط: المرجع قمّة (refTop)، المقابل أدنى قاع (minSince). كسر = قمّة تتجاوز refTop ⇒ (قاع=minSince ثم قمّة=الكاسرة) ──
+// ── هبوط (طوران): الدافعة تراكم أدنى قاع (minSince=قاع متوسط). كسر قمّة (top>refTop) ⇒ أصدِر القاع + ادخل التصحيح ⇒ راكِم أعلى قمّة (maxSince=قمّة متوسطة، أعلى بعد الكسر) ⇒ أصدِرها عند استئناف الهبوط (قاع<breakPivotP) ──
 method feedBreakDown(BreakProc self, bool isTop, float price, int bar, int tm) =>
     int   n   = 0
     bool  t1  = false
@@ -672,30 +688,54 @@ method feedBreakDown(BreakProc self, bool isTop, float price, int bar, int tm) =
             b1  := bar
             tm1 := tm
             self.refTopPrice := price
-    else if not isTop
-        if na(self.minSincePrice) or price <= self.minSincePrice  // راكِم أدنى قاع — «أو يساوي» ⇒ عند التساوي يُبقي الأحدث (الأقرب للكسر)
-            self.minSincePrice := price
+    else if not self.inCorr                                       // [#2] طور الدافعة (هبوط): راكِم أدنى قاع = القاع المتوسط
+        if not isTop
+            if na(self.minSincePrice) or price <= self.minSincePrice  // أدنى قاع — «أو يساوي» يُبقي الأحدث
+                self.minSincePrice := price
+                self.minSinceBar   := bar
+                self.minSinceTime  := tm
+        else if not na(self.refTopPrice) and price > self.refTopPrice  // كسر قمّة صغيرة ⇒ أصدِر القاع المتوسط (أدنى قبل الكسر)، ادخل التصحيح
+            n   := 1
+            t1  := false
+            p1  := self.minSincePrice
+            b1  := self.minSinceBar
+            tm1 := self.minSinceTime
+            self.breakPivotP   := self.minSincePrice              // بوّابة الاستئناف = القاع المُصدَر
+            self.inCorr        := true
+            self.maxSincePrice := price                           // بذرة قمّة التصحيح = الكاسر
+            self.maxSinceBar   := bar
+            self.maxSinceTime  := tm
+            self.refTopPrice   := na
+            self.minSincePrice := na
+            self.minSinceBar   := na
+            self.minSinceTime  := na
+        else
+            self.refTopPrice := price                             // لا كسر ⇒ المرجع = آخر قمّة
+    else                                                          // [#2] طور التصحيح (ارتداد صعوديّ): راكِم أعلى قمّة = القمّة المتوسطة (أعلى بعد الكسر)
+        if isTop
+            if na(self.maxSincePrice) or price >= self.maxSincePrice
+                self.maxSincePrice := price
+                self.maxSinceBar   := bar
+                self.maxSinceTime  := tm
+        else if not na(self.breakPivotP) and price < self.breakPivotP  // استئناف الهبوط (قاع تحت القاع المتوسط) ⇒ أصدِر القمّة المتوسطة (أعلى التصحيح)
+            n   := 1
+            t1  := true
+            p1  := self.maxSincePrice
+            b1  := self.maxSinceBar
+            tm1 := self.maxSinceTime
+            self.inCorr        := false
+            self.refTopPrice   := na
+            self.minSincePrice := price                           // بذرة أدنى الدافعة الجديدة = الكاسر (الاستئناف)
             self.minSinceBar   := bar
             self.minSinceTime  := tm
-    else if not na(self.refTopPrice) and price > self.refTopPrice  // كسر قمّة ⇒ زوج، صفِّر
-        n   := 2
-        t1  := false
-        p1  := self.minSincePrice
-        b1  := self.minSinceBar
-        tm1 := self.minSinceTime
-        t2  := true
-        p2  := price
-        b2  := bar
-        tm2 := tm
-        self.refTopPrice   := na
-        self.minSincePrice := na
-        self.minSinceBar   := na
-        self.minSinceTime  := na
-    else
-        self.refTopPrice := price                                 // لا كسر ⇒ المرجع = آخر قمّة
+            self.maxSincePrice := na
+            self.maxSinceBar   := na
+            self.maxSinceTime  := na
+            self.breakPivotP   := na
+        // else: قاع ارتداد فوق القاع المتوسط ⇒ ما زلنا في التصحيح، تجاهل
     [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
 
-// ── صعود (مرآة): المرجع قاع (refBot)، المقابل أعلى قمّة (maxSince). كسر = قاع تتجاوزه للأسفل ⇒ (قمّة=maxSince ثم قاع=الكاسر) ──
+// ── صعود (مرآة، طوران): الدافعة تراكم أعلى قمّة (maxSince=قمّة متوسطة). كسر قاع (bot<refBot) ⇒ أصدِر القمّة + ادخل التصحيح ⇒ راكِم أدنى قاع (minSince=قاع متوسط، أدنى بعد الكسر) ⇒ أصدِره عند استئناف الصعود (قمّة>breakPivotP) ──
 method feedBreakUp(BreakProc self, bool isTop, float price, int bar, int tm) =>
     int   n   = 0
     bool  t1  = false
@@ -715,27 +755,51 @@ method feedBreakUp(BreakProc self, bool isTop, float price, int bar, int tm) =>
             b1  := bar
             tm1 := tm
             self.refBotPrice := price
-    else if isTop
-        if na(self.maxSincePrice) or price >= self.maxSincePrice  // راكِم أعلى قمّة — «أو يساوي» ⇒ عند التساوي يُبقي الأحدث (الأقرب للكسر)
-            self.maxSincePrice := price
+    else if not self.inCorr                                       // [#2] طور الدافعة (صعود): راكِم أعلى قمّة = القمّة المتوسطة
+        if isTop
+            if na(self.maxSincePrice) or price >= self.maxSincePrice  // أعلى قمّة — «أو يساوي» يُبقي الأحدث
+                self.maxSincePrice := price
+                self.maxSinceBar   := bar
+                self.maxSinceTime  := tm
+        else if not na(self.refBotPrice) and price < self.refBotPrice  // كسر قاع صغير ⇒ أصدِر القمّة المتوسطة (أعلى قبل الكسر)، ادخل التصحيح
+            n   := 1
+            t1  := true
+            p1  := self.maxSincePrice
+            b1  := self.maxSinceBar
+            tm1 := self.maxSinceTime
+            self.breakPivotP   := self.maxSincePrice              // بوّابة الاستئناف = القمّة المُصدَرة
+            self.inCorr        := true
+            self.minSincePrice := price                           // بذرة أدنى التصحيح = الكاسر
+            self.minSinceBar   := bar
+            self.minSinceTime  := tm
+            self.refBotPrice   := na
+            self.maxSincePrice := na
+            self.maxSinceBar   := na
+            self.maxSinceTime  := na
+        else
+            self.refBotPrice := price                             // لا كسر ⇒ المرجع = آخر قاع
+    else                                                          // [#2] طور التصحيح (هبوط): راكِم أدنى قاع = القاع المتوسط (أدنى بعد الكسر)
+        if not isTop
+            if na(self.minSincePrice) or price <= self.minSincePrice
+                self.minSincePrice := price
+                self.minSinceBar   := bar
+                self.minSinceTime  := tm
+        else if not na(self.breakPivotP) and price > self.breakPivotP   // استئناف الصعود (قمّة فوق القمّة المتوسطة) ⇒ أصدِر القاع المتوسط (أدنى التصحيح)
+            n   := 1
+            t1  := false
+            p1  := self.minSincePrice
+            b1  := self.minSinceBar
+            tm1 := self.minSinceTime
+            self.inCorr        := false
+            self.refBotPrice   := na
+            self.maxSincePrice := price                           // بذرة أعلى الدافعة الجديدة = الكاسر (الاستئناف)
             self.maxSinceBar   := bar
             self.maxSinceTime  := tm
-    else if not na(self.refBotPrice) and price < self.refBotPrice // كسر قاع ⇒ زوج، صفِّر
-        n   := 2
-        t1  := true
-        p1  := self.maxSincePrice
-        b1  := self.maxSinceBar
-        tm1 := self.maxSinceTime
-        t2  := false
-        p2  := price
-        b2  := bar
-        tm2 := tm
-        self.refBotPrice   := na
-        self.maxSincePrice := na
-        self.maxSinceBar   := na
-        self.maxSinceTime  := na
-    else
-        self.refBotPrice := price                                 // لا كسر ⇒ المرجع = آخر قاع
+            self.minSincePrice := na
+            self.minSinceBar   := na
+            self.minSinceTime  := na
+            self.breakPivotP   := na
+        // else: قمّة ارتداد تحت القمّة المتوسطة ⇒ ما زلنا في التصحيح، تجاهل
     [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
 
 // تغذية المتوسطة من نقطة صغيرة فعّالة — تختار منطق الاتجاه (هبوط/صعود) وتُلحِق المخرَجات **خامًا** (appendEff، بلا دمج).
@@ -808,7 +872,17 @@ f_buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL,
                 rLoB := j
                 rLoT := time[o]
             else if scD == 1
-                if high[o] > rHiP
+                if wdir == -1 and low[o] < nz(sd.lastEffBottomPrice, rLoP)  // [ق7+ق5 · استئناف] موجة هابطة: نزل السعرُ تحت **آخر قاع فعّال** (lastEffBottom، لا آخر قاع مكتشَف قد يكون مُسقَطًا) ⇒ القمّة (rHiP) صنعت قاعًا أدنى من السابق ⇒ أصدِرها فورًا (فعاليّة+تتابُع معًا). فولباك rLoP عند البداية. بوّابة التصحيح تبقى للطرف الآخر.
+                    sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
+                    f_feedMedium(sd, mb, md, me, wdir)
+                    scD  := -1
+                    rLoP := low[o]
+                    rLoB := j
+                    rLoT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if high[o] > rHiP
                     rHiP := high[o]
                     rHiB := j
                     rHiT := time[o]
@@ -835,7 +909,17 @@ f_buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL,
                         cpHi := na
                         cpLo := na
             else
-                if low[o] < rLoP
+                if wdir == 1 and high[o] > nz(sd.lastEffTopPrice, rHiP)   // [ق6+ق4 · استئناف] موجة صاعدة: تجاوز السعرُ **آخر قمّة فعّالة** (lastEffTop، لا آخر قمّة مكتشَفة قد تكون مُسقَطة) ⇒ القاع (rLoP) صنع قمّةً أعلى من السابقة ⇒ أصدِره فورًا (فعاليّة+تتابُع معًا). فولباك rHiP عند البداية (لا قمّة فعّالة بعد). بوّابة التصحيح تبقى للطرف الآخر.
+                    sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
+                    f_feedMedium(sd, mb, md, me, wdir)
+                    scD  := 1
+                    rHiP := high[o]
+                    rHiB := j
+                    rHiT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if low[o] < rLoP
                     rLoP := low[o]
                     rLoB := j
                     rLoT := time[o]
@@ -861,16 +945,29 @@ f_buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL,
                         ccD  := 0
                         cpHi := na
                         cpLo := na
-    if wdir == 1 and not na(mb.maxSincePrice)
-        md.pendingType  := 1
-        md.pendingPrice := mb.maxSincePrice
-        md.pendingBar   := mb.maxSinceBar
-        md.pendingTime  := mb.maxSinceTime
-    else if wdir == -1 and not na(mb.minSincePrice)
-        md.pendingType  := -1
-        md.pendingPrice := mb.minSincePrice
-        md.pendingBar   := mb.minSinceBar
-        md.pendingTime  := mb.minSinceTime
+    // [#2] المعلّق (الطرف الحيّ) حسب الطور: الدافعة ⇒ الطرف المتوافق · التصحيح (inCorr) ⇒ الطرف المعاكس المتراكم
+    if wdir == 1
+        if mb.inCorr and not na(mb.minSincePrice)                 // تصحيح صعود ⇒ معلّق قاع (أدنى التصحيح الجاري)
+            md.pendingType  := -1
+            md.pendingPrice := mb.minSincePrice
+            md.pendingBar   := mb.minSinceBar
+            md.pendingTime  := mb.minSinceTime
+        else if not na(mb.maxSincePrice)                          // دافعة صعود ⇒ معلّق قمّة (أعلى الدافعة)
+            md.pendingType  := 1
+            md.pendingPrice := mb.maxSincePrice
+            md.pendingBar   := mb.maxSinceBar
+            md.pendingTime  := mb.maxSinceTime
+    else if wdir == -1
+        if mb.inCorr and not na(mb.maxSincePrice)                 // تصحيح هبوط ⇒ معلّق قمّة (أعلى التصحيح الجاري)
+            md.pendingType  := 1
+            md.pendingPrice := mb.maxSincePrice
+            md.pendingBar   := mb.maxSinceBar
+            md.pendingTime  := mb.maxSinceTime
+        else if not na(mb.minSincePrice)                          // دافعة هبوط ⇒ معلّق قاع (أدنى الدافعة)
+            md.pendingType  := -1
+            md.pendingPrice := mb.minSincePrice
+            md.pendingBar   := mb.minSinceBar
+            md.pendingTime  := mb.minSinceTime
     wdir
 
 // [درس03] إضافة نقطة لسلسلة موحّدة (متوسطة/صغيرة): إزالة المتطابق عند الحدّ + فرض التناوب (الأكثر تطرّفًا) ⇒ لا قمّتان/قاعان متتاليان
@@ -1084,7 +1181,7 @@ if barstate.islast
                                 covd := true
             if showMedium
                 if liveTip
-                    f_drawMedCircle(medCircles, t, p, cMedPendFill, cMedPendBorder, medCircleSize)
+                    f_drawMedCircle(medCircles, t, p, cMed, cMedBorder, medCircleSize)   // [ط1·#2] الطرف الجاري (أعمق/أعلى نقطة في التصحيح الحاليّ) يُرسَم كنقطة متوسطة عاديّة — لا رماديّ (feedPivot يؤكّده عند مجيء المعاكس؛ الأعمق مضمون بالمُراكِم)
                 else if eff and not covd
                     f_drawMedCircle(medCircles, t, p, cMed, cMedBorder, medCircleSize)
                 else if eff and covd
@@ -1212,6 +1309,8 @@ if barstate.islast
                             largeBreak.maxSinceBar   := na
                             largeBreak.maxSinceTime  := na
                         largeBreak.started := false
+                        largeBreak.inCorr := false                 // [v2.12.0] لا تسرّب طور التصحيح عبر حدّ الموجة (حقلا الطورين مستقلّان عن الاتّجاه)
+                        largeBreak.breakPivotP := na
                         prevSegDir := segDir
                     if segDir == -1
                         [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
