@@ -6,7 +6,8 @@ import Jassar_Mahmoud/JW_Degrees/1 as jwd                     // [ط1] الدر�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.19.0 — [درس09 تجدّد **متكرّر**: عدّة انقلابات متتالية (صاعد→هابط→صاعد…) بموجات فرعيّة موحّدة كالتواريخ] ═══
+// ═══ الإصدار: v2.19.1 — [إصلاح اللُّحمة: اتجاه الساق الأولى flDir لا twd الصافي ⇒ الحدّ الأوّل عند القمّة 30760] ═══
+//   v2.19.1 [إصلاح اللُّحمة · تركيب 4 وكلاء (متوسطة/كبيرة/صغيرة/انقلاب)]: كتلة البناء كانت تبذر f_firstRevBar وتقرّر نوع التطرّف بـ**twd الصافي** (=-1 هابط لأنّ القمّة أقدم من القاع)، بينما **الساق الأولى صاعدة** (wLb قاع⇒30760 قمّة). فكان يبحث عن قاع حدًّا أوّل في نافذة مقتطعة مبكّرًا ⇒ لا تقسيم فتُبتلع القمّة 30760. الإصلاح: `flDir` (اتجاه الساق الأولى من segLeftTop[0]) يبذر البحث ونوع التطرّف، ويُقلَب بعد كلّ تقسيمة (قمّة→قاع→قمّة…). التتبّع: curSubL=[wLb, 30760, 28679]. (اكتشاف ثانويّ مؤجَّل: إرساء الافتتاح يُتخطّى في الوضع اليدويّ لأنّ segLeftPx[0]=na.)
 //   v2.19.0 [التجدّد المتكرّر · f_firstRevBar + curSubL/curSubPx]: الموجة الجارية تُقسَم تكراريًّا عند **كلّ** كسر مستوى متوسط (حلقة حتّى 6): كلّ حدّ = تطرّف المقطع قبل الانقلاب. كتلة الرسم توحّد كلّ المقاطع الفرعيّة في **حلقة واحدة كحلقة التواريخ** (بناء+إرساء+دفع صغيرة/متوسطة لكلّ مقطع) ⇒ يملأ فراغ الارتدادات المتتالية **ويحلّ رسم متوسطة الموجة ب**. أُزيل التقسيم الأحاديّ (smallDegB…) و f_lastRevBar (ميّت). المقطع الأخير = الجاري (طرفه المعلّق يبقى للحيّ). مفتاح renewFwd. الكبيرة للموجات الفرعيّة = خطوة تالية (segLeftTop).
 //   v2.18.1 [تصحيح اللُّحمة · تحقّق 3 وكلاء + ملاحظة المستخدم]: الموجة ب (الهابطة) تبدأ من **أعلى قمّة في الموجة (splitBar = أعلى high)** = 30760 (نهاية الصاعدة/بداية الهابطة، درس05: أوّل نقطة قمّة)، لا من مستوى الكسر (30231، وسط الهبوط) الذي كان يُنتج قمّةً زائفة (29744) + قاعين عند اللُّحمة. الكسر يبقى المُحفِّز، والموجة تمتدّ من القمّة. الوكيل3 أكّد بصريًّا امتلاء الفراغ والتماسك.
 //   v2.18.0 [درس09 · تجدّد للأمام · spec_lesson09_renewal_forward · قواعد المستخدم 2026-07-12]: عند كسر مستوى المتوسط (revBar عبر f_lastRevBar) تُقسَم الموجة الجارية: أ[wLb..revBar] بالاتجاه الأصليّ (تبقى تاريخًا) + **ب[revBar..الآن] بالقوانين المعاكسة للأمام** ⇒ تُرسَم درجاتها فتملأ فراغ التصحيح الجاري. مقطعان مستقلّان (buildWave نظيف لكلّ، لا قلب وسط مقطع = يتجنّب فساد م3-ج المرفوض). الماضي ثابت. مفتاح renewFwd. تشخيص مؤقّت (خليّة صفراء revBar/curRevB).
@@ -532,23 +533,25 @@ if barstate.islast
     array.push(curSubL, wLb)
     array.push(curSubPx, array.size(segLeftPx) > 0 ? array.get(segLeftPx, 0) : na)
     int ssL = wLb
+    // [إصلاح اللُّحمة · وكيل الانقلاب] اتجاه **الساق الأولى** لا الاتجاه الصافي twd: طرف الـleg قمّة⇒هابطة(-1)·قاع⇒صاعدة(+1) (نفس اصطلاح س866). يُستعمل لبذر البحث ونوع التطرّف، ويُقلَب بعد كلّ تقسيمة.
+    int flDir = (array.size(segLeftTop) > 0 and array.get(segLeftTop, 0)) ? -1 : 1
     for gi = 0 to 5                                                    // حدّ أقصى 6 انقلابات في الموجة الجارية
         jwd.DegreeLaws tsd = jwd.newDegreeLaws()
         jwd.DegreeLaws tmd = jwd.newDegreeLaws()
         jwd.DegreeLaws tme = jwd.newDegreeLaws()
         jwd.BreakProc  tmb = jwd.newBreakProc()
-        int twd = jwd.buildWave(tsd, tmd, tme, tmb, ssL, wRb, useValid, minCorr)
+        jwd.buildWave(tsd, tmd, tme, tmb, ssL, wRb, useValid, minCorr)   // يملأ tme (نقاط المتوسط الفعّالة) — الاتجاه من flDir لا من المُرجَع
         bool cont = false
         if renewFwd and array.size(tme.effectiveBars) > 1
             array<bool> allT = array.new<bool>(array.size(tme.effectiveBars), true)
-            int rb = f_firstRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, twd)   // **أوّل** انقلاب من ssL
+            int rb = f_firstRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, flDir)   // **أوّل** انقلاب من ssL (ببذر اتجاه الساق الأولى flDir لا twd الصافي)
             if not na(rb) and rb > ssL and rb < wRb
                 int   splitBar = rb
                 float ext      = na
                 for j = ssL to rb
                     int o = bar_index - j
                     if o >= 0
-                        if twd == 1
+                        if flDir == 1                              // ساق أولى صاعدة ⇒ تنتهي بقمّة (أعلى high)؛ هابطة ⇒ بقاع (أدنى low)
                             if na(ext) or high[o] > ext
                                 ext := high[o]
                                 splitBar := j
@@ -559,8 +562,9 @@ if barstate.islast
                 if splitBar > ssL and splitBar < wRb
                     array.push(curSubL, splitBar)
                     array.push(curSubPx, ext)
-                    ssL  := splitBar
-                    cont := true
+                    ssL   := splitBar
+                    flDir := -flDir                                // كلّ حدّ = تطرّف معاكس ⇒ اقلب اتجاه الساق للمقطع التالي (قمّة→قاع→قمّة…)
+                    cont  := true
         if not cont
             break
     // المقطع الأخير (= الموجة الجارية) في الدرجات الرئيسة — للّوحة و curWdir (كلّ المقاطع تُبنى وتُرسَم في كتلة الرسم)
