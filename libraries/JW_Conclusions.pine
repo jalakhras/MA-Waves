@@ -1,0 +1,142 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Conclusions — ط3: الاستنتاجات ومراحل السوق (الدرسان 10+11) — المنطق النقيّ المعمّم
+//   مُستخرَجة بايتيًّا من J-Waves M1 (فرع m3/gaps-and-scale) وفق docs/build/spec_lib_JW_Conclusions.md
+//   حسم المستخدم (2026-07-13): **استخراج بايتيّ أوّلًا** + **استيراد مكتبة→مكتبة** (ط3 فوق ط2).
+//   المُصدَّر: قوّة السيولة (د10 — تداخل التطرّفات) + آلة المراحل الخمس (د11 — داو ABC، معمّمة زمنيًّا).
+//   العوالم المُمرَّرة وسائطَ: useDistrib فقط (كان مدخلًا عالميًّا). jwl.f_liqPairAt عبر الاستيراد.
+//   يبقى في المؤشّر: f_activeDir·f_liqBroken (ط2/د09) · f_stTxt/f_phTxt (تنسيق) · التجميع/الدخول · اللوحة · المدخلات.
+//   OHLC/time/bar_index بالإزاحة تعمل داخل المكتبة (v6).
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Conclusions", overlay = true)
+import Jassar_Mahmoud/JW_Lines/1 as jwl
+
+// ─── مساعد إزاحة الخطّ (منقول مع ط3، مستهلكه الوحيد f_phaseAt) — بايتيّ ───
+//   إزاحة إسقاط خطّ السيولة (اتّساق مع الخطّ المرسوم). يُعرَّف قبل f_phaseAt (تعريف-قبل-استعمال).
+export f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
+    float adj = 0.0
+    for k = b1 to b2
+        int ok = bar_index - k
+        if ok >= 0
+            float lv = wp1 + slope * (k - b1)
+            adj := math.max(adj, wantTop ? high[ok] - lv : lv - low[ok])
+    adj
+
+// [درس10] قوة السيولة لكلّ درجة = مدى تداخل تطرّفاتها: المرجع = الطرف المعاكس قبل الأخير بـ3 مواضع (قاع4↔قمّة1).
+//   3 حالات (الدرس10 §قوّة، بلا رقم سحريّ — الذيل↔الجسم): صعودًا والمرجع قمّة high[o2]:
+//   • جسم القاع تحت المرجع (توغّل > ذيل) ⇒ **ضعيفة** (-1، تصحيح متوقَّع). • ذيلٌ لمَس/تجاوز والجسم صمد فوقه ⇒ **قويّة** (1، اختبار بذيل واحد، الأقوى).
+//   • لم يلمس البتّة (فوق المرجع كلّه) ⇒ **متوسطة** (2، تباعُد). هبوط: مرآة (المرجع قاع، الجسم/الذيل أعلى). 0 = غير محدّد.
+export f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    int st = 0
+    array<int>  eb = array.new<int>()
+    array<bool> et = array.new<bool>()
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i)
+            array.push(eb, array.get(aBar, i))
+            array.push(et, array.get(aTop, i))
+    int m = array.size(eb)
+    bool up = wdir == 1
+    int  last = -1
+    int  li = m - 1
+    while li >= 0 and last < 0
+        if array.get(et, li) == (not up)                  // صعود⇒آخر قاع · هبوط⇒آخر قمّة
+            last := li
+        li := li - 1
+    int ref = last >= 3 ? last - 3 : last >= 1 ? last - 1 : -1   // المرجع: الطرف المعاكس قبل 3 مواضع إن توفّر، وإلّا الأقرب (للدرجة قليلة النقاط كالكبيرة) — التناوب يضمن أنّه معاكس
+    if ref >= 0
+        int o1 = bar_index - array.get(eb, last)
+        int o2 = bar_index - array.get(eb, ref)
+        if o1 >= 0 and o2 >= 0
+            if up
+                float bodyLo = math.min(open[o1], close[o1])
+                st := bodyLo < high[o2] ? -1 : low[o1] <= high[o2] ? 1 : 2   // جسم تحت المرجع⇒ضعيفة · ذيل لمَس وجسم صمد⇒قويّة(اختبار) · لم يلمس⇒متوسطة(تباعد)
+            else
+                float bodyHi = math.max(open[o1], close[o1])
+                st := bodyHi > low[o2] ? -1 : high[o1] >= low[o2] ? 1 : 2     // مرآة الهبوط
+    st
+
+// [درس11/م11-ب] آلة المراحل (داو/إليوت ABC) — صعودًا (مرآة للهبوط):
+//   • مشاركة عامّة: السعر يحترم خطّ السيولة (الدعم المائل من jwl.f_liqPair).
+//   • ذعر (A): **السعر الآن على الجانب المكسور من خطّ السيولة المرسوم** (صعود⇒تحت الدعم · هبوط⇒فوق المقاومة) — موضع حاليّ لا latch تاريخيّ.
+//   • يأس (C): تطرّف مضادّ **أعمق** بعد ارتداد B (قاع أدنى صعودًا / قمّة أعلى هبوطًا) بعد بار الكسر.
+//   • تجميع: ارتداد عن الأعمق بعد الكسر (تبَنٍّ عرضيّ قبل استئناف المشاركة). • تصريف [مصعب2]: كُسِر آخر دعم صغير (صعودًا)/مقاومة صغيرة (هبوطًا) والسيولة الكبرى سليمة (قُبيل الكسر الكامل).
+//   الانقلاب (مشاركة معاكسة) يقوده كسر المستوى (f_activeDir يقلب wdir ⇒ زوج/سيولة جديدة ⇒ مشاركة جديدة). wdir = الاتجاه الفعّال للدرجة.
+//   يُرجِع: 0 مشاركة · 1 ذعر · 2 يأس · 3 تجميع · 4 تصريف · -1 لا اتجاه (—). [اتجاه بلا خطّ سيولة ⇒ مشاركة افتراضيًّا، لا «—»]
+// [2-أ · تعميم زمنيّ للمرحلة] يحسب مرحلة داو للدرجة كما كانت عند atBar (لبوّابة الإشارات التاريخيّة).
+//   (أ) ذيول النقاط: تبقى high[bar_index-aBar] + مرشّح aBar<=atBar. (ب) لحظة «الآن»: تُزاح إلى atBar. f_phaseAt(...,bar_index) ≡ f_phase الأصليّة بايتيًّا.
+//   useDistrib صار وسيطًا (كان مدخلًا عالميًّا في المؤشّر) — لا عالميّ آخر يُقرأ.
+export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar, bool useDistrib) =>
+    int  ph = wdir != 0 ? 0 : -1                              // اتجاه موجود بلا خطّ سيولة (الكبيرة قليلة النقاط) ⇒ مشاركة افتراضيًّا (ترند بلا كسر) · لا اتجاه ⇒ —
+    bool wantTop = wdir == -1
+    [i1, i2] = jwl.f_liqPairAt(aBar, aTop, aEff, wdir, atBar)
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            ph := 0                                                  // سيولة موجودة ⇒ مشاركة افتراضيًّا
+            float w1 = wantTop ? high[o1] : low[o1]
+            float w2 = wantTop ? high[o2] : low[o2]
+            int   b1 = array.get(aBar, i1)
+            int   b2 = array.get(aBar, i2)
+            float slope = b2 != b1 ? (w2 - w1) / (b2 - b1) : 0.0
+            float wp1a  = wantTop ? w1 + f_liqAdj(b1, b2, w1, slope, wantTop) : w1 - f_liqAdj(b1, b2, w1, slope, wantTop)   // نفس إزاحة الرسم (اتّساق مع الخطّ المرسوم)
+            // [إصلاح المرحلة] = موضع السعر **الحاليّ** من خطّ السيولة المرسوم (المائل) — لا latch تاريخيّ يَعلَق، ولا عتبة أفقيّة تفوت:
+            //   تحت المقاومة/فوق الدعم الآن ⇒ مشاركة · تجاوزه الآن ⇒ ذعر. يطابق ما يراه المستخدم على الخطّ نفسه (يتحدّث مع السعر/الخطوط الجديدة).
+            float lineNow   = wp1a + slope * (atBar - b1)             // [2-أ] قيمة الخطّ المرسوم عند atBar (بدل bar_index)
+            // [درس11 — محفّز المرحلة] كسر المرحلة = إغلاق خلف الخطّ **بأكثر من نصف الجسم** (منتصف الجسم يتجاوز الخطّ) — لا لمسة ذيل (تلك للاستخراج). فصلٌ عن عتبة الاستخراج (فتيل) والبنيويّ (شمعتان).
+            int   oAt       = bar_index - atBar                       // [2-أ] إزاحة بار التقييم
+            float midNow    = (open[oAt] + close[oAt]) / 2            // [2-أ] منتصف جسم شمعة atBar (بدل الحاليّة)
+            bool  nowBroken = wantTop ? (midNow > lineNow) : (midNow < lineNow)
+            int   brkBar = -1
+            if nowBroken
+                if atBar >= b2 + 1                                    // [2-أ] حارس: المدى صالح ⇒ ابحث بداية الكسر في [b2+1, atBar]
+                    for k = b2 + 1 to atBar                           // مكسور عند atBar ⇒ ابحث بداية الكسر (أوّل تجاوز بنصف الجسم) لعدّ يأس/تجميع
+                        int ok = bar_index - k
+                        if ok >= 0 and brkBar < 0
+                            float lk  = wp1a + slope * (k - b1)
+                            float mk  = (open[ok] + close[ok]) / 2
+                            if wantTop ? (mk > lk) : (mk < lk)
+                                brkBar := k
+                else                                                 // [2-أ] atBar==b2 (حدّ): يطابق سلوك الأصل المعكوس (يقيّم شمعة atBar وحدها)
+                    brkBar := atBar
+            if brkBar >= 0
+                ph := 1                                              // ذعر (كُسِرت السيولة)
+                float aExt    = na                                   // قاع الذعر A (أوّل تطرّف مضادّ بعد الكسر)
+                float deepExt = na                                   // الأعمق (قاع أدنى صعودًا / قمّة أعلى هبوطًا)
+                float lastExt = na
+                int   cnt = 0
+                int   n = array.size(aBar)
+                for j = 0 to (n > 0 ? n - 1 : 0)
+                    if n > 0 and array.get(aEff, j) and array.get(aTop, j) == wantTop and array.get(aBar, j) > brkBar and array.get(aBar, j) <= atBar
+                        int oj = bar_index - array.get(aBar, j)
+                        if oj >= 0
+                            float wj = wantTop ? high[oj] : low[oj]
+                            aExt    := na(aExt) ? wj : aExt
+                            deepExt := na(deepExt) ? wj : (wantTop ? math.max(deepExt, wj) : math.min(deepExt, wj))
+                            lastExt := wj
+                            cnt := cnt + 1
+                if cnt >= 2
+                    bool recovered = wantTop ? (lastExt < deepExt) : (lastExt > deepExt)   // ارتداد عن الأعمق ⇒ تبَنٍّ
+                    bool deepened  = wantTop ? (deepExt > aExt) : (deepExt < aExt)           // تطرّف أعمق من A (C)
+                    if recovered
+                        ph := 3                                      // تجميع (عرضيّ بعد القاع/القمّة، قبل استئناف المشاركة)
+                    else if deepened
+                        ph := 2                                      // يأس (C، تطرّف أعمق بعد ارتداد B)
+            else if useDistrib                                      // [مصعب2] السيولة سليمة (لم تُكسَر) ⇒ افحص التصريف: كسر آخر دعم/مقاومة صغير قُبيل الكسر الكامل
+                // تصريف يبدأ بكسر آخر قاع (صعودًا) / آخر قمّة (هبوطًا) للدرجة — كسر بنيويّ فعليّ لا مجرّد «قمّة أدنى» (أدقّ فراكتاليًّا، أقلّ زيفًا)
+                bool  wantSup = wdir == 1                            // صعود ⇒ الدعم = القيعان · هبوط ⇒ المقاومة = القمم
+                float lastPiv = na                                  // آخر نقطة دعم/مقاومة فعّالة للدرجة (الأحدث زمنيًّا)
+                int   nt = array.size(aBar)
+                for j = 0 to (nt > 0 ? nt - 1 : 0)
+                    if nt > 0 and array.get(aEff, j) and array.get(aTop, j) == (not wantSup) and array.get(aBar, j) <= atBar   // صعود ⇒ قيعان (aTop=false) · هبوط ⇒ قمم (aTop=true)
+                        int oj = bar_index - array.get(aBar, j)
+                        if oj >= 0
+                            lastPiv := wantSup ? low[oj] : high[oj]
+                if not na(lastPiv) and (wantSup ? (midNow < lastPiv) : (midNow > lastPiv))   // [F2] كسر بنصف الجسم (midNow) لا الفتيل — اتّساق عتبة المرحلة
+                    ph := 4                                          // تصريف (كُسِر آخر دعم/مقاومة صغير بنصف الجسم والسيولة سليمة ⇒ قُبيل الكسر الكامل)
+    ph
+
+// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index) — مطابق بايتيًّا للأصل. useDistrib يُمرَّر.
+export f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, bool useDistrib) =>
+    f_phaseAt(aBar, aTop, aEff, wdir, bar_index, useDistrib)
