@@ -8,7 +8,8 @@ import Jassar_Mahmoud/JW_Conclusions/1 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.21.0 — [فصل ط3: JW_Conclusions (قوّة السيولة + المراحل) + f_liqAdj] ═══
+// ═══ الإصدار: v2.21.1 — [تحسين ترتيب الإعدادات: اللوحات معًا؛ الموجات ملاصقة للدرجات — تجميليّ] ═══
+//   v2.21.1 [تحسين ترتيب الإعدادات · طلب المستخدم]: نُقِلت كتلة grpFH (مساعد الإطار) لتجاور grpPanel (لوحة القرار) ⇒ اللوحات (مساعد الإطار+القرار) معًا؛ والموجات (grpWave) ملاصقة للدرجات (grpSmall). أُعيدت تسمية نصّ المجموعتين إلى «🧭 اللوحات · مساعد الإطار» و«🧭 اللوحات · القرار». تجميليّ بحت (أسماء المتغيّرات/القيم/الهيكل مطابقة حرفيًّا، لا أثر على المنطق/التصريف).
 //   v2.21.0 [فصل ط3 · spec_lib_JW_Conclusions]: قوّة السيولة (f_liqStrength) + المراحل (f_phaseAt/f_phase) + f_liqAdj انتقلت إلى مكتبة jwc (المكتبة الرابعة، تستورد jwl)؛ المؤشّر يستوردها (jwc.* + تمرير useDistrib وسيطًا). **يبقى في المؤشّر:** f_activeDir (رصد كسر المستوى، د09) + f_liqBroken + f_stTxt/f_phTxt + اشتقاق الاستنتاجات/اللوحة. الآن 4 مكتبات: jwf(ط0)+jwd(ط1)+jwl(ط2)+jwc(ط3). تغيير هيكليّ (فصل، لا أثر منطقيّ).
 //   v2.20.1 [تنظيم المدخلات · طلب المستخدم]: أُعيد ترتيب الـ128 مدخلًا في **كتل حسب الطبقة** (عامّ → ط0 الموجة/الإطار → ط1 صغيرة/متوسطة/كبيرة → ط2 الخطوط → ط3 المراحل/اللوحة → ط4 المناطق/الإشارات → وصفيّ إليوت)، كلّ مجموعة كتلةً واحدة (منطق+إظهار+ألوان+أحجام). أسماء الأقسام ببادئة الطبقة+إيموجي؛ تسميات المدخلات **بلا رموز** (أُزيل ◈/↳/✦ من التسمية، بقيت في tooltip). تغيير تجميليّ بحت (أسماء المتغيّرات/القيم/الهيكل مطابقة حرفيًّا، لا أثر على المنطق/التصريف).
 //   v2.20.0 [فصل ط2 · spec_lib_JW_Lines · مشاهدة د08+مراجعة مصعب2]:
@@ -132,10 +133,6 @@ bool   showHist  = input.bool(true, "Historical-wave bounds / حدود المو�
 bool   showHoh   = input.bool(true, "History-of-history bounds / حدود تاريخ التاريخ", group = grpWave, tooltip = "يُظهر/يُخفي مستطيل موجة «تاريخ التاريخ» فقط — القمم/القيعان تبقى مرسومة.")
 bool   showOlder = input.bool(true, "Older-history bounds / حدود التاريخ الأقدم", group = grpWave, tooltip = "يُظهر/يُخفي مستطيلات التاريخ الأقدم — القمم/القيعان تبقى مرسومة.")
 
-// ══════════════════════════ ط0 · 🧪 مساعد الإطار / Frame Helper ══════════════════════════
-string grpFH = "ط0 · 🧪 مساعد الإطار / Frame Helper"
-string fhPos        = input.string("Top L", "Frame-helper position / موضع مساعد الإطار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpFH)
-
 // ══════════════════════════ ط1 · 🔴 الصغيرة / Small ══════════════════════════
 string grpSmall = "ط1 · 🔴 الصغيرة / Small"
 int    minCorr   = input.int(2, "Correction candles to confirm / شموع التصحيح للتأكيد", minval = 1, maxval = 5, group = grpSmall, tooltip = "[درس 05] شمعتان صحيحتان في اتجاه التصحيح.")
@@ -212,8 +209,12 @@ int    liqExtend = input.int(24, "Liquidity extension (candles) / مدى امت�
 string grpPhase  = "ط3 · 📊 المراحل / Phases"
 bool   useDistrib = input.bool(true, "Distribution phase (pre-break topping) / مرحلة التصريف (قُبيل الكسر)", group = grpPhase, tooltip = "[مصعب2] قُبيل كسر السيولة الكبرى، إن كُسِر آخر دعم صغير (صعودًا) / آخر مقاومة صغيرة (هبوطًا) والسيولة سليمة ⇒ «تصريف» (صعودًا) / «تجميع» (هبوطًا) بدل «مشاركة». كسر بنيويّ فعليّ (أقلّ زيفًا). عرض فقط — لا يُغيّر الإشارات. أطفئه للمقارنة قبل/بعد.")
 
-// ══════════════════════════ ط3 · 🧭 اللوحة / Panel ══════════════════════════
-string grpPanel = "ط3 · 🧭 اللوحة / Panel"
+// ══════════════════════════ 🧭 اللوحات · مساعد الإطار / Panels · Frame Helper ══════════════════════════
+string grpFH = "🧭 اللوحات · مساعد الإطار / Panels · Frame Helper"
+string fhPos        = input.string("Top L", "Frame-helper position / موضع مساعد الإطار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpFH)
+
+// ══════════════════════════ 🧭 اللوحات · القرار / Panels · Decision ══════════════════════════
+string grpPanel = "🧭 اللوحات · القرار / Panels · Decision"
 string concPos  = input.string("Top R", "Decision-panel position / موضع لوحة القرار", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpPanel)
 bool   showConc        = input.bool(true, "Decision panel / لوحة القرار", group = grpPanel, tooltip = "إظهار/إخفاء لوحة القرار (الاتجاه · السيولة · القوّة · الدخول · القرار · الكتلة). عرض فقط بلا ربط بالاستخراج (درس09 م1).")
 bool   showFrameHelper = input.bool(true, "Wave-test (frame helper) panel / لوحة اختبار الموجة (مساعد الإطار)", group = grpPanel, tooltip = "إظهار/إخفاء لوحة اختبار الموجة: زمن الموجة ⇒ نوع التداول المناسب (مضاربة/سوينغ/استثمار).")
