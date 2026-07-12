@@ -1,0 +1,97 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Lines — ط2: خطوط السيولة ومستويات الاتجاه (الدرس08) — الرسم النقيّ المعمّم
+//   مُستخرَجة من J-Waves M2 (فرع m3/gaps-and-scale) وفق docs/build/spec_lib_JW_Lines.md
+//   حسم المستخدم (2026-07-12): **مستوى الاتجاه (أفقيّ) على الأجسام · خطّ السيولة (مائل) على الذيول**.
+//   معمّم لكلّ درجة: صاعد ⇒ أساس القيعان (دعم) · هابط ⇒ أساس القمم (مقاومة).
+//   levelExtend/liqExtend وسيطان (كانا عالميَّين في المؤشّر). OHLC/time بالإزاحة تعمل داخل المكتبة (v6).
+//   يبقى في المؤشّر (لا يُنقَل): f_activeDir (الاتجاه الفعّال، د09) · رصد الكسر (د09) · المراحل (ط3) · التنسيق.
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Lines", overlay = true)
+
+// ─── ج1 [درس08]: مستوى الاتجاه — أفقيّ على **الجسم** عند آخر تطرّف فعّال من نوع الأساس ───
+//   dir = الاتجاه الفعّال: هابط(-1) ⇒ آخر قمّة فعّالة (مقاومة) · صاعد ⇒ آخر قاع فعّال (دعم). على max/min(open,close). يمتدّ levelExtend شمعة.
+export f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int dir, int levelExtend) =>
+    line ln = na
+    bool wantTop = dir == -1
+    int  li    = array.size(aBar) - 1
+    int  found = -1
+    while li >= 0 and found < 0
+        if array.get(aEff, li) and array.get(aTop, li) == wantTop
+            found := li
+        li := li - 1
+    if found >= 0
+        int o = bar_index - array.get(aBar, found)
+        if o >= 0
+            float lvl = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // على الجسم (حافّة جسم القمّة/القاع) لا الذيل
+            int rightTm = time + levelExtend * timeframe.in_seconds() * 1000                   // ينتهي بعد السعر الحاليّ بعدد شموع محدَّد
+            ln := line.new(array.get(aTm, found), lvl, rightTm, lvl, xloc = xloc.bar_time, color = col, width = w)
+    ln
+
+// ─── ج2 [درس08]: انتقاء طرفَي خطّ السيولة — آخر زوج **متّسق مع الاتجاه** من الموجة الحيّة (عند atBar) ───
+//   قاعان متصاعدان صعودًا · قمّتان متنازلتان هبوطًا؛ يستثني ما لم يتكوّن بعد (aBar>atBar). إن لا زوج متّسق ⇒ آخر طرفين (احتياطيّ).
+export f_liqPairAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
+    bool wantTop = wdir == -1
+    array<int>   px = array.new<int>()
+    array<float> pw = array.new<float>()
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop and array.get(aBar, i) <= atBar
+            int o = bar_index - array.get(aBar, i)
+            if o >= 0
+                array.push(px, i)
+                array.push(pw, wantTop ? high[o] : low[o])                // الذيل (لا الجسم)
+    int m  = array.size(px)
+    int r1 = -1
+    int r2 = -1
+    if m >= 2
+        for k = m - 1 to 1                                               // من الأحدث للأقدم: أوّل زوج متّسق
+            if r2 < 0
+                float w1 = array.get(pw, k - 1)
+                float w2 = array.get(pw, k)
+                if wantTop ? (w2 < w1) : (w2 > w1)                        // هابط: قمّتان متنازلتان · صاعد: قاعان متصاعدان
+                    r1 := array.get(px, k - 1)
+                    r2 := array.get(px, k)
+        if r2 < 0                                                        // لا زوج متّسق ⇒ آخر طرفين (تباعد/كسر)
+            r1 := array.get(px, m - 2)
+            r2 := array.get(px, m - 1)
+    [r1, r2]
+
+// غلاف رفيع: التقييم عند البار الحاليّ (atBar=bar_index).
+export f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    [q1, q2] = f_liqPairAt(aBar, aTop, aEff, wdir, bar_index)
+    [q1, q2]
+
+// ─── خطّ السيولة — مائل على **الذيول** يمرّ بالطرفين تمامًا (بلا إزاحة) ثمّ يمتدّ liqExtend شمعة يمينًا ───
+export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir, int liqExtend) =>
+    line ln = na
+    bool wantTop = wdir == -1
+    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            float wp1 = wantTop ? high[o1] : low[o1]                      // ذيل الطرف
+            float wp2 = wantTop ? high[o2] : low[o2]
+            int   b1  = array.get(aBar, i1)
+            int   b2  = array.get(aBar, i2)
+            float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0        // ميل الخطّ لكلّ شمعة (b2>b1 مضمون؛ حارس احترازيّ)
+            int   targetBar = bar_index + liqExtend
+            float projP = wp1 + slope * (targetBar - b1)                  // يمرّ بالطرفين تمامًا ثمّ يمتدّ يمينًا — بلا إزاحة
+            int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
+            ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
+    ln
+
+// ─── [درس09/م1] اتجاه السيولة = ميل خطّها (عرض/تحقّق فقط، بلا ربط بالاستخراج) ───
+export f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    int  dir = 0
+    bool wantTop = wdir == -1
+    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
+    if i1 >= 0 and i2 >= 0
+        int o1 = bar_index - array.get(aBar, i1)
+        int o2 = bar_index - array.get(aBar, i2)
+        if o1 >= 0 and o2 >= 0
+            float wp1 = wantTop ? high[o1] : low[o1]
+            float wp2 = wantTop ? high[o2] : low[o2]
+            dir := wp2 > wp1 ? 1 : wp2 < wp1 ? -1 : 0
+    dir

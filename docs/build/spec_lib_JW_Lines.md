@@ -37,7 +37,7 @@ export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int>
 // ── اتجاه السيولة (من الميل — عرض فقط) ──
 export f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) => int   // +1/-1/0
 ```
-🔴 **نقطة تحقّق:** `f_liqAdj` (س1063) صار **ميّتًا** (f_liqLine لم يعد يستدعيه بعد قرار «بلا إزاحة») — **يُحذَف، لا يُنقَل**. تحقّق بـgrep قبل الحذف.
+🔴 **تصحيح (verify-impact بالـgrep):** `f_liqAdj` (س1063) **ليس ميّتًا** — يُستعمَل في **رصد كسر السيولة** (س1267، درس09) الذي يبقى في المؤشّر. ⇒ **`f_liqAdj` يبقى في المؤشّر** (لا يُنقَل ولا يُحذَف). (ملاحظة تناقض للاحقًا: تعليق س1267 «نفس إزاحة الرسم» بينما f_liqLine صار «بلا إزاحة» — يخصّ رصد الكسر د09 لا الرسم؛ يُراجَع مع طبقة التجديد.)
 
 ## 4) تغييرات المؤشّر (المستهلك) — استبدال لا إضافة
 ```
@@ -47,7 +47,8 @@ jwl.f_levelLine(sArr…, cLvlS, 1, sActVg, levelExtend)   // صغيرة/متوس
 jwl.f_liqLine(sArr…, cLiqS, liqWidthS, sActVg, liqExtend)   // × سيولة
 jwl.f_liqPair(…) · jwl.f_liqDir(…)   // حيث تُستعمَل (رصد الكسر/العرض)
 ```
-- تُحذف من المؤشّر: تعريفات `f_levelLine`/`f_liqPairAt`/`f_liqPair`/`f_liqLine`/`f_liqDir`/`f_liqAdj` (س1042-1140). **يبقى:** `f_activeDir`، رصد كسر السيولة، المراحل، النداءات، المدخلات.
+- تُحذف من المؤشّر: تعريفات `f_levelLine`/`f_liqPairAt`/`f_liqPair`/`f_liqLine`/`f_liqDir` فقط. **يبقى:** `f_liqAdj` (يستعمله رصد الكسر)، `f_activeDir`، رصد كسر السيولة، المراحل، النداءات، المدخلات.
+- **نداءات ترجع jwl.*** أيضًا داخل رصد الكسر الباقي: `jwl.f_liqPair` (س1224) · `jwl.f_liqPairAt` (س1256).
 - `levelExtend`/`liqExtend`: يبقيان مدخلَين، يُمرَّران وسيطين.
 
 ## 5) ضمان التطابق (معيار القبول)
