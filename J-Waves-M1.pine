@@ -478,6 +478,7 @@ var jwd.DegreeLaws medDegB     = jwd.newDegreeLaws()
 var jwd.DegreeLaws medEffB     = jwd.newDegreeLaws()
 var jwd.BreakProc  medBreakB   = jwd.newBreakProc()
 var int            curRevB     = na
+var array<int>     curSubL     = na    // [تجدّد متكرّر] حدود الموجات الفرعيّة للموجة الجارية (تطرّفات عند كلّ انقلاب): [wLb, sub1, …, subN]
 
 // [درس09 · تجدّد] بار آخر انقلاب لمستوى الدرجة (نفس محاكاة f_activeDir) — لتقسيم الموجة عند الكسر (revBar). na إن لا انقلاب.
 f_lastRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =>
@@ -498,6 +499,44 @@ f_lastRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) 
         for j = first to bar_index
             int o = bar_index - j
             if o >= 0
+                while pi < n and array.get(aBar, pi) <= j
+                    if array.get(aEff, pi)
+                        int po = bar_index - array.get(aBar, pi)
+                        if po >= 0
+                            if array.get(aTop, pi)
+                                topLvl := math.max(open[po], close[po])
+                            else
+                                botLvl := math.min(open[po], close[po])
+                    pi := pi + 1
+                if dir == -1 and not na(topLvl)
+                    if twoC ? (o + 1 <= bar_index and close[o] > topLvl and close[o + 1] > topLvl) : high[o] > topLvl
+                        dir := 1
+                        revBar := j
+                else if dir == 1 and not na(botLvl)
+                    if twoC ? (o + 1 <= bar_index and close[o] < botLvl and close[o + 1] < botLvl) : low[o] < botLvl
+                        dir := -1
+                        revBar := j
+    revBar
+
+// [درس09 · تجدّد متكرّر] **أوّل** انقلاب لمستوى الدرجة بعد البداية (للكشف التكراريّ للموجات الفرعيّة). na إن لا انقلاب.
+f_firstRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =>
+    int dir   = startDir
+    int n     = array.size(aBar)
+    int first = -1
+    int fi    = 0
+    while fi < n and first < 0
+        if array.get(aEff, fi)
+            first := array.get(aBar, fi)
+        fi := fi + 1
+    int revBar = na
+    if first >= 0
+        bool  twoC   = lvlBreakMode == "2 candles"
+        float topLvl = na
+        float botLvl = na
+        int   pi     = 0
+        for j = first to bar_index
+            int o = bar_index - j
+            if o >= 0 and na(revBar)
                 while pi < n and array.get(aBar, pi) <= j
                     if array.get(aEff, pi)
                         int po = bar_index - array.get(aBar, pi)
