@@ -8,7 +8,8 @@ import Jassar_Mahmoud/JW_Conclusions/1 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.21.1 — [تحسين ترتيب الإعدادات: اللوحات معًا؛ الموجات ملاصقة للدرجات — تجميليّ] ═══
+// ═══ الإصدار: v2.22.0 — [فجوة ط3 #1: وسوم المراحل على الشارت (خلف showPhaseLbl، قاع الذعر أسود)] ═══
+//   v2.22.0 [فجوة ط3 #1 · درس11 · إضافيّ خلف مفتاح]: مدخل showPhaseLbl (افتراض false) يرسم مرحلة كلّ درجة (مشاركة/ذعر/يأس/تجميع/تصريف) وسمًا على الشارت عند آخر تطرّف فعّال لتلك الدرجة، بلون درجتها (صغيرة=cLvlS · متوسطة=cLvlM · كبيرة=cLvlB) — وقاع/قمّة الذعر (ph==1) بخلفيّة **سوداء** ليتمايز (درس11). عرض فقط. صفر أثر حين مطفأ (كلّ الرسم خلف showPhaseLbl؛ لا مساس بأيّ منطق قائم — اشتقاق المراحل/اللوحة/الاستنتاجات كما هو). دالّة f_lastEffI (آخر فعّال) + array phaseLbls (تُمسَح كـmedCircles).
 //   v2.21.1 [تحسين ترتيب الإعدادات · طلب المستخدم]: نُقِلت كتلة grpFH (مساعد الإطار) لتجاور grpPanel (لوحة القرار) ⇒ اللوحات (مساعد الإطار+القرار) معًا؛ والموجات (grpWave) ملاصقة للدرجات (grpSmall). أُعيدت تسمية نصّ المجموعتين إلى «🧭 اللوحات · مساعد الإطار» و«🧭 اللوحات · القرار». تجميليّ بحت (أسماء المتغيّرات/القيم/الهيكل مطابقة حرفيًّا، لا أثر على المنطق/التصريف).
 //   v2.21.0 [فصل ط3 · spec_lib_JW_Conclusions]: قوّة السيولة (f_liqStrength) + المراحل (f_phaseAt/f_phase) + f_liqAdj انتقلت إلى مكتبة jwc (المكتبة الرابعة، تستورد jwl)؛ المؤشّر يستوردها (jwc.* + تمرير useDistrib وسيطًا). **يبقى في المؤشّر:** f_activeDir (رصد كسر المستوى، د09) + f_liqBroken + f_stTxt/f_phTxt + اشتقاق الاستنتاجات/اللوحة. الآن 4 مكتبات: jwf(ط0)+jwd(ط1)+jwl(ط2)+jwc(ط3). تغيير هيكليّ (فصل، لا أثر منطقيّ).
 //   v2.20.1 [تنظيم المدخلات · طلب المستخدم]: أُعيد ترتيب الـ128 مدخلًا في **كتل حسب الطبقة** (عامّ → ط0 الموجة/الإطار → ط1 صغيرة/متوسطة/كبيرة → ط2 الخطوط → ط3 المراحل/اللوحة → ط4 المناطق/الإشارات → وصفيّ إليوت)، كلّ مجموعة كتلةً واحدة (منطق+إظهار+ألوان+أحجام). أسماء الأقسام ببادئة الطبقة+إيموجي؛ تسميات المدخلات **بلا رموز** (أُزيل ◈/↳/✦ من التسمية، بقيت في tooltip). تغيير تجميليّ بحت (أسماء المتغيّرات/القيم/الهيكل مطابقة حرفيًّا، لا أثر على المنطق/التصريف).
@@ -208,6 +209,7 @@ int    liqExtend = input.int(24, "Liquidity extension (candles) / مدى امت�
 // ══════════════════════════ ط3 · 📊 المراحل / Phases ══════════════════════════
 string grpPhase  = "ط3 · 📊 المراحل / Phases"
 bool   useDistrib = input.bool(true, "Distribution phase (pre-break topping) / مرحلة التصريف (قُبيل الكسر)", group = grpPhase, tooltip = "[مصعب2] قُبيل كسر السيولة الكبرى، إن كُسِر آخر دعم صغير (صعودًا) / آخر مقاومة صغيرة (هبوطًا) والسيولة سليمة ⇒ «تصريف» (صعودًا) / «تجميع» (هبوطًا) بدل «مشاركة». كسر بنيويّ فعليّ (أقلّ زيفًا). عرض فقط — لا يُغيّر الإشارات. أطفئه للمقارنة قبل/بعد.")
+bool   showPhaseLbl = input.bool(false, "Phase labels on chart / وسوم المراحل على الشارت", group = grpPhase, tooltip = "[درس11] يرسم مرحلة كلّ درجة (مشاركة/ذعر/يأس/تجميع/تصريف) وسمًا على الشارت بلون الدرجة، عند آخر تطرّف فعّال لها. قاع الذعر أسود. عرض فقط.")
 
 // ══════════════════════════ 🧭 اللوحات · مساعد الإطار / Panels · Frame Helper ══════════════════════════
 string grpFH = "🧭 اللوحات · مساعد الإطار / Panels · Frame Helper"
@@ -601,6 +603,15 @@ f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bo
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(szStr)))    // الحافة (أكبر، خلف)
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(szStr)))   // التعبئة (أصغر، أمام)
 
+// [ط3 · فجوة #1] فهرس آخر تطرّف فعّال (eff=true) في مصفوفة الفعاليّة — لوسم مرحلة الدرجة (showPhaseLbl)؛ يرجع -1 إن لا فعّال
+f_lastEffI(array<bool> effArr) =>
+    int res = -1
+    int n   = array.size(effArr)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(effArr, i)
+            res := i
+    res
+
 // ─── [⑥ عدّ إليوت] مُستخرَج إلى مكتبة JW_Elliott (jwew.ewRun) — تحمّل الأسطر ×10. القيم (ewStrict/ewOffset/showEWForm/arrScale/اللغة) تُمرَّر وسائط عند النداء ───
 
 // ─── رسم الدرجة الصغيرة: مؤجَّل لما بعد بناء السلسلة الصغيرة (scBar) ليُرسَم عبر التاريخ كالمتوسطة/الكبيرة ───
@@ -611,6 +622,7 @@ var array<line>     smallLinks  = array.new<line>()
 // ─── المتوسطة: **سلسلة واحدة متّصلة** عبر كلّ الموجات (الأقدم→الأحدث) — تناوب صارم بلا تكرار/انقطاع (للعدّ لاحقًا) ───
 var array<label> medCircles = array.new<label>()
 var array<line>  medLinks   = array.new<line>()
+var array<label> phaseLbls  = array.new<label>()   // [ط3 · فجوة #1] وسوم المراحل على الشارت (تُمسَح/تُبنى كـmedCircles) — خلف showPhaseLbl
 if barstate.islast
     array.clear(mcBar)
     array.clear(mcPrc)
@@ -1523,6 +1535,29 @@ if barstate.islast
     string phsS  = f_phTxt(phS, smallLvlDir)
     string phsM  = f_phTxt(phM, medLvlDir)
     string phsB  = f_phTxt(phB, bigLvlDir)
+    // [ط3 · فجوة #1 · درس11] وسوم المراحل على الشارت — عرض فقط خلف showPhaseLbl (افتراض false ⇒ صفر أثر). مرحلة كلّ درجة عند آخر تطرّف فعّال لها، بلون درجتها؛ قاع/قمّة الذعر (ph==1) أسود.
+    for l in phaseLbls
+        label.delete(l)
+    array.clear(phaseLbls)
+    if showPhaseLbl
+        if showSmall and phS != -1
+            int si = f_lastEffI(scEff)
+            if si >= 0
+                bool  isTopS = array.get(scTop, si)
+                color bgS    = phS == 1 ? color.black : cLvlS
+                array.push(phaseLbls, label.new(array.get(scTm, si), array.get(scPrc, si), phsS, xloc = xloc.bar_time, yloc = yloc.price, style = isTopS ? label.style_label_down : label.style_label_up, color = bgS, textcolor = color.white, size = size.small))
+        if showMedium and phM != -1
+            int mi = f_lastEffI(mcEff)
+            if mi >= 0
+                bool  isTopM = array.get(mcTop, mi)
+                color bgM    = phM == 1 ? color.black : cLvlM
+                array.push(phaseLbls, label.new(array.get(mcTm, mi), array.get(mcPrc, mi), phsM, xloc = xloc.bar_time, yloc = yloc.price, style = isTopM ? label.style_label_down : label.style_label_up, color = bgM, textcolor = color.white, size = size.small))
+        if showLarge and phB != -1
+            int bi = f_lastEffI(lgEff)
+            if bi >= 0
+                bool  isTopB = array.get(lgTop, bi)
+                color bgB    = phB == 1 ? color.black : cLvlB
+                array.push(phaseLbls, label.new(array.get(lgTm, bi), array.get(lgPrc, bi), phsB, xloc = xloc.bar_time, yloc = yloc.price, style = isTopB ? label.style_label_down : label.style_label_up, color = bgB, textcolor = color.white, size = size.small))
     // الدرجات: اتجاه السيولة · القوّة · المرحلة (حالة الموجة) — خليّة واحدة
     string dUp = f_t("صاعدة", "Up")
     string dDn = f_t("هابطة", "Down")
