@@ -2,11 +2,14 @@
 import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
 import Jassar_Mahmoud/JW_Foundation/1 as jwf                    // [ط0] الأساس: leg + الموجة التاريخيّة — نواة نقيّة مستخرَجة (spec_lib_JW_Foundation)
 import Jassar_Mahmoud/JW_Degrees/1 as jwd                     // [ط1] الدرجات: DegreeLaws·BreakProc·المحرّك المعمّم — نواة نقيّة مستخرَجة (spec_lib_JW_Degrees)
+import Jassar_Mahmoud/JW_Lines/1 as jwl                       // [ط2] الخطوط: المستوى (أجسام)·السيولة (ذيول)·الزوج·الاتجاه — رسم نقيّ مستخرَج (spec_lib_JW_Lines)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.19.3 — [اللُّحمة مؤكَّدة عبر MCP عند 30760 · التشخيص مُزال] ═══
+// ═══ الإصدار: v2.20.0 — [فصل ط2: خطوط السيولة/مستويات الاتجاه إلى مكتبة JW_Lines] ═══
+//   v2.20.0 [فصل ط2 · spec_lib_JW_Lines · مشاهدة د08+مراجعة مصعب2]: رسم الخطوط النقيّ (f_levelLine أجسام · f_liqPairAt/f_liqPair · f_liqLine ذيول بلا إزاحة · f_liqDir) انتقل إلى مكتبة jwl؛ المؤشّر يستوردها (jwl.* + تمرير levelExtend/liqExtend). **يبقى في المؤشّر:** f_activeDir + f_liqAdj (رصد الكسر، د09) + المراحل + التنسيق. حسم المستخدم: **المستوى على الأجسام · السيولة على الذيول** (نهائيّ، مطابق للكود). الآن 3 مكتبات: jwf(ط0)+jwd(ط1)+jwl(ط2). القواعد المرئيّة مُوثَّقة في rules_verified_from_videos.md.
+//   v2.19.3 [اللُّحمة مؤكَّدة عبر MCP عند 30760 · التشخيص مُزال] ═══
 //   v2.19.3 [تأكيد + تنظيف]: التشخيص عبر MCP أكّد subs=[wLb, 11265@30760.1] ⇒ **الهبوط يبدأ عند القمّة 30760 بدائرة كبيرة زرقاء** (اللُّحمة انحلّت). أُزيل التشخيص المؤقّت. **متبقٍّ:** الموجة الهابطة الجارية قليلة النقاط الصغيرة (scRaw=10 لهبوط حادّ) + قاعها الحيّ 28188 معلّق (قاعدة الانتظار) — قيد التحقّق البصريّ (تكبير المستخدم؛ أسهم polyline لا تُقرأ عبر MCP).
 //   v2.19.2 [تشخيص حاسم عبر MCP · ملاحظة المستخدم «v2.18.1 عملت»]: التشخيص كشف nSub=1 (لا تقسيم) + flDir=-1 خطأ (بُذِر من segLeftTop[0]=قمّة، مغلوط في الوضع اليدويّ حيث wLb لا يطابق حدّ leg) بينما curWdir=1. الإصلاح: (1) إعادة **f_lastRevBar** (آخر انقلاب — نافذة [ssL..rb] تشمل التطرّف الأكبر 30760، كـv2.18.1) بدل f_firstRevBar (يقتطع مبكّرًا)، (2) بذرة الاتجاه = **segDir** (مُرجَع buildWave لكلّ مقطع) لا segLeftTop.
 //   v2.19.1 [إصلاح اللُّحمة · تركيب 4 وكلاء (متوسطة/كبيرة/صغيرة/انقلاب)]: كتلة البناء كانت تبذر f_firstRevBar وتقرّر نوع التطرّف بـ**twd الصافي** (=-1 هابط لأنّ القمّة أقدم من القاع)، بينما **الساق الأولى صاعدة** (wLb قاع⇒30760 قمّة). فكان يبحث عن قاع حدًّا أوّل في نافذة مقتطعة مبكّرًا ⇒ لا تقسيم فتُبتلع القمّة 30760. الإصلاح: `flDir` (اتجاه الساق الأولى من segLeftTop[0]) يبذر البحث ونوع التطرّف، ويُقلَب بعد كلّ تقسيمة (قمّة→قاع→قمّة…). التتبّع: curSubL=[wLb, 30760, 28679]. (اكتشاف ثانويّ مؤجَّل: إرساء الافتتاح يُتخطّى في الوضع اليدويّ لأنّ segLeftPx[0]=na.)
@@ -1038,28 +1041,9 @@ if barstate.islast
                         prevLt := cur
             array.push(ewLabels, label.new(bar_index, high, "EW · كبيرة=" + str.tostring(array.size(lgBar)) + " (دُمجت=" + str.tostring(lgColl) + " قمم=" + str.tostring(lgTops) + ") · دفعات الكبيرة=" + str.tostring(ewBigSets) + " · متوسطة=" + str.tostring(array.size(mcBar)) + " · وسوم=" + str.tostring(array.size(ewLabels)), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(color.gray, 15), textcolor = color.white, size = size.small))
 
-// ─── ج1 [درس08]: مستويات الاتجاه — خطّ أفقيّ عند آخر طرف فعّال من نوع الأساس (قاع صاعدًا/قمّة هابطًا) على **الجسم** ───
-//   [قرار المستخدم 2026-07-11 · تدقيق فجوات] على **الجسم** (max/min(open,close)) — إجماع الوثائق (قائمة التحقّق·منطق الدروس·spec08): «على الأجسام لا الذيول تمييزًا عن السيولة». (السيولة على الذيل، المستوى على الجسم؛ ويتمايزان شكلًا أيضًا: أفقيّ بطرف واحد لا مائل.) يمتدّ levelExtend شمعة بعد الآن.
-f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int dir) =>
-    line ln = na
-    bool wantTop = dir == -1                               // هابط ⇒ آخر قمّة فعّالة (مقاومة) · صاعد ⇒ آخر قاع فعّال (دعم) — dir = الاتجاه الفعّال
-    int  li    = array.size(aBar) - 1
-    int  found = -1
-    while li >= 0 and found < 0
-        if array.get(aEff, li) and array.get(aTop, li) == wantTop
-            found := li
-        li := li - 1
-    if found >= 0
-        int o = bar_index - array.get(aBar, found)
-        if o >= 0
-            float lvl = wantTop ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // [درس08] على الجسم (حافّة جسم القمّة/القاع) لا الذيل
-            int rightTm = time + levelExtend * timeframe.in_seconds() * 1000   // ينتهي بعد السعر الحاليّ بعدد شموع محدَّد (لا لانهائيّ)
-            ln := line.new(array.get(aTm, found), lvl, rightTm, lvl, xloc = xloc.bar_time, color = col, width = w)
-    ln
-
-// ─── ج2 [درس08]: خطوط السيولة — وصل آخر تطرّفين فعّالين من نوع الأساس (قاعين صاعدًا/قمّتين هابطًا) على **الذيول** ───
-//   معمّم لكلّ درجة. على الذيول (high/low) لا الجسم. تمتدّ يمينًا (خطّ سيولة مُسقَط لرصد الكسر لاحقًا — درس09).
-// [درس09 req] إزاحة خطّ السيولة ليمرّ على الذيول بين طرفيه (لا يُولَد مكسورًا): أعلى اختراق بين b1..b2 (مقاومة لأعلى/دعم لأسفل)
+// ─── ج1 [درس08]: مستوى الاتجاه (أفقيّ على الأجسام) ⇐ استُخرِج إلى `jwl.f_levelLine` (JW_Lines، حسم المستخدم: الأجسام) ───
+// ─── ج2 [درس08]: خطوط السيولة (مائل على الذيول) ⇐ استُخرِجت إلى `jwl.f_liqPairAt/f_liqPair/f_liqLine/f_liqDir` (JW_Lines) ───
+// [درس09/رصد الكسر] `f_liqAdj` **يبقى** هنا: يستعمله رصد كسر السيولة (أدناه، درس09) — إزاحة إسقاط الخطّ لرصد الاختراق.
 f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
     float adj = 0.0
     for k = b1 to b2
@@ -1069,74 +1053,7 @@ f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
             adj := math.max(adj, wantTop ? high[ok] - lv : lv - low[ok])
     adj
 
-// [إصلاح] انتقاء طرفَي خطّ السيولة = آخر **دعم/مقاومة متّسق مع الاتجاه** (قاعان متصاعدان صعودًا · قمّتان متنازلتان هبوطًا) —
-//   لا «آخر طرفين حرفيًّا» (قد يكونان قاعَي تصحيح هابط في صعود ⇒ خطّ غريب يناقض الاتجاه). إن لم يوجد متّسق ⇒ آخر طرفين (احتياطيّ).
-// [2-أ · تعميم زمنيّ] انتقاء طرفَي خطّ السيولة كما كان عند atBar: يستثني كلّ نقطة لم تتكوّن بعد (aBar>atBar).
-//   الذيل يبقى high[bar_index-aBar] (حقيقة تاريخيّة، الفهرسة [] نسبةً لبار التنفيذ لا atBar). atBar=bar_index ⇒ مطابق حرفيًّا.
-f_liqPairAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
-    bool wantTop = wdir == -1
-    array<int>   px = array.new<int>()                      // مؤشّرات أطراف الأساس في aBar (بالترتيب)
-    array<float> pw = array.new<float>()                     // ذيلها
-    int n = array.size(aBar)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop and array.get(aBar, i) <= atBar
-            int o = bar_index - array.get(aBar, i)
-            if o >= 0
-                array.push(px, i)
-                array.push(pw, wantTop ? high[o] : low[o])
-    int m  = array.size(px)
-    int r1 = -1
-    int r2 = -1
-    if m >= 2
-        for k = m - 1 to 1                                  // من الأحدث للأقدم: أوّل زوج متّسق مع الاتجاه
-            if r2 < 0
-                float w1 = array.get(pw, k - 1)
-                float w2 = array.get(pw, k)
-                if wantTop ? (w2 < w1) : (w2 > w1)           // هابط: قمّتان متنازلتان · صاعد: قاعان متصاعدان
-                    r1 := array.get(px, k - 1)
-                    r2 := array.get(px, k)
-        if r2 < 0                                            // لا زوج متّسق ⇒ آخر طرفين (تباعد/كسر)
-            r1 := array.get(px, m - 2)
-            r2 := array.get(px, m - 1)
-    [r1, r2]
-
-// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index) — مطابق بايتيًّا للأصل.
-f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
-    [q1, q2] = f_liqPairAt(aBar, aTop, aEff, wdir, bar_index)
-    [q1, q2]
-
-f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir) =>
-    line ln = na
-    bool wantTop = wdir == -1                              // هابط ⇒ قمّتان متنازلتان · صاعد ⇒ قاعان متصاعدان (دعم/مقاومة متّسق)
-    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
-    if i1 >= 0 and i2 >= 0
-        int o1 = bar_index - array.get(aBar, i1)
-        int o2 = bar_index - array.get(aBar, i2)
-        if o1 >= 0 and o2 >= 0
-            float wp1 = wantTop ? high[o1] : low[o1]        // ذيل الطرف (لا الجسم)
-            float wp2 = wantTop ? high[o2] : low[o2]
-            int   b1  = array.get(aBar, i1)
-            int   b2  = array.get(aBar, i2)
-            float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0            // ميل خط السيولة لكلّ شمعة (b2>b1 مضمون: i2 الأحدث · حارس b2≠b1 احترازيّ)
-            int   targetBar = bar_index + liqExtend
-            float projP = wp1 + slope * (targetBar - b1)     // [درس08] يمرّ بالطرفين تمامًا (wp1 عند b1 · wp2 عند b2 بالميل) ثمّ يمتدّ يمينًا — **بلا إزاحة** (الإزاحة كانت ترفعه فوق الذيول فلا يصل القمّتين)
-            int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
-            ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
-    ln
-
-// [درس09/م1] اتجاه السيولة = ميل خطّها (الطرف الأحدث أعلى⇒صاعد، أدنى⇒هابط) — عرض/تحقّق فقط، بلا ربط بالاستخراج
-f_liqDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
-    int  dir = 0
-    bool wantTop = wdir == -1
-    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
-    if i1 >= 0 and i2 >= 0
-        int o1 = bar_index - array.get(aBar, i1)
-        int o2 = bar_index - array.get(aBar, i2)
-        if o1 >= 0 and o2 >= 0
-            float wp1 = wantTop ? high[o1] : low[o1]
-            float wp2 = wantTop ? high[o2] : low[o2]
-            dir := wp2 > wp1 ? 1 : wp2 < wp1 ? -1 : 0
-    dir
+// ⇐ f_liqPairAt·f_liqPair·f_liqLine·f_liqDir استُخرِجت إلى JW_Lines (jwl.*). تُستدعى بـjwl. حيث تُستعمَل (الرسم + رصد الكسر أدناه).
 
 // [درس10] قوة السيولة لكلّ درجة = مدى تداخل تطرّفاتها: المرجع = الطرف المعاكس قبل الأخير بـ3 مواضع (قاع4↔قمّة1).
 //   3 حالات (الدرس10 §قوّة، بلا رقم سحريّ — الذيل↔الجسم): صعودًا والمرجع قمّة high[o2]:
@@ -1221,7 +1138,7 @@ f_activeDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =
 f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
     bool broken = false
     bool wantTop = wdir == -1
-    [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
+    [i1, i2] = jwl.f_liqPair(aBar, aTop, aEff, wdir)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1253,7 +1170,7 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
     int  ph = wdir != 0 ? 0 : -1                              // اتجاه موجود بلا خطّ سيولة (الكبيرة قليلة النقاط) ⇒ مشاركة افتراضيًّا (ترند بلا كسر) · لا اتجاه ⇒ —
     bool wantTop = wdir == -1
-    [i1, i2] = f_liqPairAt(aBar, aTop, aEff, wdir, atBar)
+    [i1, i2] = jwl.f_liqPairAt(aBar, aTop, aEff, wdir, atBar)
     if i1 >= 0 and i2 >= 0
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
@@ -1474,11 +1391,11 @@ if barstate.islast
         // [م3-ج] المستوى يُنقَل لجانب الاتجاه الفعّال (كُسِر مستواه ⇒ ينقلب ⇒ يُرسَم عند تطرّف الجانب الجديد). لا تقطيع — نقلٌ.
         int bActV = bActVg
         int mActV = mActVg
-        bigLevelLine := showLvlB ? f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV) : na   // الكبيرة (تُنقَل للجانب الفعّال)
-        medLevelLine := showLvlM ? f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV) : na   // المتوسطة (الموجة الجارية)
+        bigLevelLine := showLvlB ? jwl.f_levelLine(lgBar, lgTop, lgEff, lgTm, cLvlB, lvlWidthB, bActV, levelExtend) : na   // الكبيرة (تُنقَل للجانب الفعّال)
+        medLevelLine := showLvlM ? jwl.f_levelLine(mcBar, mcTop, mcEff, mcTm, cLvlM, lvlWidthM, mActV, levelExtend) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة (لا الموجة الجارية فقط)
         int sActV = sActVg
-        smallLevelLine := showLvlS ? f_levelLine(scBar, scTop, scEff, scTm, cLvlS, lvlWidthS, sActV) : na     // الصغيرة
+        smallLevelLine := showLvlS ? jwl.f_levelLine(scBar, scTop, scEff, scTm, cLvlS, lvlWidthS, sActV, levelExtend) : na     // الصغيرة
 
 // ─── ج2 [درس08]: خطوط السيولة (كبيرة→متوسطة→صغيرة) — وصل آخر تطرّفين فعّالين على الذيول ───
 var line bigLiqLine   = na
@@ -1498,11 +1415,11 @@ if barstate.islast
         // [تعديل] تُرسَم السيولة **دائمًا** على جانب الاتجاه الفعّال (تُظهر ميلها — حتى لو خالف المستوى = تباعد مفيد). المكسورة تبقى متقطّعة أدناه.
         int bActL = bActVg
         int mActL = mActVg
-        bigLiqLine := showLiqB ? f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة
-        medLiqLine := showLiqM ? f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة (الموجة الجارية)
+        bigLiqLine := showLiqB ? jwl.f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL, liqExtend) : na   // الكبيرة
+        medLiqLine := showLiqM ? jwl.f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL, liqExtend) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar)
         int sActL = sActVg
-        smallLiqLine := showLiqS ? f_liqLine(scBar, scTop, scEff, scTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
+        smallLiqLine := showLiqS ? jwl.f_liqLine(scBar, scTop, scEff, scTm, cLiqS, liqWidthS, sActL, liqExtend) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
         if f_liqBroken(lgBar, lgTop, lgEff, bActL) and not na(bigLiqLine)
             if showBroken
@@ -1699,9 +1616,9 @@ if barstate.islast
     int  bigLvlDir   = bActVg
     int  medLvlDir   = mActVg
     int  smallLvlDir = sActVg
-    int lqB = f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)   // اتجاه السيولة = ميل آخر دعم/مقاومة متّسق (f_liqPair) ⇒ يطابق خطّ السيولة المرسوم
-    int lqM = f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
-    int lqS = f_liqDir(dB, dT, dE, smallLvlDir)
+    int lqB = jwl.f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)   // اتجاه السيولة = ميل آخر دعم/مقاومة متّسق (f_liqPair) ⇒ يطابق خطّ السيولة المرسوم
+    int lqM = jwl.f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
+    int lqS = jwl.f_liqDir(dB, dT, dE, smallLvlDir)
     bool cDef = lqB != 0 and lqM != 0                          // الكبيرة+المتوسطة معرَّفتان
     bool cRng = cDef and lqB != lqM                            // تعارضهما ⇒ عرضيّ (Range)
     int  cLiq = (cDef and not cRng) ? lqM : 0
