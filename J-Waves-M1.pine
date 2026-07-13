@@ -8,7 +8,8 @@ import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.29.5 — [ط4 إفراط BTC: قصر مرساة المنطقة على الموجة الحاليّة (لا تاريخ↔تاريخ)] ═══
+// ═══ الإصدار: v2.29.6 — [ط4 محو الخطّ: امحُ خطّ م.A لكلّ طرف صار عضو منطقة (المنفردة فقط تبقى خطًّا)] ═══
+//   v2.29.6 [ط4 · محو الخطّ · درس L2-02 س15 «أمسح خطوطها»]: بعد بناء المناطق، يُحذَف خطّ م.A لكلّ طرف متوسط صار **عضو منطقة** (usedZ) ⇒ لا ازدواج بصريّ (خطّ تحت حافّة كلّ منطقة). المنفردة (بلا شريك ولا استعارة) **تبقى خطًّا**. الوصلة: `zoneLvlIdx` يوازي `zoneLvlLines` (فهرس المتوسطة لكلّ خطّ)؛ مسح الحذف يبني `zonedMc` من eIdx[usedZ] ويحذف الخطوط المطابقة. عرض فقط، يعمل فقط حين showZoneBox+showZoneLvl معًا (حالة الازدواج).
 //   v2.29.5 [ط4 · إصلاح الإفراط الكمّيّ]: مرساة المنطقة في التزويج الرئيس صارت **من الموجة الحاليّة فقط** (`aaBar >= histLeft`) ⇒ لا مناطق **تاريخ↔تاريخ** (كانت تُرسي على أيّ مستوى فتُنتِج مناطق تاريخيّة لا يرسمها المحاضر — «الأساس دائمًا نقطة الموجة الحاليّة»، ذاكرة zones-l2-02-arch). التاريخ يبقى **شريكًا/استعارةً** (الحاليّ↔التاريخ يُلتقَط حين المرساة حاليّة). عرض فقط، المؤشّر فقط.
 // ═══ الإصدار: v2.29.4 — [ط3 وسوم المراحل: موضع واعٍ بالاتجاه (ذعر/يأس هبوطًا=قمّة صعودًا=قاع) + covHoH=false — قرار المستخدم] ═══
 //   v2.29.4 [ط3 · ملاحظة المستخدم]: موضع وسم المرحلة صار **واعيًا بالمرحلة+الاتجاه** (كان عند آخر تطرّف فعّال أيًّا كان): **ذعر/يأس/ph3** (التصحيح المضادّ) ⇒ هبوطًا عند آخر **قمّة** · صعودًا عند آخر **قاع** · **تصريف (ph4 صعودًا)** ⇒ قمّة · **تجميع (ph4 هبوطًا)** ⇒ قاع · مشاركة ⇒ آخر تطرّف. دالّتان f_lastEffTypeI/f_phaseLblI (fallback آخر تطرّف). **وأُعيد covHoH إلى false** (توضيح المستخدم: المغطى في تاريخ التاريخ يبقى مرسومًا متاحًا؛ الاستعارة تأخذ من التاريخ عند الحاجة). عرض فقط، المؤشّر فقط.
@@ -1386,11 +1387,13 @@ if barstate.islast
 // ─── [ط4-أ-1 / الدرس L2-02] مستويات م.A: خطّ أفقيّ على **جسم** كلّ قمّة/قاع متوسط فعّال **غير مُغطّى** (قمّة=أعلى الجسم · قاع=أسفله) ───
 //   المدخل = المتوسطة الفعّالة + ليست مُغطّاة (قانون التغطية لكلّ طبقة). الخطوة التالية (ط4-أ-2): قَرن المتقاربين ⇒ مستطيلات.
 var array<line> zoneLvlLines = array.new<line>()
+var array<int>  zoneLvlIdx   = array.new<int>()   // [ط4 · محو الخطّ · درس س15] فهرس المتوسطة لكلّ خطّ م.A — لحذف خطّ الطرف الذي يصير عضو منطقة (المنفردة فقط تبقى خطًّا)
 if barstate.islast
     if array.size(zoneLvlLines) > 0
         for li = 0 to array.size(zoneLvlLines) - 1
             line.delete(array.get(zoneLvlLines, li))
     array.clear(zoneLvlLines)
+    array.clear(zoneLvlIdx)
     if showZones and showZoneLvl
         int rightTmZ = time + zoneExtend * timeframe.in_seconds() * 1000
         int hL1z = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0           // بداية الموجة الحاليّة
@@ -1406,6 +1409,7 @@ if barstate.islast
                         float lvl = array.get(mcTop, i) ? math.max(open[o], close[o]) : math.min(open[o], close[o])   // قمّة=أعلى الجسم · قاع=أسفله
                         color lc = covered ? color.red : cZoneLvl
                         array.push(zoneLvlLines, line.new(array.get(mcTm, i), lvl, rightTmZ, lvl, xloc = xloc.bar_time, color = lc, width = 1, style = covered ? line.style_dashed : line.style_solid))
+                        array.push(zoneLvlIdx, i)                            // [محو الخطّ] فهرس الطرف لهذا الخطّ
 
 // ─── [ط4-أ-2 / الدرس L2-02] المناطق = مستطيل بين خطّين **متقاربين سعريًّا** (دعم/مقاومة) — قاعدته دائمًا نقطة الموجة الحاليّة ───
 //   التزويج **لكلّ مرساة من الأحدث للأقدم** ⇒ أقرب شريك سعريًّا (ج1 حاليّ↔حاليّ · ج2 حاليّ↔تاريخ). ما بقي بلا شريك متوسط ⇒ **يستعير الأزرق (كبيرة) القريب** (تمريرة لاحقة) وإلّا خطّ م.A فقط.
@@ -1550,6 +1554,14 @@ if barstate.islast
                             int leftTmB = loLb >= 0 ? time[loLb] : time
                             color zfB   = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill
                             array.push(zoneBoxes, box.new(leftTmB, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zfB))
+            // [محو الخطّ · درس L2-02 س15] احذف خطّ م.A لكلّ طرف صار **عضو منطقة** (usedZ) ⇒ يبقى الخطّ **للمنفردة فقط** — صورة المحاضر: مناطق + خطوط المنفردة (لا خطّ تحت حافّة كلّ منطقة).
+            array<int> zonedMc = array.new<int>()
+            for p = 0 to en - 1
+                if array.get(usedZ, p)
+                    array.push(zonedMc, array.get(eIdx, p))
+            for k = 0 to (array.size(zoneLvlIdx) > 0 ? array.size(zoneLvlIdx) - 1 : 0)
+                if array.size(zoneLvlIdx) > 0 and array.includes(zonedMc, array.get(zoneLvlIdx, k))
+                    line.delete(array.get(zoneLvlLines, k))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var array<label> sigMarks = array.new<label>()   // علامات إشارات ثابتة (تُرسم عند إغلاق الشمعة وتبقى في مكانها — لا تتحرك مع السعر)
