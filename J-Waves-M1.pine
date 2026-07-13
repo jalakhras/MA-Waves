@@ -3,7 +3,7 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 import Jassar_Mahmoud/JW_Foundation/1 as jwf                    // [ط0] الأساس: leg + الموجة التاريخيّة — نواة نقيّة مستخرَجة (spec_lib_JW_Foundation)
 import Jassar_Mahmoud/JW_Degrees/1 as jwd                     // [ط1] الدرجات: DegreeLaws·BreakProc·المحرّك المعمّم — نواة نقيّة مستخرَجة (spec_lib_JW_Degrees)
 import Jassar_Mahmoud/JW_Lines/1 as jwl                       // [ط2] الخطوط: المستوى (أجسام)·السيولة (ذيول)·الزوج·الاتجاه — رسم نقيّ مستخرَج (spec_lib_JW_Lines)
-import Jassar_Mahmoud/JW_Conclusions/1 as jwc                 // [ط3] الاستنتاجات/المراحل: قوّة السيولة + f_phaseAt + f_liqAdj — مستخرَجة
+import Jassar_Mahmoud/JW_Conclusions/2 as jwc                 // [ط3] الاستنتاجات/المراحل: قوّة السيولة + f_phaseAt + f_liqAdj — مستخرَجة (v2 = +useAccBreak)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
