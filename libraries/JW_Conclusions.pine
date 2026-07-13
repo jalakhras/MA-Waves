@@ -8,6 +8,7 @@
 //   [تحديث 2026-07-13 · ف2+ف3] f_phaseAt/f_phase: مُعامل useAccBreak = آلة التجميع الصريحة الكاملة —
 //     دخول (ف3، د11 س170): يأس⇒تجميع بكسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (مقاومة B) لجهة التعافي.
 //       [إصلاح v4: الترند على الجانب المعاكس لا نفس التطرّفات — كسرٌ اتجاهيّ حقيقيّ لا حافّة مظروف (كان يُطلق زيفًا).]
+//       [حارس v5: الاستقراء ≤ مباعدة المرتكزَين — يمنع الخطّ البائت من النزول تحت السعر (تجميع زيف في هبوط حادّ).]
 //     خروج (ف2، د11 س133): تجميع⇒مشاركة بكسر النطاق (آخر قمّة/قاع). OFF=تقريب «الارتداد عن الأعمق» (بايتيّ).
 //   يبقى في المؤشّر: f_activeDir·f_liqBroken (ط2/د09) · f_stTxt/f_phTxt (تنسيق) · التجميع/الدخول · اللوحة · المدخلات.
 //   OHLC/time/bar_index بالإزاحة تعمل داخل المكتبة (v6).
@@ -139,9 +140,10 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                                     oPrevBar := oLastBar
                                     oLast    := wantTop ? low[ojd] : high[ojd]
                                     oLastBar := array.get(aBar, jd)
-                        if not na(oPrev) and oLastBar > oPrevBar
+                        // [حارس الثغرة الحافّيّة · وكيل مراجعة] لا تستقرئ ترند اليأس أبعد من مباعدة المرتكزَين المعاكسَين — وإلّا في هبوط حادّ بلا ارتدادات جديدة ينزل الخطّ البائت تحت السعر فيُطلق تجميعًا زيفًا أثناء تعمّق فعليّ. الاستقراء ≤ مباعدة ⇒ انزياح الخطّ ≤ ارتفاع مقطع واحد (بلا رقم سحريّ).
+                        if not na(oPrev) and oLastBar > oPrevBar and (atBar - oLastBar) <= (oLastBar - oPrevBar)
                             float slopeD      = (oLast - oPrev) / (oLastBar - oPrevBar)
-                            float despairLine = oLast + slopeD * (atBar - oLastBar)              // ترند اليأس (الجانب المعاكس) مُمَدَّدًا إلى atBar
+                            float despairLine = oLast + slopeD * (atBar - oLastBar)              // ترند اليأس (الجانب المعاكس) مُمَدَّدًا إلى atBar (ضمن المدى المحروس)
                             despairBroken := wantTop ? (midNow < despairLine) : (midNow > despairLine)   // نصف الجسم تجاوز الترند لجهة التعافي = كسر حقيقيّ
                     bool toAccum = useAccBreak ? despairBroken : recovered                     // ف3 ON: كسر ترند اليأس (معاكس) · OFF: التقريب (بايتيّ)
                     if toAccum
