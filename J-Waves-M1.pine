@@ -8,6 +8,8 @@ import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ الإصدار: v2.29.2 — [ط4 المناطق · اختبار وكلاء (white-box + تحليل بيانات): أرضيّة التزويج الرئيس + حارس التجاور المعاكس] ═══
+//   v2.29.2 [ط4-أ · وكيلا اختبار (تتبّع white-box على سيناريوهات + تحليل بيانات 4 عروض) · المؤشّر فقط]: (1) **أرضيّة المسافة الدنيا للتزويج المتوسط الرئيس** (كان بلا أرضيّة ⇒ 16% مناطق منحطّة «خطّ مُقنَّع» — EURUSD 4-5 نقاط، US100 3-8pts): رُفِع minGapB=max(mergeRatio,0.02)×نطاق (=عتبة الدمج) ليُشارَك بين الرئيس والاستعارة؛ `d≥minGapB` في sizeOk ⇒ المتطابقان يبقيان **خطَّ م.A** (أمانة §2-5). (2) **حارس التجاور المعاكس للاستعارة** (سدّ «غسيل التصحيح عبر الدرجة»، white-box س6): لا تستعير طرفًا كبيرًا مجاورًا (|Δbar|=1) معاكس النوع — مرآة adjOpp. مؤجَّل بـGAPS: انحراف الاحتواء (يُبقي الداخليّة) · tooBig ميّت · إفراط BTC كمّيّ (تجديد/تاريخ).
 // ═══ الإصدار: v2.29.0 — [ط4 المناطق · تدقيق مصدريّ (مشاهدة الدرس): استعارة الأزرق للمنفردة + حارس الدمج] ═══
 //   v2.29.0 [ط4-أ · تدقيق 4 وكلاء (مشاهدة درس رسم المناطق L2-02 مرئيًّا + تفريغ + وثائق + كود) · المؤشّر فقط]: (1) **استعارة الأزرق (#1، أمانة)**: المنفردة المتوسطة بلا شريك متوسط ⇒ تستعير أقرب قمّة/قاع **كبيرة (زرقاء=صفريّة) غير مغطّاة** ⇒ منطقة (الفيديو يرسمها؛ الكود كان يكتفي بخطّ). تمريرة بعد التزويج + `if en>=1`. **حرّاس (وكيلا مراجعة، ضدّ الإفراط الفراكتاليّ):** استثناء الذات (lgBar≠mcBar) · usedLg (طرف كبير لمنفردة واحدة ⇒ لا انفجار كمّيّ) · أرضيّة مسافة **مستقلّة** ≥2% نطاق (لا منحطّة، لا تنهار عند mergeRatio=0) · الاستعارة للمنفردة **الحاليّة فقط** (histLeft ⇒ يخفّف الكمّ + غسيل التصحيح عبر الدرجة). مسح بيانات: لا منطقة استعارة منحطّة (US100 6 مناطق · BTC 15 معظمها تاريخيّ خارج الشاشة). **بانتظار تحقّقك البصريّ.** (2) **حارس الدمج (#2، قرار المستخدم)**: الدمج لا يمتصّ خطًّا يشكّل تصحيحًا متجاورًا مع أيّ عضو (حواف المنطقة صحيحة). (3) تصحيح تعليقات مُضلِّلة (greedy لكلّ مرساة لا عالميّ · «لا مستوى ثالث» ضمنيّ). فجوات توثيقيّة (§2.1/§2.3/§5 المواصفة قديمة — الكود أصوب) ستُحدَّث. عرض فقط.
 //   v2.28.0 [إغلاق ط3: إصلاح تعارض إزاحة خطّ السيولة (المرحلة تقيس مقابل الخطّ المرئيّ)] ═══
@@ -1403,6 +1405,7 @@ if barstate.islast
         int histLeft = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
         int hL2b     = array.size(segLefts) > 1 ? array.get(segLefts, 1) : histLeft
         [wHiB, wLoB] = jwf.rangeHiLo(histLeft, bar_index)                             // نطاق الموجة الحاليّة (للاستثناء)
+        float minGapB = math.max(mergeRatio, 0.02) * (wHiB - wLoB)                    // [أرضيّة مسافة دنيا · تحليل بيانات + white-box] ≥2% نطاق (= عتبة الدمج mergeGap) — للتزويج الرئيس والاستعارة معًا؛ مستويان أقرب ⇒ مستوى واحد (خطّ) لا منطقة منحطّة (أمانة §2-3/§2-5)
         // (1) كلّ الأطراف الفعّالة **غير المغطّاة** (الموجة + التاريخ — كي تجد كلّ نقطة زوجًا): الفهرس + مستوى الجسم + النوع
         array<int>   eIdx = array.new<int>()
         array<float> eLvl = array.new<float>()
@@ -1433,7 +1436,7 @@ if barstate.islast
                                     bool tierOk = ph2 == 1 ? cCur : not cCur
                                     bool adjOpp = math.abs(c - aa) == 1 and array.get(eTp, c) != array.get(eTp, aa)   // 🔴 لا تصحيح متجاور
                                     float d     = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
-                                    bool sizeOk = (wHiB - wLoB) <= 0 or d <= zoneMaxRatio * (wHiB - wLoB)             // 🔴 لا منطقة كبيرة
+                                    bool sizeOk = (wHiB - wLoB) <= 0 or (d <= zoneMaxRatio * (wHiB - wLoB) and d >= minGapB)   // 🔴 لا منطقة كبيرة · ولا منحطّة (d≥minGapB ⇒ المتطابقان يبقيان خطَّ م.A، أمانة §2-5)
                                     if tierOk and not adjOpp and sizeOk and d < bd
                                         bd := d
                                         bb := c
@@ -1487,8 +1490,7 @@ if barstate.islast
             // ─── [استعارة الأزرق · L2-02 · قرار المستخدم] المنفردة المتوسطة (بقيت بلا شريك متوسط) ⇒ استعِر أقرب قمّة/قاع **كبيرة (زرقاء = صفريّة، نفس الدرجة)** غير مُغطّاة ⇒ منطقة (بدل الاكتفاء بخطّ) ───
             //   الفيديو: القاع الوحيد يستعير قمّة زرقاء من تاريخ التاريخ (كلّ قمّة زرقاء = بداية موجة متوسطة = قمّة صفريّة). عبر الدرجة ⇒ لا «تصحيح متجاور» (طرف كبير لا يجاور المتوسط). حجم/احتواء كالمعتاد.
             int nlgb = array.size(lgBar)
-            array<bool> usedLg  = array.new<bool>(nlgb > 0 ? nlgb : 0, false)   // [حارس وكيل] منع تعدّد المنفردات على طرفٍ كبيرٍ واحد
-            float       minGapB = math.max(mergeRatio, 0.02) * (wHiB - wLoB)     // [حارس وكيل·2] أرضيّة مسافة **مستقلّة** عن mergeRatio (حدّه الأدنى 0 ⇒ كان الحارس ينهار) — ≥2% من نطاق الموجة ⇒ لا منطقة منحطّة d≈0 (تداخل فراكتاليّ)
+            array<bool> usedLg  = array.new<bool>(nlgb > 0 ? nlgb : 0, false)   // [حارس وكيل] منع تعدّد المنفردات على طرفٍ كبيرٍ واحد (minGapB مرفوع أعلى ⇒ مشترَك مع التزويج الرئيس)
             for oi = 0 to en - 1
                 int aa = en - 1 - oi
                 int mcBarAa = array.get(mcBar, array.get(eIdx, aa))             // بار المنفردة (لاستثناء الذات + بوّابة الموجة الحاليّة)
@@ -1498,7 +1500,7 @@ if barstate.islast
                     float bLd  = 1e18
                     float bLlv = na
                     for c = 0 to (nlgb > 0 ? nlgb - 1 : 0)
-                        if nlgb > 0 and array.get(lgEff, c) and not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)
+                        if nlgb > 0 and array.get(lgEff, c) and not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and not (math.abs(array.get(lgBar, c) - mcBarAa) == 1 and array.get(lgTop, c) != array.get(eTp, aa)) and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)   // [حارس white-box·6] لا استعارة طرفٍ كبيرٍ مجاورٍ معاكسٍ (تصحيح متجاور مُغسَّل عبر الدرجة) — مرآة adjOpp
                             int oc = bar_index - array.get(lgBar, c)
                             if oc >= 0
                                 float lLvl   = array.get(lgTop, c) ? math.max(open[oc], close[oc]) : math.min(open[oc], close[oc])
