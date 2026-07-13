@@ -4,7 +4,8 @@
 //   مُستخرَجة بايتيًّا من J-Waves M1 (فرع m3/gaps-and-scale) وفق docs/build/spec_lib_JW_Conclusions.md
 //   حسم المستخدم (2026-07-13): **استخراج بايتيّ أوّلًا** + **استيراد مكتبة→مكتبة** (ط3 فوق ط2).
 //   المُصدَّر: قوّة السيولة (د10 — تداخل التطرّفات) + آلة المراحل الخمس (د11 — داو ABC، معمّمة زمنيًّا).
-//   العوالم المُمرَّرة وسائطَ: useDistrib فقط (كان مدخلًا عالميًّا). jwl.f_liqPairAt عبر الاستيراد.
+//   العوالم المُمرَّرة وسائطَ: useDistrib + useAccBreak (مدخلان عالميّان). jwl.f_liqPairAt عبر الاستيراد.
+//   [تحديث 2026-07-13 · ف2] f_phaseAt/f_phase: مُعامل useAccBreak — مُحفِّز خروج التجميع (كسر النطاق⇒مشاركة، د11). OFF=بايتيّ.
 //   يبقى في المؤشّر: f_activeDir·f_liqBroken (ط2/د09) · f_stTxt/f_phTxt (تنسيق) · التجميع/الدخول · اللوحة · المدخلات.
 //   OHLC/time/bar_index بالإزاحة تعمل داخل المكتبة (v6).
 // ════════════════════════════════════════════════════════════════════════════
@@ -66,7 +67,7 @@ export f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wd
 // [2-أ · تعميم زمنيّ للمرحلة] يحسب مرحلة داو للدرجة كما كانت عند atBar (لبوّابة الإشارات التاريخيّة).
 //   (أ) ذيول النقاط: تبقى high[bar_index-aBar] + مرشّح aBar<=atBar. (ب) لحظة «الآن»: تُزاح إلى atBar. f_phaseAt(...,bar_index) ≡ f_phase الأصليّة بايتيًّا.
 //   useDistrib صار وسيطًا (كان مدخلًا عالميًّا في المؤشّر) — لا عالميّ آخر يُقرأ.
-export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar, bool useDistrib) =>
+export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar, bool useDistrib, bool useAccBreak) =>
     int  ph = wdir != 0 ? 0 : -1                              // اتجاه موجود بلا خطّ سيولة (الكبيرة قليلة النقاط) ⇒ مشاركة افتراضيًّا (ترند بلا كسر) · لا اتجاه ⇒ —
     bool wantTop = wdir == -1
     [i1, i2] = jwl.f_liqPairAt(aBar, aTop, aEff, wdir, atBar)
@@ -121,6 +122,15 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                     bool deepened  = wantTop ? (deepExt > aExt) : (deepExt < aExt)           // تطرّف أعمق من A (C)
                     if recovered
                         ph := 3                                      // تجميع (عرضيّ بعد القاع/القمّة، قبل استئناف المشاركة)
+                        if useAccBreak                               // [د11 · ف2] مُحفِّز الخروج: كسر النطاق (آخر طرف معاكس داخل رينج التجميع) ⇒ Markup/Markdown جديد (مشاركة). أبكر/أدقّ من كسر المستوى (f_activeDir). خلف مفتاح.
+                            float rangeExt = na                      // آخر قمّة (صعودًا)/قاع (هبوطًا) داخل الرينج (بعد brkBar) — الأحدث زمنيًّا (الطرف المعاكس للطرف المُجمَّع)
+                            for jr = 0 to (n > 0 ? n - 1 : 0)
+                                if n > 0 and array.get(aEff, jr) and array.get(aTop, jr) == (not wantTop) and array.get(aBar, jr) > brkBar and array.get(aBar, jr) <= atBar
+                                    int ojr = bar_index - array.get(aBar, jr)
+                                    if ojr >= 0
+                                        rangeExt := wantTop ? low[ojr] : high[ojr]
+                            if not na(rangeExt) and (wantTop ? (midNow < rangeExt) : (midNow > rangeExt))
+                                ph := 0                              // كُسِر النطاق بنصف الجسم (كسر آخر قمّة/قاع = شرط الانعكاس، د11 س133) ⇒ مشاركة جديدة
                     else if deepened
                         ph := 2                                      // يأس (C، تطرّف أعمق بعد ارتداد B)
             else if useDistrib                                      // [مصعب2] السيولة سليمة (لم تُكسَر) ⇒ افحص التصريف: كسر آخر دعم/مقاومة صغير قُبيل الكسر الكامل
@@ -137,6 +147,6 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                     ph := 4                                          // تصريف (كُسِر آخر دعم/مقاومة صغير بنصف الجسم والسيولة سليمة ⇒ قُبيل الكسر الكامل)
     ph
 
-// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index) — مطابق بايتيًّا للأصل. useDistrib يُمرَّر.
-export f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, bool useDistrib) =>
-    f_phaseAt(aBar, aTop, aEff, wdir, bar_index, useDistrib)
+// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index). useDistrib + useAccBreak يُمرَّران.
+export f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, bool useDistrib, bool useAccBreak) =>
+    f_phaseAt(aBar, aTop, aEff, wdir, bar_index, useDistrib, useAccBreak)
