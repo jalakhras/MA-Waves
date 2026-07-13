@@ -8,7 +8,9 @@ import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.29.6 — [ط4 محو الخطّ: امحُ خطّ م.A لكلّ طرف صار عضو منطقة (المنفردة فقط تبقى خطًّا)] ═══
+// ═══ الإصدار: v2.30.0 — [ط4 إصلاح جذريّ: المنطقة **نفس النوع فقط** (قمّتان/قاعان) — الدرس L2-02 س139] ═══
+//   v2.30.0 [ط4 · إصلاح جذريّ · تحقّق مصدريّ قاطع بوكيل]: كان التزويج يمنع فقط المتعاكس **المتجاور** (adjOpp) فيسمح **قمّة↔قاع بعيد** ⇒ مناطق ضخمة خاطئة (US100: 9 مناطق كلّها قمّة30xxx↔قاع28xxx، حتى 2466 نقطة، تملأ الشارت كخلفية). الدرس س139 قاطع: «يجب أن يكونا **مرحلةً (قمّتان/قاعان)**» = **نفس النوع فقط** (قمّتان=مقاومة · قاعان=دعم). الانقلاب دعم↔مقاومة = **دور المنطقة الواحدة بموضع السعر** (منفَّذ باللون)، لا تزويج متعاكس. صُحِّح في 3 مواضع: التزويج الرئيس (oppType) · الدمج (cOppType) · الاستعارة (lgTop==eTp). ادّعاء «قاع-قمّة مسموح» في المواصفة القديمة كان تلفيقًا غير مدعوم بأيّ مصدر (صُحِّح). عرض فقط.
+// ═══ v2.29.6 — [ط4 محو الخطّ: امحُ خطّ م.A لكلّ طرف صار عضو منطقة (المنفردة فقط تبقى خطًّا)] ═══
 //   v2.29.6 [ط4 · محو الخطّ · درس L2-02 س15 «أمسح خطوطها»]: بعد بناء المناطق، يُحذَف خطّ م.A لكلّ طرف متوسط صار **عضو منطقة** (usedZ) ⇒ لا ازدواج بصريّ (خطّ تحت حافّة كلّ منطقة). المنفردة (بلا شريك ولا استعارة) **تبقى خطًّا**. الوصلة: `zoneLvlIdx` يوازي `zoneLvlLines` (فهرس المتوسطة لكلّ خطّ)؛ مسح الحذف يبني `zonedMc` من eIdx[usedZ] ويحذف الخطوط المطابقة. عرض فقط، يعمل فقط حين showZoneBox+showZoneLvl معًا (حالة الازدواج).
 //   v2.29.5 [ط4 · إصلاح الإفراط الكمّيّ]: مرساة المنطقة في التزويج الرئيس صارت **من الموجة الحاليّة فقط** (`aaBar >= histLeft`) ⇒ لا مناطق **تاريخ↔تاريخ** (كانت تُرسي على أيّ مستوى فتُنتِج مناطق تاريخيّة لا يرسمها المحاضر — «الأساس دائمًا نقطة الموجة الحاليّة»، ذاكرة zones-l2-02-arch). التاريخ يبقى **شريكًا/استعارةً** (الحاليّ↔التاريخ يُلتقَط حين المرساة حاليّة). عرض فقط، المؤشّر فقط.
 // ═══ الإصدار: v2.29.4 — [ط3 وسوم المراحل: موضع واعٍ بالاتجاه (ذعر/يأس هبوطًا=قمّة صعودًا=قاع) + covHoH=false — قرار المستخدم] ═══
@@ -1458,10 +1460,10 @@ if barstate.islast
                                 if c != aa and not array.get(usedZ, c)
                                     bool cCur   = array.get(mcBar, array.get(eIdx, c)) >= histLeft
                                     bool tierOk = ph2 == 1 ? cCur : not cCur
-                                    bool adjOpp = math.abs(c - aa) == 1 and array.get(eTp, c) != array.get(eTp, aa)   // 🔴 لا تصحيح متجاور
+                                    bool oppType = array.get(eTp, c) != array.get(eTp, aa)   // 🔴 نفس النوع فقط (قمّتان=مقاومة/قاعان=دعم) — الدرس L2-02 س139 «يجب أن يكونا مرحلةً (قمّتان/قاعان)»؛ يشمل «التصحيح المتجاور» كحالة خاصّة. (الانقلاب = دور المنطقة الواحدة بموضع السعر، لا تزويج متعاكس.)
                                     float d     = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
                                     bool sizeOk = (wHiB - wLoB) <= 0 or (d <= zoneMaxRatio * (wHiB - wLoB) and d >= minGapB)   // 🔴 لا منطقة كبيرة · ولا منحطّة (d≥minGapB ⇒ المتطابقان يبقيان خطَّ م.A، أمانة §2-5)
-                                    if tierOk and not adjOpp and sizeOk and d < bd
+                                    if tierOk and not oppType and sizeOk and d < bd
                                         bd := d
                                         bb := c
                     if bb >= 0
@@ -1481,12 +1483,12 @@ if barstate.islast
                                         float lc = array.get(eLvl, c)
                                         float nT = math.max(cT, lc)
                                         float nB = math.min(cB, lc)
-                                        bool  cAdjOpp = false                       // [حارس الدمج · قرار المستخدم] لا يمتصّ العنقود خطًّا يشكّل تصحيحًا متجاورًا مع أيّ عضو (حواف المنطقة صحيحة، ليست قمّة/قاع مع تصحيحها)
+                                        bool  cOppType = false                      // [حارس الدمج · الدرس L2-02 س139] لا يمتصّ العنقود خطًّا من **نوع معاكس** لأيّ عضو (المنطقة نفس النوع فقط: قمّتان/قاعان)
                                         for mi2 = 0 to array.size(mem) - 1
                                             int mm = array.get(mem, mi2)
-                                            if math.abs(c - mm) == 1 and array.get(eTp, c) != array.get(eTp, mm)
-                                                cAdjOpp := true
-                                        if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH and not cAdjOpp
+                                            if array.get(eTp, c) != array.get(eTp, mm)
+                                                cOppType := true
+                                        if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH and not cOppType
                                             array.push(mem, c)
                                             cT := nT
                                             cB := nB
@@ -1524,7 +1526,7 @@ if barstate.islast
                     float bLd  = 1e18
                     float bLlv = na
                     for c = 0 to (nlgb > 0 ? nlgb - 1 : 0)
-                        if nlgb > 0 and array.get(lgEff, c) and not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and not (math.abs(array.get(lgBar, c) - mcBarAa) == 1 and array.get(lgTop, c) != array.get(eTp, aa)) and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)   // [حارس white-box·6] لا استعارة طرفٍ كبيرٍ مجاورٍ معاكسٍ (تصحيح متجاور مُغسَّل عبر الدرجة) — مرآة adjOpp
+                        if nlgb > 0 and array.get(lgEff, c) and not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and array.get(lgTop, c) == array.get(eTp, aa) and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)   // 🔴 نفس النوع فقط (الدرس L2-02 س139/س141): قمّة متوسطة ⇒ تستعير قمّة كبيرة (مقاومة) · قاع ⇒ قاع (دعم). يشمل منع «التصحيح المتجاور المُغسَّل عبر الدرجة».
                             int oc = bar_index - array.get(lgBar, c)
                             if oc >= 0
                                 float lLvl   = array.get(lgTop, c) ? math.max(open[oc], close[oc]) : math.min(open[oc], close[oc])
