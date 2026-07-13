@@ -8,7 +8,9 @@ import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.28.0 — [إغلاق ط3: إصلاح تعارض إزاحة خطّ السيولة (المرحلة تقيس مقابل الخطّ المرئيّ)] ═══
+// ═══ الإصدار: v2.29.0 — [ط4 المناطق · تدقيق مصدريّ (مشاهدة الدرس): استعارة الأزرق للمنفردة + حارس الدمج] ═══
+//   v2.29.0 [ط4-أ · تدقيق 4 وكلاء (مشاهدة درس رسم المناطق L2-02 مرئيًّا + تفريغ + وثائق + كود) · المؤشّر فقط]: (1) **استعارة الأزرق (#1، أمانة)**: المنفردة المتوسطة بلا شريك متوسط ⇒ تستعير أقرب قمّة/قاع **كبيرة (زرقاء=صفريّة) غير مغطّاة** ⇒ منطقة (الفيديو يرسمها؛ الكود كان يكتفي بخطّ). تمريرة بعد التزويج + `if en>=1`. **حرّاس (وكيل مراجعة، ضدّ الإفراط الفراكتاليّ):** استثناء تزويج المنفردة بنفسها (lgBar≠mcBar) · حدّ أدنى للمسافة (mergeRatio ⇒ لا منطقة منحطّة) · usedLg (طرف كبير لمنفردة واحدة). **بانتظار تحقّق بصريّ.** (2) **حارس الدمج (#2، قرار المستخدم)**: الدمج لا يمتصّ خطًّا يشكّل تصحيحًا متجاورًا مع أيّ عضو (حواف المنطقة صحيحة). (3) تصحيح تعليقات مُضلِّلة (greedy لكلّ مرساة لا عالميّ · «لا مستوى ثالث» ضمنيّ). فجوات توثيقيّة (§2.1/§2.3/§5 المواصفة قديمة — الكود أصوب) ستُحدَّث. عرض فقط.
+//   v2.28.0 [إغلاق ط3: إصلاح تعارض إزاحة خطّ السيولة (المرحلة تقيس مقابل الخطّ المرئيّ)] ═══
 //   v2.28.0 [تدقيق ختاميّ ط3 · وكيل · يتطلّب إعادة نشر JW_Conclusions/7]: كان f_phaseAt يقيس كسر الذعر مقابل خطّ سيولة **مُزاح** بـf_liqAdj، بينما JW_Lines.f_liqLine يرسم الخطّ **بلا إزاحة** (د08، قرارك المؤكَّد بصريًّا 2026-07-12) ⇒ الذعر يتأخّر عمّا تراه على الخطّ. الإصلاح: wp1a = w1 (الطرف الخام) ⇒ المرحلة تُقاس مقابل **نفس** الخطّ المرسوم؛ حُذِف f_liqAdj (لا مستهلك آخر). أمانة: «الذعر يبدأ عند كسر السيولة» (د11). استيراد /7. بهذا تُغلَق طبقة ط3 (فجوات #1/#2/#3 + ترقية الكور + تعارض الإزاحة).
 //   v2.27.0 [إنهاء طبقة ط3 · يتطلّب إعادة نشر JW_Conclusions/6]: **ترقية للكور**: حُذِف مفتاح useAccBreak — آلة التجميع الصريحة صارت دائمة (دستور «الكور بلا input»)، وحُذِف مسار التقريب القديم (recovered/lastExt) الميّت. السلوك = سلوك v2.26 ON **بايتيًّا** (المفتاح كان ON افتراضًا). التوقيع بلا useAccBreak (6 وسائط f_phaseAt / 5 f_phase). استيراد /6. [ملاحظة: «تقريب اليأس بنصف الجسم» جُرّب ثمّ **رُوجِع بمراجعة وكيل** — تلفيق: عتبة نصف الجسم لكسر الخطوط لا لعلاقة A→C البنيويّة؛ اليأس يبقى deepExt vs aExt ذيل↔ذيل.]
 //   v2.26.0 [حارس الثغرة الحافّيّة · وكيل مراجعة · يتطلّب إعادة نشر JW_Conclusions/5]: أُضيف حارس مدى الاستقراء لترند اليأس (`atBar-oLastBar <= oLastBar-oPrevBar`) — يمنع الخطّ البائت من النزول تحت السعر في هبوط حادّ بلا ارتدادات جديدة (كان يُطلق تجميعًا زيفًا أثناء تعمّق). **الافتراض صار ON** بعد التحقّق: مسح ON أثبت زوال الإفراط (EURUSD/ETHUSD عادتا يأس من تجميع زيف) + ظهور تجميع حقيقيّ (BTC 1س الكبيرة) + لا ثغرة مرصودة عبر 6 عروض (صعود/هبوط). المفتاح باقٍ للإطفاء. استيراد /5.
@@ -1385,8 +1387,8 @@ if barstate.islast
                         array.push(zoneLvlLines, line.new(array.get(mcTm, i), lvl, rightTmZ, lvl, xloc = xloc.bar_time, color = lc, width = 1, style = covered ? line.style_dashed : line.style_solid))
 
 // ─── [ط4-أ-2 / الدرس L2-02] المناطق = مستطيل بين خطّين **متقاربين سعريًّا** (دعم/مقاومة) — قاعدته دائمًا نقطة الموجة الحاليّة ───
-//   **3 مراحل** (الموجة الحاليّة · استعارة حاليّ↔ماضٍ · الماضي بينه)؛ داخل كلّ مرحلة **greedy الأصغر مسافةً عالميًّا** ⇒ كلّ خطّ يدخل منطقة.
-//   ما بقي بلا شريك ⇒ خطّ م.A فقط. 🔴 الممنوع: التصحيح المتجاور · 🔴 لا منطقة داخل منطقة (احتواء) · لا مستوى ثالث (أيّ طبقة) بينهما (تبقى صغيرة).
+//   التزويج **لكلّ مرساة من الأحدث للأقدم** ⇒ أقرب شريك سعريًّا (ج1 حاليّ↔حاليّ · ج2 حاليّ↔تاريخ). ما بقي بلا شريك متوسط ⇒ **يستعير الأزرق (كبيرة) القريب** (تمريرة لاحقة) وإلّا خطّ م.A فقط.
+//   🔴 الممنوع: التصحيح المتجاور (على التزويج والدمج معًا) · 🔴 لا منطقة داخل منطقة (احتواء). «لا مستوى ثالث بينهما» ينبثق ضمنيًّا من greedy-الأقرب (المتوسطة) — لا فحص طبقات أخرى.
 var array<box>   zoneBoxes = array.new<box>()
 var array<float> zTop = array.new<float>()                                  // حدود المناطق (للتصنيف وin_zone لاحقًا — ط4-أ-3)
 var array<float> zBot = array.new<float>()
@@ -1414,7 +1416,7 @@ if barstate.islast
                     array.push(eLvl, array.get(mcTop, i) ? math.max(open[o], close[o]) : math.min(open[o], close[o]))
                     array.push(eTp, array.get(mcTop, i))
         int en = array.size(eIdx)
-        if en >= 2
+        if en >= 1
             array<bool> usedZ = array.new<bool>(en, false)
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
             // [تزويج — قرار المستخدم] لكلّ خطّ من **الأحدث للأقدم**: ابحث عن **أقرب شريك سعريًّا في الموجة الحاليّة**، فإن لم تجد فالتاريخ. (eIdx زمنيّ تصاعديّ ⇒ الأحدث = الأخير)
@@ -1452,7 +1454,12 @@ if barstate.islast
                                         float lc = array.get(eLvl, c)
                                         float nT = math.max(cT, lc)
                                         float nB = math.min(cB, lc)
-                                        if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH
+                                        bool  cAdjOpp = false                       // [حارس الدمج · قرار المستخدم] لا يمتصّ العنقود خطًّا يشكّل تصحيحًا متجاورًا مع أيّ عضو (حواف المنطقة صحيحة، ليست قمّة/قاع مع تصحيحها)
+                                        for mi2 = 0 to array.size(mem) - 1
+                                            int mm = array.get(mem, mi2)
+                                            if math.abs(c - mm) == 1 and array.get(eTp, c) != array.get(eTp, mm)
+                                                cAdjOpp := true
+                                        if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH and not cAdjOpp
                                             array.push(mem, c)
                                             cT := nT
                                             cB := nB
@@ -1477,6 +1484,50 @@ if barstate.islast
                             int leftTm2 = loL >= 0 ? time[loL] : time
                             color zf = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill   // [ط4-أ-3] فوق المنطقة⇒دعم(أخضر) · تحتها⇒مقاومة(أحمر) · داخلها⇒نشطة
                             array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
+            // ─── [استعارة الأزرق · L2-02 · قرار المستخدم] المنفردة المتوسطة (بقيت بلا شريك متوسط) ⇒ استعِر أقرب قمّة/قاع **كبيرة (زرقاء = صفريّة، نفس الدرجة)** غير مُغطّاة ⇒ منطقة (بدل الاكتفاء بخطّ) ───
+            //   الفيديو: القاع الوحيد يستعير قمّة زرقاء من تاريخ التاريخ (كلّ قمّة زرقاء = بداية موجة متوسطة = قمّة صفريّة). عبر الدرجة ⇒ لا «تصحيح متجاور» (طرف كبير لا يجاور المتوسط). حجم/احتواء كالمعتاد.
+            int nlgb = array.size(lgBar)
+            array<bool> usedLg  = array.new<bool>(nlgb > 0 ? nlgb : 0, false)   // [حارس وكيل] منع تعدّد المنفردات على طرفٍ كبيرٍ واحد
+            float       minGapB = mergeRatio * (wHiB - wLoB)                     // [حارس وكيل] حدّ أدنى للمسافة (نسبة، لا رقم سحريّ) ⇒ لا منطقة منحطّة d≈0 من التداخل الفراكتاليّ
+            for oi = 0 to en - 1
+                int aa = en - 1 - oi
+                if not array.get(usedZ, aa)
+                    float aLvl    = array.get(eLvl, aa)
+                    int   mcBarAa = array.get(mcBar, array.get(eIdx, aa))       // [حارس وكيل] بار المنفردة — لاستثناء تزويجها بنفسها (الكبيرة على موضع المتوسطة نفسه)
+                    int   bLi  = -1
+                    float bLd  = 1e18
+                    float bLlv = na
+                    for c = 0 to (nlgb > 0 ? nlgb - 1 : 0)
+                        if nlgb > 0 and array.get(lgEff, c) and not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)
+                            int oc = bar_index - array.get(lgBar, c)
+                            if oc >= 0
+                                float lLvl   = array.get(lgTop, c) ? math.max(open[oc], close[oc]) : math.min(open[oc], close[oc])
+                                float d      = math.abs(aLvl - lLvl)
+                                bool  sizeOkB = (wHiB - wLoB) <= 0 or (d <= zoneMaxRatio * (wHiB - wLoB) and d >= minGapB)   // ضمن [أدنى, أقصى] ⇒ لا منحطّة ولا عملاقة
+                                if sizeOkB and d < bLd
+                                    bLd  := d
+                                    bLi  := c
+                                    bLlv := lLvl
+                    if bLi >= 0 and not na(bLlv)
+                        float cT = math.max(aLvl, bLlv)
+                        float cB = math.min(aLvl, bLlv)
+                        bool contain = false
+                        int zc = array.size(zTop)
+                        if zc > 0
+                            for k = 0 to zc - 1
+                                if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
+                                    contain := true
+                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)
+                        if not contain and not tooBig
+                            array.set(usedZ, aa, true)
+                            array.set(usedLg, bLi, true)                        // [حارس وكيل] الطرف الكبير مُستعار ⇒ لا تستعيره منفردة أخرى
+                            array.push(zTop, cT)
+                            array.push(zBot, cB)
+                            int lB      = math.min(array.get(mcBar, array.get(eIdx, aa)), array.get(lgBar, bLi))
+                            int loLb    = bar_index - lB
+                            int leftTmB = loLb >= 0 ? time[loLb] : time
+                            color zfB   = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill
+                            array.push(zoneBoxes, box.new(leftTmB, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zfB))
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var array<label> sigMarks = array.new<label>()   // علامات إشارات ثابتة (تُرسم عند إغلاق الشمعة وتبقى في مكانها — لا تتحرك مع السعر)
