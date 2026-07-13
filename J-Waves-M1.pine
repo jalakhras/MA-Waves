@@ -8,8 +8,9 @@ import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.29.3 — [ط4 المناطق · covHoH افتراض ON (لا رسم على المغطى في تاريخ التاريخ) — قرار المستخدم] ═══
-//   v2.29.3 [ط4 · قرار المستخدم + وكيل تدقيق المستويات]: `covHoH` افتراض **true** (كان false) ⇒ يُطبَّق قانون التغطية على تاريخ التاريخ (أقدم طبقة) فلا تُرسَم نقاطه المُغطّاة (كان يرسم على المغطى القديم — «معكوس حدسيًّا»). مدخل فقط، المؤشّر فقط.
+// ═══ الإصدار: v2.29.4 — [ط3 وسوم المراحل: موضع واعٍ بالاتجاه (ذعر/يأس هبوطًا=قمّة صعودًا=قاع) + covHoH=false — قرار المستخدم] ═══
+//   v2.29.4 [ط3 · ملاحظة المستخدم]: موضع وسم المرحلة صار **واعيًا بالمرحلة+الاتجاه** (كان عند آخر تطرّف فعّال أيًّا كان): **ذعر/يأس/ph3** (التصحيح المضادّ) ⇒ هبوطًا عند آخر **قمّة** · صعودًا عند آخر **قاع** · **تصريف (ph4 صعودًا)** ⇒ قمّة · **تجميع (ph4 هبوطًا)** ⇒ قاع · مشاركة ⇒ آخر تطرّف. دالّتان f_lastEffTypeI/f_phaseLblI (fallback آخر تطرّف). **وأُعيد covHoH إلى false** (توضيح المستخدم: المغطى في تاريخ التاريخ يبقى مرسومًا متاحًا؛ الاستعارة تأخذ من التاريخ عند الحاجة). عرض فقط، المؤشّر فقط.
+// ═══ الإصدار: v2.29.3 — [ط4 المناطق · covHoH افتراض ON — رُجِع في v2.29.4] ═══
 // ═══ الإصدار: v2.29.2 — [ط4 المناطق · اختبار وكلاء (white-box + تحليل بيانات): أرضيّة التزويج الرئيس + حارس التجاور المعاكس] ═══
 //   v2.29.2 [ط4-أ · وكيلا اختبار (تتبّع white-box على سيناريوهات + تحليل بيانات 4 عروض) · المؤشّر فقط]: (1) **أرضيّة المسافة الدنيا للتزويج المتوسط الرئيس** (كان بلا أرضيّة ⇒ 16% مناطق منحطّة «خطّ مُقنَّع» — EURUSD 4-5 نقاط، US100 3-8pts): رُفِع minGapB=max(mergeRatio,0.02)×نطاق (=عتبة الدمج) ليُشارَك بين الرئيس والاستعارة؛ `d≥minGapB` في sizeOk ⇒ المتطابقان يبقيان **خطَّ م.A** (أمانة §2-5). (2) **حارس التجاور المعاكس للاستعارة** (سدّ «غسيل التصحيح عبر الدرجة»، white-box س6): لا تستعير طرفًا كبيرًا مجاورًا (|Δbar|=1) معاكس النوع — مرآة adjOpp. مؤجَّل بـGAPS: انحراف الاحتواء (يُبقي الداخليّة) · tooBig ميّت · إفراط BTC كمّيّ (تجديد/تاريخ).
 // ═══ الإصدار: v2.29.0 — [ط4 المناطق · تدقيق مصدريّ (مشاهدة الدرس): استعارة الأزرق للمنفردة + حارس الدمج] ═══
@@ -221,7 +222,7 @@ int    liqExtend = input.int(24, "Liquidity extension (candles) / مدى امت�
 // ══════════════════════════ ط3 · 📊 المراحل / Phases ══════════════════════════
 string grpPhase  = "ط3 · 📊 المراحل / Phases"
 bool   useDistrib = input.bool(true, "Distribution phase (pre-break topping) / مرحلة التصريف (قُبيل الكسر)", group = grpPhase, tooltip = "[مصعب2] قُبيل كسر السيولة الكبرى، إن كُسِر آخر دعم صغير (صعودًا) / آخر مقاومة صغيرة (هبوطًا) والسيولة سليمة ⇒ «تصريف» (صعودًا) / «تجميع» (هبوطًا) بدل «مشاركة». كسر بنيويّ فعليّ (أقلّ زيفًا). عرض فقط — لا يُغيّر الإشارات. أطفئه للمقارنة قبل/بعد.")
-bool   showPhaseLbl = input.bool(false, "Phase labels on chart / وسوم المراحل على الشارت", group = grpPhase, tooltip = "[درس11] يرسم مرحلة كلّ درجة (مشاركة/ذعر/يأس/تجميع/تصريف) وسمًا على الشارت بلون الدرجة، عند آخر تطرّف فعّال لها. قاع الذعر أسود. عرض فقط.")
+bool   showPhaseLbl = input.bool(false, "Phase labels on chart / وسوم المراحل على الشارت", group = grpPhase, tooltip = "[درس11] يرسم مرحلة كلّ درجة (مشاركة/ذعر/يأس/تجميع/تصريف) وسمًا على الشارت بلون الدرجة، عند **تطرّفها المفهوميّ** (ذعر/يأس: هبوطًا قمّة·صعودًا قاع · تصريف: قمّة · تجميع: قاع). قاع/قمّة الذعر أسود. عرض فقط.")
 // [v2.27.0] حُذِف مفتاح useAccBreak — آلة التجميع الصريحة صارت **كور دائم** (دستور «الكور بلا input»). المنطق في jwc.f_phaseAt.
 
 // ══════════════════════════ 🧭 اللوحات · مساعد الإطار / Panels · Frame Helper ══════════════════════════
@@ -242,7 +243,7 @@ color  concBg   = input.color(#1E222D, "Decision-panel background / خلفية �
 string grpZone = "ط4 · 🟦 المناطق / Zones"
 bool   covCur      = input.bool(false, "Coverage: current wave / التغطية: الموجة الحاليّة", group = grpZone, tooltip = "الموجة الحاليّة هي الترند الحيّ ⇒ مطفأة افتراضيًّا (تبقى نقاطها فعّالة). المغطّى غالبًا في الماضي.")
 bool   covHist     = input.bool(true, "Coverage: history / التغطية: التاريخ", group = grpZone)
-bool   covHoH      = input.bool(true, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone, tooltip = "افتراض ON (قرار المستخدم 2026-07-13): يُطبَّق قانون التغطية على تاريخ التاريخ (أقدم طبقة) ⇒ نقاطه المُغطّاة (وُجد بعدها أطرف) **لا تُرسَم** (لا رسم على المغطى). كان false ⇒ يرسم على المغطى القديم.")
+bool   covHoH      = input.bool(false, "Coverage: history-of-history / التغطية: تاريخ التاريخ", group = grpZone, tooltip = "افتراض OFF (قرار المستخدم 2026-07-13): **لا يُطبَّق** قانون التغطية على تاريخ التاريخ ⇒ نقاطه المُغطّاة **تبقى مرسومةً** (متاحة إن احتجناها). شغّله إن أردت إخفاء المغطى القديم.")
 bool   dbgCov      = input.bool(false, "Diag: covered levels (red dashed) / تشخيص: المغطّى أحمر متقطّع", group = grpZone, tooltip = "تشخيص: يرسم المستويات المُغطّاة بالأحمر المتقطّع بدل إخفائها — لرؤية أيّها مُغطّى. أطفئه بعد التحقّق.")
 float  zoneMaxRatio = input.float(0.25, "Max zone height (× current wave range) / أقصى ارتفاع للمنطقة (× نطاق الموجة)", minval = 0.02, maxval = 1.0, step = 0.01, group = grpZone, tooltip = "يمنع المناطق الكبيرة: ارتفاع المنطقة يجب ألّا يتجاوز هذه النسبة × نطاق الموجة الحاليّة (أعلى-أدنى). أصغر ⇒ مناطق أصغر. (نسبةً لموجات الدفع/التصحيح.)")
 bool   enableMerge  = input.bool(true, "Merge close levels into one zone / دمج الخطوط القريبة في منطقة واحدة", group = grpZone, tooltip = "مفعّل: العنقود ينمو بامتصاص كلّ خطّ م.A قريب (ضمن mergeGap) في منطقة واحدة. مطفأ: تزويج ثنائيّ فقط (الأحدث ← أقرب شريك، بلا دمج).")
@@ -624,6 +625,20 @@ f_lastEffI(array<bool> effArr) =>
         if n > 0 and array.get(effArr, i)
             res := i
     res
+
+// [ط3 · موضع الوسم الواعي بالاتجاه · قرار المستخدم 2026-07-13] فهرس آخر تطرّف فعّال **من نوع محدّد** (قمّة=true/قاع=false)
+f_lastEffTypeI(array<bool> effArr, array<bool> topArr, bool wantTop) =>
+    int res = -1
+    int n   = array.size(effArr)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(effArr, i) and array.get(topArr, i) == wantTop
+            res := i
+    res
+
+// موضع وسم المرحلة عند **تطرّفها المفهوميّ**: ذعر/يأس/ph3 (التصحيح المضادّ) ⇒ هبوطًا قمّة · صعودًا قاع · ph4 (تصريف صعودًا/تجميع هبوطًا) ⇒ المعاكس · مشاركة/غيرها ⇒ آخر تطرّف. fallback = آخر تطرّف إن لا نوع مطابق.
+f_phaseLblI(int ph, int dir, array<bool> eff, array<bool> top) =>
+    int idx = ph >= 1 and ph <= 3 ? f_lastEffTypeI(eff, top, dir == -1) : ph == 4 ? f_lastEffTypeI(eff, top, dir == 1) : f_lastEffI(eff)
+    idx < 0 ? f_lastEffI(eff) : idx
 
 // ─── [⑥ عدّ إليوت] مُستخرَج إلى مكتبة JW_Elliott (jwew.ewRun) — تحمّل الأسطر ×10. القيم (ewStrict/ewOffset/showEWForm/arrScale/اللغة) تُمرَّر وسائط عند النداء ───
 
@@ -1603,19 +1618,19 @@ if barstate.islast
     array.clear(phaseLbls)
     if showPhaseLbl
         if showSmall and phS != -1
-            int si = f_lastEffI(scEff)
+            int si = f_phaseLblI(phS, smallLvlDir, scEff, scTop)
             if si >= 0
                 bool  isTopS = array.get(scTop, si)
                 color bgS    = phS == 1 ? color.black : cLvlS
                 array.push(phaseLbls, label.new(array.get(scTm, si), array.get(scPrc, si), phsS, xloc = xloc.bar_time, yloc = yloc.price, style = isTopS ? label.style_label_down : label.style_label_up, color = bgS, textcolor = color.white, size = size.small))
         if showMedium and phM != -1
-            int mi = f_lastEffI(mcEff)
+            int mi = f_phaseLblI(phM, medLvlDir, mcEff, mcTop)
             if mi >= 0
                 bool  isTopM = array.get(mcTop, mi)
                 color bgM    = phM == 1 ? color.black : cLvlM
                 array.push(phaseLbls, label.new(array.get(mcTm, mi), array.get(mcPrc, mi), phsM, xloc = xloc.bar_time, yloc = yloc.price, style = isTopM ? label.style_label_down : label.style_label_up, color = bgM, textcolor = color.white, size = size.small))
         if showLarge and phB != -1
-            int bi = f_lastEffI(lgEff)
+            int bi = f_phaseLblI(phB, bigLvlDir, lgEff, lgTop)
             if bi >= 0
                 bool  isTopB = array.get(lgTop, bi)
                 color bgB    = phB == 1 ? color.black : cLvlB
