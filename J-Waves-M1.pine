@@ -8,7 +8,9 @@ import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاس�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.30.0 — [ط4 إصلاح جذريّ: المنطقة **نفس النوع فقط** (قمّتان/قاعان) — الدرس L2-02 س139] ═══
+// ═══ الإصدار: v2.31.0 — [ط4 إصلاح مقياس الحجم: عتبات المنطقة نسبةً لمدى المستويات لا نطاق الذيول المنتفخ] ═══
+//   v2.31.0 [ط4 · إصلاح جذريّ للحجم · مسح بصريّ US100]: كانت عتبات حجم المنطقة (الأرضيّة minGapB + السقف zoneMaxRatio) نِسَبًا من **نطاق الموجة الكامل** wHiB-wLoB (ذيول من histLeft البعيد) ⇒ منتفخ ⇒ (4س) سقف ضخم = مناطق عملاقة · (15د) أرضيّة ضخمة = **صفر مناطق** (كلّ أزواج نفس-النوع القريبة تسقط تحتها). الآن العتبات نسبةً لـ**مدى المستويات الفعّالة نفسها** `zScale=max(eLvl)−min(eLvl)` ⇒ «القريب» يُقاس بالبنية الفعليّة. الأرضيّة صُغِّرت لـ0.5% (تسمح بالقمم/القيعان المزدوجة الرفيعة). wHiB/wLoB بقيت **للتغطية فقط**. عرض فقط.
+// ═══ v2.30.0 — [ط4 إصلاح جذريّ: المنطقة **نفس النوع فقط** (قمّتان/قاعان) — الدرس L2-02 س139] ═══
 //   v2.30.0 [ط4 · إصلاح جذريّ · تحقّق مصدريّ قاطع بوكيل]: كان التزويج يمنع فقط المتعاكس **المتجاور** (adjOpp) فيسمح **قمّة↔قاع بعيد** ⇒ مناطق ضخمة خاطئة (US100: 9 مناطق كلّها قمّة30xxx↔قاع28xxx، حتى 2466 نقطة، تملأ الشارت كخلفية). الدرس س139 قاطع: «يجب أن يكونا **مرحلةً (قمّتان/قاعان)**» = **نفس النوع فقط** (قمّتان=مقاومة · قاعان=دعم). الانقلاب دعم↔مقاومة = **دور المنطقة الواحدة بموضع السعر** (منفَّذ باللون)، لا تزويج متعاكس. صُحِّح في 3 مواضع: التزويج الرئيس (oppType) · الدمج (cOppType) · الاستعارة (lgTop==eTp). ادّعاء «قاع-قمّة مسموح» في المواصفة القديمة كان تلفيقًا غير مدعوم بأيّ مصدر (صُحِّح). عرض فقط.
 // ═══ v2.29.6 — [ط4 محو الخطّ: امحُ خطّ م.A لكلّ طرف صار عضو منطقة (المنفردة فقط تبقى خطًّا)] ═══
 //   v2.29.6 [ط4 · محو الخطّ · درس L2-02 س15 «أمسح خطوطها»]: بعد بناء المناطق، يُحذَف خطّ م.A لكلّ طرف متوسط صار **عضو منطقة** (usedZ) ⇒ لا ازدواج بصريّ (خطّ تحت حافّة كلّ منطقة). المنفردة (بلا شريك ولا استعارة) **تبقى خطًّا**. الوصلة: `zoneLvlIdx` يوازي `zoneLvlLines` (فهرس المتوسطة لكلّ خطّ)؛ مسح الحذف يبني `zonedMc` من eIdx[usedZ] ويحذف الخطوط المطابقة. عرض فقط، يعمل فقط حين showZoneBox+showZoneLvl معًا (حالة الازدواج).
@@ -1429,8 +1431,7 @@ if barstate.islast
     if showZones and showZoneBox
         int histLeft = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
         int hL2b     = array.size(segLefts) > 1 ? array.get(segLefts, 1) : histLeft
-        [wHiB, wLoB] = jwf.rangeHiLo(histLeft, bar_index)                             // نطاق الموجة الحاليّة (للاستثناء)
-        float minGapB = math.max(mergeRatio, 0.02) * (wHiB - wLoB)                    // [أرضيّة مسافة دنيا · تحليل بيانات + white-box] ≥2% نطاق (= عتبة الدمج mergeGap) — للتزويج الرئيس والاستعارة معًا؛ مستويان أقرب ⇒ مستوى واحد (خطّ) لا منطقة منحطّة (أمانة §2-3/§2-5)
+        [wHiB, wLoB] = jwf.rangeHiLo(histLeft, bar_index)                             // نطاق الموجة الحاليّة **للتغطية فقط** (استثناء f_coveredAt) — لا لحجم المناطق
         // (1) كلّ الأطراف الفعّالة **غير المغطّاة** (الموجة + التاريخ — كي تجد كلّ نقطة زوجًا): الفهرس + مستوى الجسم + النوع
         array<int>   eIdx = array.new<int>()
         array<float> eLvl = array.new<float>()
@@ -1445,6 +1446,9 @@ if barstate.islast
                     array.push(eTp, array.get(mcTop, i))
         int en = array.size(eIdx)
         if en >= 1
+            // [مقياس حجم المناطق · إصلاح جذريّ v2.31] عتبات الحجم نِسَبٌ من **مدى المستويات الفعّالة نفسها** لا من نطاق الذيول الكامل (wHiB-wLoB) — فذاك ينتفخ حين يمتدّ histLeft بعيدًا فيُعطِّل السقف (مناطق عملاقة على 4س) ويضخّم الأرضيّة (صفر مناطق على 15د). «القريب» يجب أن يُقاس نسبةً للبنية الفعليّة للمستويات.
+            float zScale  = array.max(eLvl) - array.min(eLvl)                         // مدى المستويات الفعّالة (أعلى قمّة جسم − أدنى قاع جسم)
+            float minGapB = 0.005 * zScale                                            // أرضيّة دنيا صغيرة (0.5% من مدى المستويات) ⇒ تسمح بالقمم/القيعان المزدوجة القريبة (منطقة رفيعة = دعم/مقاومة دقيق)، وتمنع فقط الخطّ الشعريّ (منطقة شبه صفر ارتفاع)
             array<bool> usedZ = array.new<bool>(en, false)
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
             // [تزويج — قرار المستخدم] لكلّ خطّ من **الأحدث للأقدم**: ابحث عن **أقرب شريك سعريًّا في الموجة الحاليّة**، فإن لم تجد فالتاريخ. (eIdx زمنيّ تصاعديّ ⇒ الأحدث = الأخير)
@@ -1462,7 +1466,7 @@ if barstate.islast
                                     bool tierOk = ph2 == 1 ? cCur : not cCur
                                     bool oppType = array.get(eTp, c) != array.get(eTp, aa)   // 🔴 نفس النوع فقط (قمّتان=مقاومة/قاعان=دعم) — الدرس L2-02 س139 «يجب أن يكونا مرحلةً (قمّتان/قاعان)»؛ يشمل «التصحيح المتجاور» كحالة خاصّة. (الانقلاب = دور المنطقة الواحدة بموضع السعر، لا تزويج متعاكس.)
                                     float d     = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
-                                    bool sizeOk = (wHiB - wLoB) <= 0 or (d <= zoneMaxRatio * (wHiB - wLoB) and d >= minGapB)   // 🔴 لا منطقة كبيرة · ولا منحطّة (d≥minGapB ⇒ المتطابقان يبقيان خطَّ م.A، أمانة §2-5)
+                                    bool sizeOk = zScale > 0 and d <= zoneMaxRatio * zScale and d >= minGapB   // 🔴 لا منطقة كبيرة (>سقف×مدى المستويات) · ولا منحطّة (d≥minGapB) · zScale=0 (نقطة واحدة) ⇒ لا منطقة (خطّ)
                                     if tierOk and not oppType and sizeOk and d < bd
                                         bd := d
                                         bb := c
@@ -1473,8 +1477,8 @@ if barstate.islast
                         array.push(mem, aa)
                         array.push(mem, bb)
                         if enableMerge                                  // [دمج اختياريّ] نمِّ العنقود بامتصاص الخطوط القريبة (ضمن mergeGap) ما دام ≤ الحدّ الأقصى
-                            float capH     = (wHiB - wLoB) > 0 ? zoneMaxRatio * (wHiB - wLoB) : 1e18
-                            float mergeGap = mergeRatio * (wHiB - wLoB)
+                            float capH     = zScale > 0 ? zoneMaxRatio * zScale : 1e18
+                            float mergeGap = mergeRatio * zScale
                             bool grew = true
                             while grew
                                 grew := false
@@ -1500,7 +1504,7 @@ if barstate.islast
                             for k = 0 to zc - 1
                                 if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
                                     contain := true
-                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)   // 🔴 حدّ الحجم الصارم
+                        bool tooBig = zScale > 0 and (cT - cB) > zoneMaxRatio * zScale   // 🔴 حدّ الحجم الصارم (نسبةً لمدى المستويات)
                         if not contain and not tooBig
                             int nm = array.size(mem)
                             int leftBar = bar_index
@@ -1531,7 +1535,7 @@ if barstate.islast
                             if oc >= 0
                                 float lLvl   = array.get(lgTop, c) ? math.max(open[oc], close[oc]) : math.min(open[oc], close[oc])
                                 float d      = math.abs(aLvl - lLvl)
-                                bool  sizeOkB = (wHiB - wLoB) <= 0 or (d <= zoneMaxRatio * (wHiB - wLoB) and d >= minGapB)   // ضمن [أدنى, أقصى] ⇒ لا منحطّة ولا عملاقة
+                                bool  sizeOkB = zScale > 0 and d <= zoneMaxRatio * zScale and d >= minGapB   // ضمن [أدنى, أقصى] نسبةً لمدى المستويات ⇒ لا منحطّة ولا عملاقة · zScale=0 ⇒ لا استعارة
                                 if sizeOkB and d < bLd
                                     bLd  := d
                                     bLi  := c
@@ -1545,7 +1549,7 @@ if barstate.islast
                             for k = 0 to zc - 1
                                 if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
                                     contain := true
-                        bool tooBig = (wHiB - wLoB) > 0 and (cT - cB) > zoneMaxRatio * (wHiB - wLoB)
+                        bool tooBig = zScale > 0 and (cT - cB) > zoneMaxRatio * zScale
                         if not contain and not tooBig
                             array.set(usedZ, aa, true)
                             array.set(usedLg, bLi, true)                        // [حارس وكيل] الطرف الكبير مُستعار ⇒ لا تستعيره منفردة أخرى
