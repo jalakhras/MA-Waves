@@ -15,16 +15,7 @@
 library("JW_Conclusions", overlay = true)
 import Jassar_Mahmoud/JW_Lines/1 as jwl
 
-// ─── مساعد إزاحة الخطّ (منقول مع ط3، مستهلكه الوحيد f_phaseAt) — بايتيّ ───
-//   إزاحة إسقاط خطّ السيولة (اتّساق مع الخطّ المرسوم). يُعرَّف قبل f_phaseAt (تعريف-قبل-استعمال).
-export f_liqAdj(int b1, int b2, float wp1, float slope, bool wantTop) =>
-    float adj = 0.0
-    for k = b1 to b2
-        int ok = bar_index - k
-        if ok >= 0
-            float lv = wp1 + slope * (k - b1)
-            adj := math.max(adj, wantTop ? high[ok] - lv : lv - low[ok])
-    adj
+// ⇐ [تدقيق ختاميّ 2026-07-13] حُذِفت f_liqAdj: الخطّ المرسوم بلا إزاحة (د08)، فقياس المرحلة يستعمل الطرف الخام w1 مباشرةً (لا مستهلك آخر).
 
 // [درس10] قوة السيولة لكلّ درجة = مدى تداخل تطرّفاتها: المرجع = الطرف المعاكس قبل الأخير بـ3 مواضع (قاع4↔قمّة1).
 //   3 حالات (الدرس10 §قوّة، بلا رقم سحريّ — الذيل↔الجسم): صعودًا والمرجع قمّة high[o2]:
@@ -84,7 +75,7 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
             int   b1 = array.get(aBar, i1)
             int   b2 = array.get(aBar, i2)
             float slope = b2 != b1 ? (w2 - w1) / (b2 - b1) : 0.0
-            float wp1a  = wantTop ? w1 + f_liqAdj(b1, b2, w1, slope, wantTop) : w1 - f_liqAdj(b1, b2, w1, slope, wantTop)   // نفس إزاحة الرسم (اتّساق مع الخطّ المرسوم)
+            float wp1a  = w1                                          // [إصلاح تعارض الإزاحة · تدقيق ختاميّ] الخطّ المرسوم (JW_Lines.f_liqLine) يمرّ بالطرفين **بلا إزاحة** (د08، قرار المستخدم 2026-07-12، مؤكَّد بصريًّا). فالمرحلة تُقاس مقابل **نفس** الخطّ المرئيّ (كان f_liqAdj يُزيحه ⇒ ذعر متأخّر عمّا يراه المستخدم).
             // [إصلاح المرحلة] = موضع السعر **الحاليّ** من خطّ السيولة المرسوم (المائل) — لا latch تاريخيّ يَعلَق، ولا عتبة أفقيّة تفوت:
             //   تحت المقاومة/فوق الدعم الآن ⇒ مشاركة · تجاوزه الآن ⇒ ذعر. يطابق ما يراه المستخدم على الخطّ نفسه (يتحدّث مع السعر/الخطوط الجديدة).
             float lineNow   = wp1a + slope * (atBar - b1)             // [2-أ] قيمة الخطّ المرسوم عند atBar (بدل bar_index)
