@@ -4,12 +4,11 @@
 //   مُستخرَجة بايتيًّا من J-Waves M1 (فرع m3/gaps-and-scale) وفق docs/build/spec_lib_JW_Conclusions.md
 //   حسم المستخدم (2026-07-13): **استخراج بايتيّ أوّلًا** + **استيراد مكتبة→مكتبة** (ط3 فوق ط2).
 //   المُصدَّر: قوّة السيولة (د10 — تداخل التطرّفات) + آلة المراحل الخمس (د11 — داو ABC، معمّمة زمنيًّا).
-//   العوالم المُمرَّرة وسائطَ: useDistrib + useAccBreak (مدخلان عالميّان). jwl.f_liqPairAt عبر الاستيراد.
-//   [تحديث 2026-07-13 · ف2+ف3] f_phaseAt/f_phase: مُعامل useAccBreak = آلة التجميع الصريحة الكاملة —
-//     دخول (ف3، د11 س170): يأس⇒تجميع بكسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (مقاومة B) لجهة التعافي.
-//       [إصلاح v4: الترند على الجانب المعاكس لا نفس التطرّفات — كسرٌ اتجاهيّ حقيقيّ لا حافّة مظروف (كان يُطلق زيفًا).]
-//       [حارس v5: الاستقراء ≤ مباعدة المرتكزَين — يمنع الخطّ البائت من النزول تحت السعر (تجميع زيف في هبوط حادّ).]
-//     خروج (ف2، د11 س133): تجميع⇒مشاركة بكسر النطاق (آخر قمّة/قاع). OFF=تقريب «الارتداد عن الأعمق» (بايتيّ).
+//   العوالم المُمرَّرة وسائطَ: useDistrib فقط. jwl.f_liqPairAt عبر الاستيراد.
+//   [v6 · آلة التجميع في الكور] f_phaseAt/f_phase: آلة التجميع الصريحة **دائمة** (حُذِف مفتاح useAccBreak — دستور «الكور بلا input»؛ حُذِف مسار التقريب القديم recovered/lastExt).
+//     دخول (ف3، د11 س170): يأس⇒تجميع بكسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (مقاومة B) لجهة التعافي [الجانب المعاكس = كسر اتجاهيّ حقيقيّ] + حارس مدى الاستقراء (≤ مباعدة المرتكزَين).
+//     خروج (ف2، د11 س133): تجميع⇒مشاركة بكسر النطاق (آخر قمّة/قاع).
+//     يأس (د11 س132/161): C أعمق من الذعر (deepExt vs aExt، ذيل↔ذيل بنيويّ) — لا عتبة نصف جسم (تلك لكسر الخطوط؛ رُوجِع تلفيقٌ بمراجعة وكيل).
 //   يبقى في المؤشّر: f_activeDir·f_liqBroken (ط2/د09) · f_stTxt/f_phTxt (تنسيق) · التجميع/الدخول · اللوحة · المدخلات.
 //   OHLC/time/bar_index بالإزاحة تعمل داخل المكتبة (v6).
 // ════════════════════════════════════════════════════════════════════════════
@@ -71,7 +70,7 @@ export f_liqStrength(array<int> aBar, array<bool> aTop, array<bool> aEff, int wd
 // [2-أ · تعميم زمنيّ للمرحلة] يحسب مرحلة داو للدرجة كما كانت عند atBar (لبوّابة الإشارات التاريخيّة).
 //   (أ) ذيول النقاط: تبقى high[bar_index-aBar] + مرشّح aBar<=atBar. (ب) لحظة «الآن»: تُزاح إلى atBar. f_phaseAt(...,bar_index) ≡ f_phase الأصليّة بايتيًّا.
 //   useDistrib صار وسيطًا (كان مدخلًا عالميًّا في المؤشّر) — لا عالميّ آخر يُقرأ.
-export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar, bool useDistrib, bool useAccBreak) =>
+export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar, bool useDistrib) =>
     int  ph = wdir != 0 ? 0 : -1                              // اتجاه موجود بلا خطّ سيولة (الكبيرة قليلة النقاط) ⇒ مشاركة افتراضيًّا (ترند بلا كسر) · لا اتجاه ⇒ —
     bool wantTop = wdir == -1
     [i1, i2] = jwl.f_liqPairAt(aBar, aTop, aEff, wdir, atBar)
@@ -109,7 +108,6 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                 ph := 1                                              // ذعر (كُسِرت السيولة)
                 float aExt    = na                                   // قاع الذعر A (أوّل تطرّف مضادّ بعد الكسر)
                 float deepExt = na                                   // الأعمق (قاع أدنى صعودًا / قمّة أعلى هبوطًا)
-                float lastExt = na
                 int   cnt = 0
                 int   n = array.size(aBar)
                 for j = 0 to (n > 0 ? n - 1 : 0)
@@ -119,46 +117,42 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                             float wj = wantTop ? high[oj] : low[oj]
                             aExt    := na(aExt) ? wj : aExt
                             deepExt := na(deepExt) ? wj : (wantTop ? math.max(deepExt, wj) : math.min(deepExt, wj))
-                            lastExt := wj
                             cnt := cnt + 1
                 if cnt >= 2
-                    bool recovered = wantTop ? (lastExt < deepExt) : (lastExt > deepExt)   // [OFF] ارتداد عن الأعمق ⇒ تبَنٍّ (تقريب)
-                    bool deepened  = wantTop ? (deepExt > aExt) : (deepExt < aExt)           // تطرّف أعمق من A (C)
-                    // [ف3 · د11 س170] نهاية اليأس = كسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (قمم صعودًا/قيعان هبوطًا = مقاومة B، بعد brkBar).
-                    //   الكسر يُقاس على الجانب المعاكس (المقاومة النازلة صعودًا/الدعم الصاعد هبوطًا) ⇒ كسرٌ اتجاهيّ حقيقيّ (السعر يتجاوز المقاومة) لا حافّة مظروف.
+                    bool deepened = wantTop ? (deepExt > aExt) : (deepExt < aExt)   // [د11 س132/161] اليأس أعمق من الذعر (C: قاع أدنى صعودًا/قمّة أعلى هبوطًا من قاع الذعر A) — كسر بنيويّ ذيل↔ذيل (لا عتبة نصف جسم؛ تلك لكسر الخطوط فقط)
+                    // [ف3 · د11 س170] نهاية اليأس = كسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (قمم صعودًا/قيعان هبوطًا = مقاومة B، بعد brkBar) لجهة التعافي.
+                    //   الكسر على الجانب المعاكس (المقاومة النازلة صعودًا/الدعم الصاعد هبوطًا) ⇒ كسرٌ اتجاهيّ حقيقيّ لا حافّة مظروف. [كور: بلا مفتاح — دستور «الكور بلا input».]
                     bool despairBroken = false
-                    if useAccBreak
-                        float oLast    = na                          // آخر ارتداد معاكس (الأحدث)
-                        int   oLastBar = -1
-                        float oPrev    = na                          // الارتداد المعاكس قبله
-                        int   oPrevBar = -1
-                        for jd = 0 to (n > 0 ? n - 1 : 0)
-                            if n > 0 and array.get(aEff, jd) and array.get(aTop, jd) == (not wantTop) and array.get(aBar, jd) > brkBar and array.get(aBar, jd) <= atBar
-                                int ojd = bar_index - array.get(aBar, jd)
-                                if ojd >= 0
-                                    oPrev    := oLast
-                                    oPrevBar := oLastBar
-                                    oLast    := wantTop ? low[ojd] : high[ojd]
-                                    oLastBar := array.get(aBar, jd)
-                        // [حارس الثغرة الحافّيّة · وكيل مراجعة] لا تستقرئ ترند اليأس أبعد من مباعدة المرتكزَين المعاكسَين — وإلّا في هبوط حادّ بلا ارتدادات جديدة ينزل الخطّ البائت تحت السعر فيُطلق تجميعًا زيفًا أثناء تعمّق فعليّ. الاستقراء ≤ مباعدة ⇒ انزياح الخطّ ≤ ارتفاع مقطع واحد (بلا رقم سحريّ).
-                        if not na(oPrev) and oLastBar > oPrevBar and (atBar - oLastBar) <= (oLastBar - oPrevBar)
-                            float slopeD      = (oLast - oPrev) / (oLastBar - oPrevBar)
-                            float despairLine = oLast + slopeD * (atBar - oLastBar)              // ترند اليأس (الجانب المعاكس) مُمَدَّدًا إلى atBar (ضمن المدى المحروس)
-                            despairBroken := wantTop ? (midNow < despairLine) : (midNow > despairLine)   // نصف الجسم تجاوز الترند لجهة التعافي = كسر حقيقيّ
-                    bool toAccum = useAccBreak ? despairBroken : recovered                     // ف3 ON: كسر ترند اليأس (معاكس) · OFF: التقريب (بايتيّ)
-                    if toAccum
+                    float oLast    = na                          // آخر ارتداد معاكس (الأحدث)
+                    int   oLastBar = -1
+                    float oPrev    = na                          // الارتداد المعاكس قبله
+                    int   oPrevBar = -1
+                    for jd = 0 to (n > 0 ? n - 1 : 0)
+                        if n > 0 and array.get(aEff, jd) and array.get(aTop, jd) == (not wantTop) and array.get(aBar, jd) > brkBar and array.get(aBar, jd) <= atBar
+                            int ojd = bar_index - array.get(aBar, jd)
+                            if ojd >= 0
+                                oPrev    := oLast
+                                oPrevBar := oLastBar
+                                oLast    := wantTop ? low[ojd] : high[ojd]
+                                oLastBar := array.get(aBar, jd)
+                    // [حارس الثغرة الحافّيّة] لا تستقرئ ترند اليأس أبعد من مباعدة المرتكزَين المعاكسَين — وإلّا في هبوط حادّ بلا ارتدادات جديدة ينزل الخطّ البائت تحت السعر فيُطلق تجميعًا زيفًا أثناء تعمّق. الاستقراء ≤ مباعدة ⇒ انزياح ≤ مقطع واحد (بلا رقم سحريّ).
+                    if not na(oPrev) and oLastBar > oPrevBar and (atBar - oLastBar) <= (oLastBar - oPrevBar)
+                        float slopeD      = (oLast - oPrev) / (oLastBar - oPrevBar)
+                        float despairLine = oLast + slopeD * (atBar - oLastBar)              // ترند اليأس (الجانب المعاكس) مُمَدَّدًا إلى atBar (ضمن المدى المحروس)
+                        despairBroken := wantTop ? (midNow < despairLine) : (midNow > despairLine)   // نصف الجسم تجاوز الترند لجهة التعافي = كسر حقيقيّ
+                    if despairBroken
                         ph := 3                                      // تجميع (رينج القاع بعد كسر ترند اليأس، قبل استئناف المشاركة)
-                        if useAccBreak                               // [د11 · ف2] مُحفِّز الخروج: كسر النطاق (آخر طرف معاكس داخل الرينج) ⇒ Markup/Markdown جديد (مشاركة)
-                            float rangeExt = na                      // آخر قمّة (صعودًا)/قاع (هبوطًا) داخل الرينج (بعد brkBar) — الأحدث زمنيًّا (الطرف المعاكس للمُجمَّع)
-                            for jr = 0 to (n > 0 ? n - 1 : 0)
-                                if n > 0 and array.get(aEff, jr) and array.get(aTop, jr) == (not wantTop) and array.get(aBar, jr) > brkBar and array.get(aBar, jr) <= atBar
-                                    int ojr = bar_index - array.get(aBar, jr)
-                                    if ojr >= 0
-                                        rangeExt := wantTop ? low[ojr] : high[ojr]
-                            if not na(rangeExt) and (wantTop ? (midNow < rangeExt) : (midNow > rangeExt))
-                                ph := 0                              // كُسِر النطاق بنصف الجسم (كسر آخر قمّة/قاع = شرط الانعكاس، د11 س133) ⇒ مشاركة جديدة
+                        // [د11 · ف2] مُحفِّز الخروج: كسر النطاق (آخر طرف معاكس داخل الرينج) ⇒ Markup/Markdown جديد (مشاركة)
+                        float rangeExt = na                          // آخر قمّة (صعودًا)/قاع (هبوطًا) بعد brkBar — الأحدث (الطرف المعاكس للمُجمَّع)
+                        for jr = 0 to (n > 0 ? n - 1 : 0)
+                            if n > 0 and array.get(aEff, jr) and array.get(aTop, jr) == (not wantTop) and array.get(aBar, jr) > brkBar and array.get(aBar, jr) <= atBar
+                                int ojr = bar_index - array.get(aBar, jr)
+                                if ojr >= 0
+                                    rangeExt := wantTop ? low[ojr] : high[ojr]
+                        if not na(rangeExt) and (wantTop ? (midNow < rangeExt) : (midNow > rangeExt))
+                            ph := 0                                  // كُسِر النطاق بنصف الجسم (كسر آخر قمّة/قاع = شرط الانعكاس، د11 س133) ⇒ مشاركة جديدة
                     else if deepened
-                        ph := 2                                      // يأس (C، تطرّف أعمق / الترند سليم)
+                        ph := 2                                      // يأس (C، تطرّف أعمق من قاع الذعر A — بنيويّ)
             else if useDistrib                                      // [مصعب2] السيولة سليمة (لم تُكسَر) ⇒ افحص التصريف: كسر آخر دعم/مقاومة صغير قُبيل الكسر الكامل
                 // تصريف يبدأ بكسر آخر قاع (صعودًا) / آخر قمّة (هبوطًا) للدرجة — كسر بنيويّ فعليّ لا مجرّد «قمّة أدنى» (أدقّ فراكتاليًّا، أقلّ زيفًا)
                 bool  wantSup = wdir == 1                            // صعود ⇒ الدعم = القيعان · هبوط ⇒ المقاومة = القمم
@@ -173,6 +167,6 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                     ph := 4                                          // تصريف (كُسِر آخر دعم/مقاومة صغير بنصف الجسم والسيولة سليمة ⇒ قُبيل الكسر الكامل)
     ph
 
-// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index). useDistrib + useAccBreak يُمرَّران.
-export f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, bool useDistrib, bool useAccBreak) =>
-    f_phaseAt(aBar, aTop, aEff, wdir, bar_index, useDistrib, useAccBreak)
+// غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index). useDistrib يُمرَّر.
+export f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, bool useDistrib) =>
+    f_phaseAt(aBar, aTop, aEff, wdir, bar_index, useDistrib)
