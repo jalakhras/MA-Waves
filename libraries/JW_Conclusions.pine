@@ -6,7 +6,8 @@
 //   المُصدَّر: قوّة السيولة (د10 — تداخل التطرّفات) + آلة المراحل الخمس (د11 — داو ABC، معمّمة زمنيًّا).
 //   العوالم المُمرَّرة وسائطَ: useDistrib + useAccBreak (مدخلان عالميّان). jwl.f_liqPairAt عبر الاستيراد.
 //   [تحديث 2026-07-13 · ف2+ف3] f_phaseAt/f_phase: مُعامل useAccBreak = آلة التجميع الصريحة الكاملة —
-//     دخول (ف3، د11 س170): يأس⇒تجميع بكسر **ترند اليأس** (خطّ آخر تطرّفَي يأس) لجهة التعافي أو توقّف التعمّق.
+//     دخول (ف3، د11 س170): يأس⇒تجميع بكسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (مقاومة B) لجهة التعافي.
+//       [إصلاح v4: الترند على الجانب المعاكس لا نفس التطرّفات — كسرٌ اتجاهيّ حقيقيّ لا حافّة مظروف (كان يُطلق زيفًا).]
 //     خروج (ف2، د11 س133): تجميع⇒مشاركة بكسر النطاق (آخر قمّة/قاع). OFF=تقريب «الارتداد عن الأعمق» (بايتيّ).
 //   يبقى في المؤشّر: f_activeDir·f_liqBroken (ط2/د09) · f_stTxt/f_phTxt (تنسيق) · التجميع/الدخول · اللوحة · المدخلات.
 //   OHLC/time/bar_index بالإزاحة تعمل داخل المكتبة (v6).
@@ -108,9 +109,6 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                 float aExt    = na                                   // قاع الذعر A (أوّل تطرّف مضادّ بعد الكسر)
                 float deepExt = na                                   // الأعمق (قاع أدنى صعودًا / قمّة أعلى هبوطًا)
                 float lastExt = na
-                int   lastBar = -1                                   // [ف3] بار آخر تطرّف يأس (لميل ترند اليأس)
-                float prevExt = na                                   // [ف3] التطرّف قبل الأخير
-                int   prevBar = -1
                 int   cnt = 0
                 int   n = array.size(aBar)
                 for j = 0 to (n > 0 ? n - 1 : 0)
@@ -120,23 +118,32 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
                             float wj = wantTop ? high[oj] : low[oj]
                             aExt    := na(aExt) ? wj : aExt
                             deepExt := na(deepExt) ? wj : (wantTop ? math.max(deepExt, wj) : math.min(deepExt, wj))
-                            prevExt := lastExt                        // [ف3] إزاحة: الأخير السابق ⇒ قبل-الأخير
-                            prevBar := lastBar
                             lastExt := wj
-                            lastBar := array.get(aBar, j)
                             cnt := cnt + 1
                 if cnt >= 2
                     bool recovered = wantTop ? (lastExt < deepExt) : (lastExt > deepExt)   // [OFF] ارتداد عن الأعمق ⇒ تبَنٍّ (تقريب)
                     bool deepened  = wantTop ? (deepExt > aExt) : (deepExt < aExt)           // تطرّف أعمق من A (C)
-                    // [ف3 · د11 س170] بدء التجميع الصريح = **كسر ترند اليأس** (خطّ آخر تطرّفَي يأس) لجهة التعافي، أو توقّف التطرّفات عن التعمّق (انكسار بنيويّ) — بدل تقريب «الارتداد عن الأعمق».
+                    // [ف3 · د11 س170] نهاية اليأس = كسر **ترند اليأس** = خطّ آخر ارتدادَين **معاكسَين** (قمم صعودًا/قيعان هبوطًا = مقاومة B، بعد brkBar).
+                    //   الكسر يُقاس على الجانب المعاكس (المقاومة النازلة صعودًا/الدعم الصاعد هبوطًا) ⇒ كسرٌ اتجاهيّ حقيقيّ (السعر يتجاوز المقاومة) لا حافّة مظروف.
                     bool despairBroken = false
-                    if useAccBreak and not na(prevExt) and lastBar > prevBar
-                        float slopeD      = (lastExt - prevExt) / (lastBar - prevBar)
-                        float despairLine = lastExt + slopeD * (atBar - lastBar)               // خطّ ترند اليأس مُمَدَّدًا إلى atBar
-                        bool  structRec   = wantTop ? (lastExt <= prevExt) : (lastExt >= prevExt)     // التطرّف لم يعد أعمق ⇒ انكسار بنيويّ للترند
-                        bool  lineBrk     = wantTop ? (midNow < despairLine) : (midNow > despairLine) // نصف الجسم كسر خطّ ترند اليأس لجهة التعافي
-                        despairBroken := structRec or lineBrk
-                    bool toAccum = useAccBreak ? despairBroken : recovered                     // ف3 ON: كسر ترند اليأس · OFF: التقريب (بايتيّ)
+                    if useAccBreak
+                        float oLast    = na                          // آخر ارتداد معاكس (الأحدث)
+                        int   oLastBar = -1
+                        float oPrev    = na                          // الارتداد المعاكس قبله
+                        int   oPrevBar = -1
+                        for jd = 0 to (n > 0 ? n - 1 : 0)
+                            if n > 0 and array.get(aEff, jd) and array.get(aTop, jd) == (not wantTop) and array.get(aBar, jd) > brkBar and array.get(aBar, jd) <= atBar
+                                int ojd = bar_index - array.get(aBar, jd)
+                                if ojd >= 0
+                                    oPrev    := oLast
+                                    oPrevBar := oLastBar
+                                    oLast    := wantTop ? low[ojd] : high[ojd]
+                                    oLastBar := array.get(aBar, jd)
+                        if not na(oPrev) and oLastBar > oPrevBar
+                            float slopeD      = (oLast - oPrev) / (oLastBar - oPrevBar)
+                            float despairLine = oLast + slopeD * (atBar - oLastBar)              // ترند اليأس (الجانب المعاكس) مُمَدَّدًا إلى atBar
+                            despairBroken := wantTop ? (midNow < despairLine) : (midNow > despairLine)   // نصف الجسم تجاوز الترند لجهة التعافي = كسر حقيقيّ
+                    bool toAccum = useAccBreak ? despairBroken : recovered                     // ف3 ON: كسر ترند اليأس (معاكس) · OFF: التقريب (بايتيّ)
                     if toAccum
                         ph := 3                                      // تجميع (رينج القاع بعد كسر ترند اليأس، قبل استئناف المشاركة)
                         if useAccBreak                               // [د11 · ف2] مُحفِّز الخروج: كسر النطاق (آخر طرف معاكس داخل الرينج) ⇒ Markup/Markdown جديد (مشاركة)
