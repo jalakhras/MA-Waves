@@ -1,0 +1,147 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Zones — ط4-أ: مناطق الدعم/المقاومة (الدرس L2-02) — خوارزميّة التزويج النقيّة
+//   مُستخرَجة من J-Waves M2 (فرع m3/gaps-and-scale) وفق docs/build/spec_lesson_L2-02_zones.md
+//   مُتحقَّقة بالفيديو (02.رسم المناطق) + وكيلَي white-box/بيانات + مسح 4 أدوات (2026-07-13).
+//
+//   القاعدة (من الفيديو حرفيًّا): «مستطيل بين كل مستويين قريبين» — **نفس النوع فقط** (قمّتان/قاعان)،
+//   **الأقرب سعريًّا** (الأحدث أوّلًا)، **الجوار** (لا مستوى ثالث بينهما ⇒ متجاوران ⇒ لا عريضة)،
+//   **لا تداخل** (كامل+جزئيّ)، المنفردة تبقى خطًّا، المنفردة تستعير قمّة/قاع كبيرة (زرقاء) نفس النوع.
+//
+//   الحدّ: هذه المكتبة **خوارزميّة نقيّة** تعيد حوافّ المناطق [zTop, zBot, zLeft, usedZ].
+//   يبقى في المؤشّر (لا يُنقَل): التغطية f_coveredAt/f_covLater (مشترَكة مع الخطوط/الإشارات) ·
+//   بناء eLvl/eTp/eBar (الفعّالة غير المغطّاة) · بناء مرشّحي الأزرق · الرسم (box/line + الألوان + var).
+//   المدخلات المُرشَّحة تُمرَّر وسائط. OHLC/bar_index تعمل داخل المكتبة (v6).
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Zones", overlay = true)
+
+// ─── مقياس حجم المناطق = مدى المستويات الفعّالة نفسها (لا نطاق الذيول المنتفخ) ───
+//   «القريب» يُقاس بالبنية الفعليّة للمستويات ⇒ لا ينتفخ حين تمتدّ الموجة بعيدًا.
+export f_zScale(array<float> eLvl) =>
+    float r = 0.0
+    if array.size(eLvl) >= 1
+        r := array.max(eLvl) - array.min(eLvl)
+    r
+
+// ─── التزويج الرئيس [الدرس L2-02] — بين كلّ خطَّي م.A قريبين نفس-النوع منطقة ───
+//   لكلّ خطّ (الأحدث أوّلًا): أقرب شريك سعريًّا **نفس النوع** ضمن الشروط ⇒ منطقة؛ كلّ خطّ مرّة.
+//   eLvl=مستوى الجسم · eTp=قمّة؟ · eBar=بار الطرف (= mcBar[eIdx]، يُحسَب في المؤشّر).
+//   يُعيد: zTop/zBot (حوافّ) · zLeft (أدنى بار عضو، لليسار) · usedZ (قناع الأعضاء، لمحو الخطّ).
+export f_pairZones(array<float> eLvl, array<bool> eTp, array<int> eBar, float zScale, float minGapB, float zoneMaxRatio, float mergeRatio, bool enableMerge) =>
+    int en = array.size(eLvl)
+    array<bool>  usedZ = array.new<bool>(en, false)
+    array<float> zTop  = array.new<float>()
+    array<float> zBot  = array.new<float>()
+    array<int>   zLeft = array.new<int>()
+    if en >= 1
+        for oi = 0 to en - 1
+            int aa = en - 1 - oi                                // الأحدث أوّلًا
+            if not array.get(usedZ, aa)
+                int   bb = -1
+                float bd = 1e18
+                for c = 0 to en - 1
+                    if c != aa and not array.get(usedZ, c)
+                        bool oppType = array.get(eTp, c) != array.get(eTp, aa)   // 🔴 نفس النوع فقط (قمّتان/قاعان) — لا «قمّة مع تصحيحها»
+                        float d      = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
+                        bool sizeOk  = zScale > 0 and d >= minGapB              // ليسا متطابقَين (≥ أرضيّة)؛ الحجم يحكمه الجوار
+                        bool between  = false                                   // 🔴 الجوار السعريّ: لا مستوى فعّال آخر بين طرفَيها ⇒ متجاوران ⇒ لا عريضة بنيويًّا
+                        float loB     = math.min(array.get(eLvl, aa), array.get(eLvl, c))
+                        float hiB     = math.max(array.get(eLvl, aa), array.get(eLvl, c))
+                        for k = 0 to en - 1
+                            if k != aa and k != c and array.get(eLvl, k) > loB and array.get(eLvl, k) < hiB
+                                between := true
+                        if not oppType and sizeOk and not between and d < bd
+                            bd := d
+                            bb := c
+                if bb >= 0
+                    float cT = math.max(array.get(eLvl, aa), array.get(eLvl, bb))
+                    float cB = math.min(array.get(eLvl, aa), array.get(eLvl, bb))
+                    array<int> mem = array.new<int>()
+                    array.push(mem, aa)
+                    array.push(mem, bb)
+                    if enableMerge                              // [دمج اختياريّ · مطفأ افتراضًا] نمِّ العنقود بامتصاص القريب نفس-النوع
+                        float capH     = zScale > 0 ? zoneMaxRatio * zScale : 1e18
+                        float mergeGap = mergeRatio * zScale
+                        bool grew = true
+                        while grew
+                            grew := false
+                            for c = 0 to en - 1
+                                if not array.get(usedZ, c) and not array.includes(mem, c)
+                                    float lc = array.get(eLvl, c)
+                                    float nT = math.max(cT, lc)
+                                    float nB = math.min(cB, lc)
+                                    bool  cOppType = false
+                                    for mi2 = 0 to array.size(mem) - 1
+                                        int mm = array.get(mem, mi2)
+                                        if array.get(eTp, c) != array.get(eTp, mm)
+                                            cOppType := true
+                                    if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH and not cOppType
+                                        array.push(mem, c)
+                                        cT := nT
+                                        cB := nB
+                                        grew := true
+                    bool contain = false                        // 🔴 لا منطقة داخل نطاق منطقة أخرى (تقاطع: كامل+جزئيّ، يسمح بتلامس الحوافّ)
+                    int zc = array.size(zTop)
+                    if zc > 0
+                        for k = 0 to zc - 1
+                            if array.get(zBot, k) < cT and cB < array.get(zTop, k)
+                                contain := true
+                    bool tooBig = zScale > 0 and (cT - cB) > zoneMaxRatio * zScale   // 🔴 حدّ الحجم الاحتياطيّ (الجوار يحكم عمليًّا)
+                    if not contain and not tooBig
+                        int leftBar = bar_index
+                        for mi = 0 to array.size(mem) - 1
+                            array.set(usedZ, array.get(mem, mi), true)
+                            leftBar := math.min(leftBar, array.get(eBar, array.get(mem, mi)))
+                        array.push(zTop, cT)
+                        array.push(zBot, cB)
+                        array.push(zLeft, leftBar)
+    [zTop, zBot, zLeft, usedZ]
+
+// ─── استعارة الأزرق [الدرس L2-02] — المنفردة المتوسطة الحاليّة تستعير أقرب طرف كبير نفس-النوع ───
+//   مرشّحو الأزرق مُرشَّحون في المؤشّر (فعّال + غير مغطّى): lgLvl=مستوى الجسم · lgTp=قمّة؟ · lgBar=البار.
+//   يُوسّع zTop/zBot/zLeft/usedZ (يُعيدها). المنفردة الحاليّة فقط (eBar≥histLeft). نفس النوع + الجوار + لا تداخل.
+export f_borrowZones(array<float> eLvl, array<bool> eTp, array<int> eBar, array<bool> usedZ, array<float> zTop, array<float> zBot, array<int> zLeft, array<float> lgLvl, array<bool> lgTp, array<int> lgBar, int histLeft, float zScale, float minGapB, float zoneMaxRatio) =>
+    int en   = array.size(eLvl)
+    int nlgb = array.size(lgBar)
+    array<bool> usedLg = array.new<bool>(nlgb, false)           // طرف كبير لمنفردة واحدة ⇒ لا انفجار كمّيّ
+    if en >= 1 and nlgb >= 1
+        for oi = 0 to en - 1
+            int aa = en - 1 - oi
+            if not array.get(usedZ, aa) and array.get(eBar, aa) >= histLeft   // المنفردة **الحاليّة** فقط تستعير
+                int   mcBarAa = array.get(eBar, aa)
+                float aLvl    = array.get(eLvl, aa)
+                int   bLi  = -1
+                float bLd  = 1e18
+                float bLlv = na
+                for c = 0 to nlgb - 1
+                    if not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and array.get(lgTp, c) == array.get(eTp, aa)   // نفس النوع + استثناء الذات
+                        float lLvl    = array.get(lgLvl, c)
+                        float d       = math.abs(aLvl - lLvl)
+                        bool  sizeOkB = zScale > 0 and d >= minGapB
+                        bool  betweenB = false                  // الجوار: لا مستوى متوسط بين المنفردة والطرف الكبير
+                        float loBb = math.min(aLvl, lLvl)
+                        float hiBb = math.max(aLvl, lLvl)
+                        for kk = 0 to en - 1
+                            if array.get(eLvl, kk) > loBb and array.get(eLvl, kk) < hiBb
+                                betweenB := true
+                        if sizeOkB and not betweenB and d < bLd
+                            bLd  := d
+                            bLi  := c
+                            bLlv := lLvl
+                if bLi >= 0 and not na(bLlv)
+                    float cT = math.max(aLvl, bLlv)
+                    float cB = math.min(aLvl, bLlv)
+                    bool contain = false
+                    int zc = array.size(zTop)
+                    if zc > 0
+                        for k = 0 to zc - 1
+                            if array.get(zBot, k) < cT and cB < array.get(zTop, k)
+                                contain := true
+                    bool tooBig = zScale > 0 and (cT - cB) > zoneMaxRatio * zScale
+                    if not contain and not tooBig
+                        array.set(usedZ, aa, true)
+                        array.set(usedLg, bLi, true)
+                        array.push(zTop, cT)
+                        array.push(zBot, cB)
+                        array.push(zLeft, math.min(mcBarAa, array.get(lgBar, bLi)))
+    [zTop, zBot, zLeft, usedZ]
