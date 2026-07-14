@@ -4,11 +4,14 @@ import Jassar_Mahmoud/JW_Foundation/1 as jwf                    // [ط0] الأ�
 import Jassar_Mahmoud/JW_Degrees/1 as jwd                     // [ط1] الدرجات: DegreeLaws·BreakProc·المحرّك المعمّم — نواة نقيّة مستخرَجة (spec_lib_JW_Degrees)
 import Jassar_Mahmoud/JW_Lines/1 as jwl                       // [ط2] الخطوط: المستوى (أجسام)·السيولة (ذيول)·الزوج·الاتجاه — رسم نقيّ مستخرَج (spec_lib_JW_Lines)
 import Jassar_Mahmoud/JW_Conclusions/7 as jwc                 // [ط3] الاستنتاجات/المراحل: قوّة السيولة + f_phaseAt — مستخرَجة (v7 = المرحلة تقيس مقابل الخطّ المرسوم بلا إزاحة؛ حُذِف f_liqAdj)
+import Jassar_Mahmoud/JW_Zones/1 as jwz                       // [ط4] المناطق: التزويج النقيّ (نفس-النوع + الجوار + لا تداخل + استعارة الأزرق) — مستخرَجة (spec_lesson_L2-02، مُتحقَّقة بالفيديو + وكلاء)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.34.1 — [ط4 رجوع قيد المرساة: «لا رسم على HoH» = التغطية (أحمر) لا حدّ segLefts] ═══
+// ═══ الإصدار: v2.35.0 — [ط4 استخراج JW_Zones: التزويج/الاستعارة النقيّان مكتبةً (مطابق بايتيًّا)] ═══
+//   v2.35.0 [ط4 · استخراج JW_Zones/1]: استُبدِلت الـ~120 سطرًا المدمجة (التزويج الرئيس + استعارة الأزرق) باستدعاء `jwz.f_pairZones` + `jwz.f_borrowZones` (خوارزميّة نقيّة تعيد حوافّ المناطق [zTop,zBot,zLeft,usedZ]). **الحدّ:** التغطية `f_coveredAt/f_covLater` (مشترَكة) + بناء eLvl + الرسم (box/الألوان/var) يبقون في المؤشّر؛ المكتبة تأخذ المصفوفات المُرشَّحة (eLvl/eTp/eBar + مرشّحي الأزرق lgLvlA/lgTpA/lgBrA). المنطق مطابق حرفيًّا (نفس-النوع + الجوار + لا تداخل + الأحدث أوّلًا + الدمج). عرض فقط.
+// ═══ v2.34.1 — [ط4 رجوع قيد المرساة: «لا رسم على HoH» = التغطية (أحمر) لا حدّ segLefts] ═══
 //   v2.34.1 [ط4 · رجوع v2.34.0]: قيد `aaBar>=hL2b` أزال **مناطق التاريخ المشروعة** (US100/15د: 9 ⇒ 3) لأنّ `hL2b` (بداية التاريخ segLefts[1]) حديثٌ جدًّا. التفريغ الحاسم: «رسمت على الأرنج لا الحمراء» ⇒ معيار «لا رسم على تاريخ التاريخ» = **مغطّى (أحمر) مقابل فعّال (برتقاليّ)**، وهو **مطبَّق أصلًا** في `eLvl` (قانون التغطية f_coveredAt يستبعد الأحمر). رُجِع القيد ⇒ المرساة = أيّ مستوى فعّال (برتقاليّ) بأيّ عمر، والأحمر مُستبعَد. عرض فقط.
 // ═══ v2.34.0 — [ط4 مشاهدة الفيديو: تاريخ التاريخ شريكٌ غير مباشر فقط (لا مرساة/رسم مباشر)] ═══
 //   v2.34.0 [ط4 · مشاهدة فيديو «02.رسم المناطق» بالإطارات مباشرةً]: الفيديو (الشريحة الرسميّة + إطارات XAU المُكبَّرة) يُظهر: خطوط م.A على التاريخ **وتاريخ التاريخ**، لكنّ **المناطق تُرسَم على الموجة الحاليّة + التاريخ فقط، لا على تاريخ التاريخ مباشرة** («رسمت على الأرنج لا الحمراء»)؛ المنفردة تصل لقمّة تاريخ التاريخ **غير مباشر** (شريك، لا مرساة). ⇒ قيد المرساة `aaBar >= hL2b` (الحاليّة + التاريخ)، والشريك حرّ (يصل لتاريخ التاريخ). أكّد الفيديو أيضًا: نفس النوع (قمّتين/قاعين) · **المنطقة العريضة قليلًا مقبولة إن لا أقرب** (فلا تُفرِط في تضييق السقف). عرض فقط.
@@ -1465,125 +1468,37 @@ if barstate.islast
             // [مقياس حجم المناطق · إصلاح جذريّ v2.31] عتبات الحجم نِسَبٌ من **مدى المستويات الفعّالة نفسها** لا من نطاق الذيول الكامل (wHiB-wLoB) — فذاك ينتفخ حين يمتدّ histLeft بعيدًا فيُعطِّل السقف (مناطق عملاقة على 4س) ويضخّم الأرضيّة (صفر مناطق على 15د). «القريب» يجب أن يُقاس نسبةً للبنية الفعليّة للمستويات.
             float zScale  = array.max(eLvl) - array.min(eLvl)                         // مدى المستويات الفعّالة (أعلى قمّة جسم − أدنى قاع جسم)
             float minGapB = 0.005 * zScale                                            // أرضيّة دنيا صغيرة (0.5% من مدى المستويات) ⇒ تسمح بالقمم/القيعان المزدوجة القريبة (منطقة رفيعة = دعم/مقاومة دقيق)، وتمنع فقط الخطّ الشعريّ (منطقة شبه صفر ارتفاع)
-            array<bool> usedZ = array.new<bool>(en, false)
+            // [JW_Zones · v2.35.0] eBar (بار كلّ طرف) + مرشّحو الأزرق (الكبيرة الفعّالة غير المغطّاة) — مدخلات المكتبة
+            array<int>   eBar   = array.new<int>()
+            for i = 0 to en - 1
+                array.push(eBar, array.get(mcBar, array.get(eIdx, i)))
             int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
-            // [تزويج بسيط — قرار المستخدم «لا تعقيد»] لكلّ خطّ م.A (من الأحدث للأقدم): أقرب خطّ **نفس النوع** سعريًّا ضمن الشروط ⇒ منطقة. كلّ خطّ يُستعمَل مرّة. المنفردة تبقى خطًّا. (eIdx زمنيّ تصاعديّ ⇒ الأحدث = الأخير)
-            for oi = 0 to en - 1
-                int aa = en - 1 - oi                                    // الأحدث أوّلًا
-                if not array.get(usedZ, aa)                             // 🔴 [مشاهدة الفيديو · v2.34.1] المرساة = أيّ مستوى **فعّال (برتقاليّ)** — الفيديو «رسمت على الأرنج لا الحمراء»: المعيار **مغطّى/أحمر مقابل فعّال/برتقاليّ** (قانون التغطية f_coveredAt يستبعد الأحمر من eLvl أصلًا)، لا حدّ segLefts. رُجِع قيد v2.34.0 `aaBar>=hL2b` (كان أشدّ من اللازم: أزال مناطق التاريخ المشروعة لأنّ hL2b حديثٌ جدًّا). «لا رسم على تاريخ التاريخ» = لا رسم على الأحمر (مضمون بالتغطية).
-                    int   bb = -1
-                    float bd = 1e18
-                    // [بسيط · قرار المستخدم «لا تعقيد»] بين كلّ خطَّي م.A **قريبين من نفس النوع** ارسم منطقة: أقرب شريك سعريًّا فقط — لا مرساة، لا طبقات (حاليّة/تاريخ). المنفردة تبقى خطًّا.
-                    for c = 0 to en - 1
-                        if c != aa and not array.get(usedZ, c)
-                            bool oppType = array.get(eTp, c) != array.get(eTp, aa)   // 🔴 نفس النوع فقط (قمّتان=مقاومة/قاعان=دعم) — الدرس L2-02 س139؛ لا «قمّة مع تصحيحها»
-                            float d      = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
-                            bool sizeOk  = zScale > 0 and d >= minGapB               // ليسا متطابقَين (≥ أرضيّة)؛ الحجم يحكمه «الجوار» أدناه لا السقف
-                            bool between = false                                     // 🔴 [الجوار السعريّ · «لا مستوى ثالث بينهما» · تحقّق مصدريّ] لا تُرسم منطقة إن وقع **أيّ مستوى فعّال آخر** سعريًّا بين طرفَيها ⇒ الطرفان متجاوران فعلًا ⇒ لا منطقة عريضة بنيويًّا (بلا رقم سحريّ). القاعدة المفقودة التي رصدها المستخدم.
-                            float loB    = math.min(array.get(eLvl, aa), array.get(eLvl, c))
-                            float hiB    = math.max(array.get(eLvl, aa), array.get(eLvl, c))
-                            for k = 0 to en - 1
-                                if k != aa and k != c and array.get(eLvl, k) > loB and array.get(eLvl, k) < hiB
-                                    between := true
-                            if not oppType and sizeOk and not between and d < bd
-                                bd := d
-                                bb := c
-                    if bb >= 0
-                        float cT = math.max(array.get(eLvl, aa), array.get(eLvl, bb))
-                        float cB = math.min(array.get(eLvl, aa), array.get(eLvl, bb))
-                        array<int> mem = array.new<int>()
-                        array.push(mem, aa)
-                        array.push(mem, bb)
-                        if enableMerge                                  // [دمج اختياريّ] نمِّ العنقود بامتصاص الخطوط القريبة (ضمن mergeGap) ما دام ≤ الحدّ الأقصى
-                            float capH     = zScale > 0 ? zoneMaxRatio * zScale : 1e18
-                            float mergeGap = mergeRatio * zScale
-                            bool grew = true
-                            while grew
-                                grew := false
-                                for c = 0 to en - 1
-                                    if not array.get(usedZ, c) and not array.includes(mem, c)
-                                        float lc = array.get(eLvl, c)
-                                        float nT = math.max(cT, lc)
-                                        float nB = math.min(cB, lc)
-                                        bool  cOppType = false                      // [حارس الدمج · الدرس L2-02 س139] لا يمتصّ العنقود خطًّا من **نوع معاكس** لأيّ عضو (المنطقة نفس النوع فقط: قمّتان/قاعان)
-                                        for mi2 = 0 to array.size(mem) - 1
-                                            int mm = array.get(mem, mi2)
-                                            if array.get(eTp, c) != array.get(eTp, mm)
-                                                cOppType := true
-                                        if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH and not cOppType
-                                            array.push(mem, c)
-                                            cT := nT
-                                            cB := nB
-                                            grew := true
-                        // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة
-                        bool contain = false
-                        int zc = array.size(zTop)
-                        if zc > 0
-                            for k = 0 to zc - 1
-                                if array.get(zBot, k) < cT and cB < array.get(zTop, k)   // 🔴 أيّ تداخل سعريّ (يشمل الاحتواء الكامل + الجزئيّ) — تشديد المستخدم «لا منطقة داخل نطاق منطقة أخرى»؛ يسمح بتلامس الحوافّ فقط
-                                    contain := true
-                        bool tooBig = zScale > 0 and (cT - cB) > zoneMaxRatio * zScale   // 🔴 حدّ الحجم الصارم (نسبةً لمدى المستويات)
-                        if not contain and not tooBig
-                            int nm = array.size(mem)
-                            int leftBar = bar_index
-                            for mi = 0 to nm - 1
-                                array.set(usedZ, array.get(mem, mi), true)
-                                leftBar := math.min(leftBar, array.get(mcBar, array.get(eIdx, array.get(mem, mi))))
-                            array.push(zTop, cT)
-                            array.push(zBot, cB)
-                            int loL     = bar_index - leftBar
-                            int leftTm2 = loL >= 0 ? time[loL] : time
-                            color zf = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill   // [ط4-أ-3] فوق المنطقة⇒دعم(أخضر) · تحتها⇒مقاومة(أحمر) · داخلها⇒نشطة
-                            array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
-            // ─── [استعارة الأزرق · L2-02 · قرار المستخدم] المنفردة المتوسطة (بقيت بلا شريك متوسط) ⇒ استعِر أقرب قمّة/قاع **كبيرة (زرقاء = صفريّة، نفس الدرجة)** غير مُغطّاة ⇒ منطقة (بدل الاكتفاء بخطّ) ───
-            //   الفيديو: القاع الوحيد يستعير قمّة زرقاء من تاريخ التاريخ (كلّ قمّة زرقاء = بداية موجة متوسطة = قمّة صفريّة). عبر الدرجة ⇒ لا «تصحيح متجاور» (طرف كبير لا يجاور المتوسط). حجم/احتواء كالمعتاد.
+            array<float> lgLvlA = array.new<float>()
+            array<bool>  lgTpA  = array.new<bool>()
+            array<int>   lgBrA  = array.new<int>()
             int nlgb = array.size(lgBar)
-            array<bool> usedLg  = array.new<bool>(nlgb > 0 ? nlgb : 0, false)   // [حارس وكيل] منع تعدّد المنفردات على طرفٍ كبيرٍ واحد (minGapB مرفوع أعلى ⇒ مشترَك مع التزويج الرئيس)
-            for oi = 0 to en - 1
-                int aa = en - 1 - oi
-                int mcBarAa = array.get(mcBar, array.get(eIdx, aa))             // بار المنفردة (لاستثناء الذات + بوّابة الموجة الحاليّة)
-                if not array.get(usedZ, aa) and mcBarAa >= histLeft            // [حارس وكيل·3] الاستعارة للمنفردة **الحاليّة** فقط (الفيديو: القاع الوحيد الحاليّ يستعير؛ لا منفردات التاريخ) — يخفّف الكمّ وخطر غسيل التصحيح عبر الدرجة
-                    float aLvl    = array.get(eLvl, aa)
-                    int   bLi  = -1
-                    float bLd  = 1e18
-                    float bLlv = na
-                    for c = 0 to (nlgb > 0 ? nlgb - 1 : 0)
-                        if nlgb > 0 and array.get(lgEff, c) and not array.get(usedLg, c) and array.get(lgBar, c) != mcBarAa and array.get(lgTop, c) == array.get(eTp, aa) and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)   // 🔴 نفس النوع فقط (الدرس L2-02 س139/س141): قمّة متوسطة ⇒ تستعير قمّة كبيرة (مقاومة) · قاع ⇒ قاع (دعم). يشمل منع «التصحيح المتجاور المُغسَّل عبر الدرجة».
-                            int oc = bar_index - array.get(lgBar, c)
-                            if oc >= 0
-                                float lLvl   = array.get(lgTop, c) ? math.max(open[oc], close[oc]) : math.min(open[oc], close[oc])
-                                float d      = math.abs(aLvl - lLvl)
-                                bool  sizeOkB = zScale > 0 and d >= minGapB   // ليسا متطابقَين (≥ أرضيّة)؛ الحجم يحكمه الجوار أدناه
-                                bool  betweenB = false                        // 🔴 [الجوار السعريّ] لا مستوى متوسط فعّال آخر بين المنفردة والطرف الكبير المستعار ⇒ متجاوران (لا منطقة عريضة مستعارة)
-                                float loBb = math.min(aLvl, lLvl)
-                                float hiBb = math.max(aLvl, lLvl)
-                                for kk = 0 to en - 1
-                                    if array.get(eLvl, kk) > loBb and array.get(eLvl, kk) < hiBb
-                                        betweenB := true
-                                if sizeOkB and not betweenB and d < bLd
-                                    bLd  := d
-                                    bLi  := c
-                                    bLlv := lLvl
-                    if bLi >= 0 and not na(bLlv)
-                        float cT = math.max(aLvl, bLlv)
-                        float cB = math.min(aLvl, bLlv)
-                        bool contain = false
-                        int zc = array.size(zTop)
-                        if zc > 0
-                            for k = 0 to zc - 1
-                                if array.get(zBot, k) < cT and cB < array.get(zTop, k)   // 🔴 أيّ تداخل سعريّ (يشمل الاحتواء الكامل + الجزئيّ) — تشديد المستخدم «لا منطقة داخل نطاق منطقة أخرى»؛ يسمح بتلامس الحوافّ فقط
-                                    contain := true
-                        bool tooBig = zScale > 0 and (cT - cB) > zoneMaxRatio * zScale
-                        if not contain and not tooBig
-                            array.set(usedZ, aa, true)
-                            array.set(usedLg, bLi, true)                        // [حارس وكيل] الطرف الكبير مُستعار ⇒ لا تستعيره منفردة أخرى
-                            array.push(zTop, cT)
-                            array.push(zBot, cB)
-                            int lB      = math.min(array.get(mcBar, array.get(eIdx, aa)), array.get(lgBar, bLi))
-                            int loLb    = bar_index - lB
-                            int leftTmB = loLb >= 0 ? time[loLb] : time
-                            color zfB   = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill
-                            array.push(zoneBoxes, box.new(leftTmB, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zfB))
+            for c = 0 to (nlgb > 0 ? nlgb - 1 : 0)
+                if nlgb > 0 and array.get(lgEff, c) and not f_coveredAt(lgBar, lgTop, lgPrc, c, histLeft, hL2b, wHiB, wLoB, lgCovLg)   // الكبيرة الفعّالة غير المغطّاة (استعارة الأزرق) — التغطية تبقى في المؤشّر
+                    int oc = bar_index - array.get(lgBar, c)
+                    if oc >= 0
+                        array.push(lgLvlA, array.get(lgTop, c) ? math.max(open[oc], close[oc]) : math.min(open[oc], close[oc]))
+                        array.push(lgTpA, array.get(lgTop, c))
+                        array.push(lgBrA, array.get(lgBar, c))
+            // التزويج + الاستعارة (خوارزميّة JW_Zones النقيّة — مطابقة بايتيًّا للمدمَج) ⇒ حوافّ المناطق
+            [zTp2, zBt2, zLf2, uz2]   = jwz.f_pairZones(eLvl, eTp, eBar, zScale, minGapB, zoneMaxRatio, mergeRatio, enableMerge)
+            [zTp3, zBt3, zLf3, usedZ] = jwz.f_borrowZones(eLvl, eTp, eBar, uz2, zTp2, zBt2, zLf2, lgLvlA, lgTpA, lgBrA, histLeft, zScale, minGapB, zoneMaxRatio)
+            // الرسم من الحوافّ: اللون بموضع السعر (فوق⇒دعم أخضر · تحت⇒مقاومة أحمر · داخل⇒نشطة) · اليسار من zLeft · النوع/الجوار/الاحتواء حُسِمت في المكتبة
+            int nzz = array.size(zTp3)
+            for zi = 0 to (nzz > 0 ? nzz - 1 : 0)
+                if nzz > 0
+                    float cT = array.get(zTp3, zi)
+                    float cB = array.get(zBt3, zi)
+                    int   loL = bar_index - array.get(zLf3, zi)
+                    int   leftTm2 = loL >= 0 ? time[loL] : time
+                    color zf = close > cT ? cZoneSup : close < cB ? cZoneRes : cZoneFill
+                    array.push(zTop, cT)
+                    array.push(zBot, cB)
+                    array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
             // [محو الخطّ · درس L2-02 س15] احذف خطّ م.A لكلّ طرف صار **عضو منطقة** (usedZ) ⇒ يبقى الخطّ **للمنفردة فقط** — صورة المحاضر: مناطق + خطوط المنفردة (لا خطّ تحت حافّة كلّ منطقة).
             array<int> zonedMc = array.new<int>()
             for p = 0 to en - 1
