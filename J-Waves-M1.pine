@@ -442,6 +442,16 @@ var table fht = table.new(f_pos(fhPos), 2, 9, bgcolor = fhBg, border_width = 1, 
 f_durTxt(float d) =>
     na(d) or d <= 0 ? "—" : d >= 1 ? str.tostring(d, "#.0") + f_t(" يوم", " d") : d >= 0.0417 ? str.tostring(d * 24, "#.0") + f_t(" ساعة", " h") : str.tostring(d * 1440, "#.0") + f_t(" دق", " m")
 
+// [إصلاح النطاق] هل للدرجة نقطة واحدة على الأقلّ داخل [fromB..الآن]؟ — بديل `array.size(aBar) > 0` الذي كان يعدّ **الشارت كلّه**.
+//   🔴 نطاق عالميّ إلزامًا: Pine يمنع تعريف الدوالّ داخل الكتل الشرطيّة.
+f_degIn(array<int> aBar, int fromB) =>
+    int  n = array.size(aBar)
+    bool f = false
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and not f and array.get(aBar, i) >= fromB
+            f := true
+    f ? 1 : 0
+
 f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     table.set_position(fht, f_pos(fhPos))
     // 🔴 [ف0-5 · المحاذاة الدلاليّة] زمن **الموجة الجارية** = `segLefts[0]` (منذ آخر انقلاب) لا `wL0` (مرساة البحث = عدّة موجات).
@@ -2154,7 +2164,12 @@ if showFrameHelper and barstate.islast
     //   هذا **يقلب** حكم ف0-2 في هذا الموضع: كان `curWdir0` صحيحًا حين كانت «الموجة» = `[wL..now]` كاملةً؛ وبعد ت2-1 صار المقطع **هو** الموجة.
     //   الثابتة الواجبة: **النافذة (`wlB`) والمرجع (`curWdir`) والزمن (`days`) على المدى نفسه** — وإلّا قِيس مدًى وعُدّ في آخر.
     int   wlB = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0         // بداية **الموجة الجارية** (السلسلة: segLefts[0] = آخر انقلاب)
-    int   wpDeg  = (array.size(scBar) > 0 ? 1 : 0) + (array.size(mcBar) > 0 ? 1 : 0) + (array.size(lgBar) > 0 ? 1 : 0)
+    // 🔴 [إصلاح النطاق · اصطاده القياس] كان: `array.size(scBar) > 0` … = **هل للدرجة نقطة في الشارت كلّه؟** ⇒ الجواب «نعم» دائمًا
+    //   ⇒ **«3 / 3» ثابتة في 16/16 قراءة** = قيمة لا تتنوّع = انحطاط. وأسوأ: **نطاقان في سطرين متجاورين** — `wlB` (أعلاه) يقيس
+    //   **الموجة الجارية** بينما هذا يعدّ الشارت. فتُعلن «3/3 ✓» بينما المتوسطة داخل الموجة نقطة واحدة.
+    //   والدلالة المنصوصة (د04): «لازم يظهر **تلات درجات**» = **داخل الموجة المُحلَّلة** (بوّابة الزووم/المنظر) — لا في تاريخ الأداة كلّه.
+    //   ⚠️ يبقى مجرّد **عرض** حتّى الآن: `frameFit` ما زال يُقرَّر بالزمن (فجوة مسجَّلة) — والحَكَم المنصوص هو **هذا العدّاد**. إصلاحه لاحقًا يستهلكه.
+    int   wpDeg  = f_degIn(scBar, wlB) + f_degIn(mcBar, wlB) + f_degIn(lgBar, wlB)
     array<bool> wTop = array.new<bool>()                                      // أطراف المتوسطة الفعّالة داخل الموجة (مرسومة، متناوبة)
     array<int>  wTm  = array.new<int>()
     array<int>  wBr  = array.new<int>()
