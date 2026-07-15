@@ -420,10 +420,17 @@ if barstate.islast
 //   ⚠️ يجب أن يبقى **قبل `f_drawWavePanel`** (تقرؤه) وقبل حلقة التقطيع (تكتبه) — Pine يشترط التصريح قبل الاستعمال.
 int SUB_CAP = 20
 var bool  subCapHit = false
+// 🔬 [تشخيص مؤقّت · يُحذَف فور حسم الجذر] الوكيلان تناقضا (nSub≡2 برهانًا مقابل nSub==1 قياسًا) ⇒ نقيس بدل أن نستنتج.
+//   يكشف **أين** تخرج حلقة التقطيع عند gi=0: هل بوّابة `tme` (المفلترة بالفعاليّة)؟ أم `rb`=na (لا انقلاب)؟ أم `splitBar==ssL`؟
+var int   dbgNSub = -1                             // حجم curSubL بعد الحلقة (1 = لم يُقصَّ أبدًا). **لا تقرأ `curSubL` في اللوحة**: مُصرَّحة بعدها (Pine: التصريح قبل الاستعمال).
+var int   dbgTme  = -1                             // حجم tme.effectiveBars عند gi=0 (بوّابة س~613: تحتاج > 1)
+var int   dbgRb   = -1                             // مُرجَع f_lastRevBar عند gi=0 (-1 = لم يُستدعَ · -2 = na)
+var int   dbgSplt = -1                             // splitBar المحسوب عند gi=0
+var int   dbgSsL  = -1                             // ssL عند gi=0 (= wLb)
 
 // ─── لوحة اختبار الموجة (تصميم الكود السابق) ───
 // الدرس 03 خ6: زمن الموجة ⇒ نوع التداول. موجات الدفعة/عدّ الدرجات/ملاءمة الفريم يكتمل بـط1.
-var table fht = table.new(f_pos(fhPos), 2, 8, bgcolor = fhBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+var table fht = table.new(f_pos(fhPos), 2, 9, bgcolor = fhBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)   // [🔬 مؤقّت] 9 صفوف: الثامن (فهرس 8) = سطر التشخيص — يُعاد إلى 8 فور حذفه
 // تنسيق مدّة (أيام) إلى نصّ مقروء (يوم/ساعة/دقيقة)
 f_durTxt(float d) =>
     na(d) or d <= 0 ? "—" : d >= 1 ? str.tostring(d, "#.0") + f_t(" يوم", " d") : d >= 0.0417 ? str.tostring(d * 24, "#.0") + f_t(" ساعة", " h") : str.tostring(d * 1440, "#.0") + f_t(" دق", " m")
@@ -455,6 +462,10 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     //   وإن بلغت حلقة التقطيع سقفها (`subCapHit`) فالموجة **مقصوصة** ⇒ كلّ ما تحته مبنيّ على نافذة ناقصة ⇒ **أعلِن ولا تصمت** (§11).
     table.cell(fht, 0, 1, f_t("درجات ظاهرة", "Degrees shown"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 1, str.tostring(degShown) + " / 3" + (subCapHit ? f_t("  ⚠️ موجة مقصوصة", "  ⚠️ wave truncated") : ""), text_color = subCapHit ? #FF9800 : tvMain, bgcolor = tvBg, text_size = size.small)
+    // 🔬 [تشخيص مؤقّت] يُحذَف فور حسم الجذر. يُقرأ هكذا:
+    //   nSub=1 ⇒ لم يُقصّ أبدًا. ثمّ: tme≤1 ⇒ البوّابة (السلسلة المفلترة بالفعاليّة فارغة) · rb=-2 ⇒ لا انقلاب (المستوى لا يُكسَر) · splt==ssL ⇒ الجمود.
+    table.cell(fht, 0, 8, "🔬 nSub / tme / rb / splt·ssL", text_color = #FF9800, bgcolor = tvBg, text_size = size.tiny, text_halign = text.align_right)
+    table.cell(fht, 1, 8, str.tostring(dbgNSub) + " / " + str.tostring(dbgTme) + " / " + str.tostring(dbgRb) + " / " + str.tostring(dbgSplt) + "·" + str.tostring(dbgSsL), text_color = #FF9800, bgcolor = tvBg, text_size = size.tiny)
     table.cell(fht, 0, 2, f_t("موجات دافعة", "Impulse legs"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 2, str.tostring(impulse), text_color = tvMain, bgcolor = tvBg, text_size = size.small)
     table.cell(fht, 0, 3, f_t("زمن الموجة", "Wave time"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
@@ -621,9 +632,30 @@ if barstate.islast
         //   ⚠️ فجوة متبقّية (مسجَّلة): `buildWave` يبني `tme` باتّجاهه **العالميّ** لا بـ`sDir` ⇒ جودة الفعاليّة على المقاطع المعاكسة تبقى ناقصة حتّى يُمرَّر `wdir` وسيطًا (تعديل JW_Degrees + نشر).
         int sDir = array.get(curSubTop, array.size(curSubTop) - 1) ? -1 : 1
         bool cont = false
-        if renewFwd and array.size(tme.effectiveBars) > 1
-            array<bool> allT = array.new<bool>(array.size(tme.effectiveBars), true)
-            int rb = f_lastRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, sDir, true)   // 🔴 [ت2-2] **أوّل** انقلاب ⇒ الحلقة تمشي للأمام فتلتقط كلّ الانقلابات · و`sDir` (تناوبيّ) لا `flDir` (عالميّ) ⇒ يصطاد كسر **الجهة الصحيحة**
+        // 🔴 [إصلاح الجذر · مقيس لا مستنتَج] **ضُمّ النقطة المعلَّقة** — كان **مصدران مختلفان لنفس الحقيقة**:
+        //   • مسار **الرسم/الخطوط** (س~860/863) يعدّ المعلَّق **فعّالًا** (`or (me.pendingType != 0 and b == me.pendingBar)` · ودفعه بـ`eff=true`)
+        //     ⇒ `medLevelLine` المرسوم يقع على **جسم النقطة المعلَّقة**.
+        //   • مسار **كشف الانقلاب** كان يقرأ `tme.effectiveBars` = **المؤكَّدة فقط** ⇒ يختبر مستوًى **غير الذي يعرضه الشارت**.
+        //   القياس الحيّ (US100·60): المرسومة **5** نقاط · `tme=4` (سقطت المعلَّقة 29958.95) ⇒ آخر قمّة في `tme` = 30651.23
+        //   (عند بداية الموجة، بُعد نقطتين من القمّة المطلقة) ⇒ المستوى **يتجمّد** هناك، وأقصى ارتفاع بعدها 30325.39 (أدنى بـ~275)
+        //   ⇒ **لا كسر أبدًا** ⇒ `rb=na` ⇒ `break` صامت عند gi=0 ⇒ `nSub ≡ 1` ⇒ السلسلة لا تُبنى ⇒ **شلّال**: لا تاريخ · التغطية
+        //   ميّتة (`hL2c==hL1c`) · الكبيرة نقطتان ⇒ `bigLiqLine=na` ⇒ «اتجاه السيولة=غير محدّد» · «الكبيرة·قوّة=—».
+        //   الاختبار المضادّ: مقابل المستوى **المعروض** (29891.23) بلغ السعر 30325.39 ⇒ **إغلاقان فوقه** ⇒ الكشف ينطلق.
+        //   ⇒ الكاشف يقرأ الآن **نفس السلسلة التي يرسمها الشارت** = مصدر واحد (الخطّ الأحمر: لا مسار مزدوج).
+        //   ⚠️ المعلَّق يتحرّك (`sequenceLaw`) ⇒ إعادة رسم — لكنّ `medLevelLine` **يُرسَم عليه أصلًا**، فالإصلاح يوحّد المنطق مع المعروض ولا يُحدِث انكشافًا جديدًا.
+        array<int>  tBar = array.copy(tme.effectiveBars)
+        array<bool> tTop = array.copy(tme.effectiveIsTop)
+        if tme.pendingType != 0 and (array.size(tBar) == 0 or tme.pendingBar > array.get(tBar, array.size(tBar) - 1))
+            array.push(tBar, tme.pendingBar)                          // حارس الرتابة: لا تدفع إلّا إن كان المعلَّق **أحدث** من آخر مؤكَّد
+            array.push(tTop, tme.pendingType == 1)
+        if gi == 0
+            dbgTme := array.size(tBar)                                // 🔬 صار يعكس السلسلة **المستعمَلة** فعلًا (بالمعلَّق)
+            dbgSsL := ssL
+        if renewFwd and array.size(tBar) > 1
+            array<bool> allT = array.new<bool>(array.size(tBar), true)
+            int rb = f_lastRevBar(tBar, tTop, allT, sDir, true)   // 🔴 [ت2-2] **أوّل** انقلاب ⇒ الحلقة تمشي للأمام فتلتقط كلّ الانقلابات · و`sDir` (تناوبيّ) لا `flDir` (عالميّ) ⇒ يصطاد كسر **الجهة الصحيحة**
+            if gi == 0
+                dbgRb := na(rb) ? -2 : rb                             // 🔬 -2 = f_lastRevBar أرجعت na (لا انقلاب)
             if not na(rb) and rb > ssL and rb < wRb
                 int   splitBar = rb
                 float ext      = na
@@ -638,6 +670,8 @@ if barstate.islast
                             if na(ext) or low[o] < ext
                                 ext := low[o]
                                 splitBar := j
+                if gi == 0
+                    dbgSplt := splitBar                                // 🔬 لو ساوى dbgSsL ⇒ الجمود مؤكَّد (البحث عن نوع ssL نفسه)
                 if splitBar > ssL and splitBar < wRb
                     if gi == SUB_CAP                                   // [إصلاح ب8] بلغنا السقف وما زال ثمّة انقلاب ⇒ **قصّ حقيقيّ** ⇒ أنذِر ولا تدفع
                         subCapHit := true
@@ -669,6 +703,7 @@ if barstate.islast
     segRights  := nRights
     segLeftPx  := nLeftPx
     segLeftTop := nLeftTop
+    dbgNSub := nSub                                                   // 🔬 تشخيص: 1 ⇒ لم يُقصَّ أبدًا
     // المقطع الأخير (= الموجة الجارية) في الدرجات الرئيسة — للّوحة و curWdir (كلّ المقاطع تُبنى وتُرسَم في كتلة الرسم)
     int lastL = array.get(curSubL, nSub - 1)
     smallDegree  := jwd.newDegreeLaws()
