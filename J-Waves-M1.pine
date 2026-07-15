@@ -485,9 +485,17 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     string waveType    = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? f_t("مضاربة", "Scalp") : refDays <= swingMaxDays ? f_t("سوينغ", "Swing") : f_t("استثمار", "Invest")
     color  wtBg        = na(refDays) or refDays <= 0 ? color.new(#787B86, 0) : refDays < swingMinDays ? color.new(#FF9800, 0) : refDays <= swingMaxDays ? color.new(#089981, 0) : color.new(#2962FF, 0)
     string tradeNature = na(refDays) or refDays <= 0 ? f_t("بيانات غير كافية", "Insufficient data") : refDays < swingMinDays ? f_t("صفقات دقائق–يوم", "minutes–day") : refDays <= swingMaxDays ? f_t("صفقات يومين–10 أيام", "2–10 days") : f_t("صفقات أسابيع–شهور", "weeks–months")
-    // الفريم المناسب (قانون الدرس: قصيرة ⇒ اصعد فريمًا · سوينغ ⇒ مناسب · طويلة ⇒ انزل فريمًا)
-    string frameFit = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? f_t("اصعد فريمًا ↑", "Go higher TF ↑") : refDays <= swingMaxDays ? f_t("مناسب ✓", "Suitable ✓") : f_t("انزل فريمًا ↓", "Go lower TF ↓")
-    color  frameBg  = na(refDays) or refDays <= 0 ? color.new(#787B86, 0) : refDays <= swingMaxDays and refDays >= swingMinDays ? color.new(#089981, 0) : color.new(#FF9800, 0)
+    // 🔴 [الحَكَم · د04] «الفريم المناسب» يُقرَّر بـ**عدّ الدرجات** لا بالزمن — حسم المستخدم 2026-07-15: «ثلاث مناسب · أقلّ انزل · أكثر اصعد».
+    //   **السند منصوص ثلاث مرّات:** «**لازم، لازم يظهر تلات درجات** بالمنظر ده» (مصعب:212) · «لو ظهر معاك **أربعة** ما ينفعش…
+    //   فلازم **تطلع** في النطاق الزمنيّ» · «لو ظاهر معايا **درجتين** بس… **هنزل** على الفريم» (L04:11-23).
+    //   🔴 **والزمن ممنوع حَكَمًا نصًّا:** «**ما تقدرش تحكمها بمدّة زمنيّة**» (مصعب2:112) · «**مليش دعوة بمدّة الموجة كاملة على بعض**» (L03:72).
+    //   **العطب المُقاس (20/20):** كان يُقرَّر بـ`refDays` ⇒ «انزل فريمًا ↓» في **19/20** و«**مناسب ✓» = 0/20** — رغم بلوغ «3/3» ثلاث مرّات
+    //   ⇒ اللوحة تناقض نفسها مرئيًّا («3/3» = مناسب بنصّ الدرس، مع «انزل ↓»). وكان يخالف **تعليق الكود نفسه** (س480: «الزمن مصادقة لا قرار»).
+    //   ⚠️ `waveType`/`tradeNature` **تبقى على الزمن** — تصفان **أفق الصفقة** (مضاربة/سوينغ/استثمار) لا صلاحيّة الفريم. لا تخلطهما.
+    //   ⚠️ **`degShown > 3` غير قابل للبلوغ اليوم** (السقف 3 بنيويًّا: ثلاثة حدود جمع في `wpDeg`) ⇒ «اصعد ↑» **فرع نائم حتّى تُبنى الدرجة الرابعة**
+    //   (الأكبر من الزرقاء). مكتوبٌ الآن **عمدًا** ليعمل لحظة وجودها بلا لمس هذه الكتلة — لا صمت: اللوحة تُظهر «3 / 3» فيُرى السبب.
+    string frameFit = degShown == 3 ? f_t("مناسب ✓", "Suitable ✓") : degShown > 3 ? f_t("اصعد فريمًا ↑", "Go higher TF ↑") : f_t("انزل فريمًا ↓", "Go lower TF ↓")
+    color  frameBg  = degShown == 3 ? color.new(#089981, 0) : color.new(#FF9800, 0)
     string avgMedTxt = f_durTxt(refDays) + (usingWv ? f_t(" (الموجة)", " (wave)") : "")
     color tvBg   = fhBg
     color tvHdr  = color.new(color.rgb(color.r(fhBg) * 0.72, color.g(fhBg) * 0.72, color.b(fhBg) * 0.72), color.t(fhBg))
