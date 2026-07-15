@@ -1,6 +1,6 @@
 //@version=6
 import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
-import Jassar_Mahmoud/JW_Foundation/2 as jwf                    // [ط0] الأساس: leg + الموجة التاريخيّة (v2 = حارس MAX_HIST في rangeDays + توحيد الثابت)
+import Jassar_Mahmoud/JW_Foundation/3 as jwf                    // [ط0] الأساس: leg + الموجة التاريخيّة (v3 = 🔴 ف0-5: waveLeftStruct بنيويّ «تطرّف→تطرّف» يَنسخ waveLeft الزمنيّة + buildSegments بطرفٍ مُمرَّر؛ v2 = حارس MAX_HIST)
 import Jassar_Mahmoud/JW_Degrees/1 as jwd                     // [ط1] الدرجات: DegreeLaws·BreakProc·المحرّك المعمّم — نواة نقيّة مستخرَجة (spec_lib_JW_Degrees)
 import Jassar_Mahmoud/JW_Lines/4 as jwl                       // [ط2] الخطوط (v4 = f_liqPairPhaseAt: زوج المراحل منفصل عن زوج الرسم ق2 + رجوع المحور الشمعيّ؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
@@ -9,7 +9,21 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.41.1 — [🔴 ط0/ف0-2: المقطع غير المُرسى لم يعد يُغذّي الكبيرة هبوطًا قسرًا] ═══
+// ═══ الإصدار: v2.42.0 — [🔴🔴 ط0/ف0-5 · التمريرة 1: الموجة التاريخية صارت **بنيويّة** (تطرّف→تطرّف) لا زمنيّة] ═══
+//   v2.42.0 [ف0-5 · التمريرة 1 · يلزم نشر **JW_Foundation/3**]: 🔴 **إدانة موثَّقة**: `waveScaleDays=21` + tooltip «[درس03: الموجة ~3 أسابيع]»
+//     = **نسبة كاذبة**: «21 يوم/3 أسابيع» **صفر تطابُق** في الأربعة عشر تفريغًا وفي كامل docs/. والدرس يقول النقيض: «فيه **خطأ شهير جدًّا**…
+//     بنجرّب الموجة كلّها. **لأ، ده غلط. مليش دعوة بمدّة الموجة كاملة على بعض**» (L03:72 خامّ) · «**ما تقدرش تحكمها بمدّة زمنيّة**» (مصعب2:112).
+//     و`waveLeft` التلقائيّة كانت = **آخر حدّ leg** (لا سند) ⇒ «الموجة = ساق واحدة»: 1.4 يوم على 1H · 89 يومًا على D (مُتحقَّق حيًّا عبر MCP)
+//     ⇒ نقطة متوسطة **واحدة** داخل الموجة ⇒ `wpMn=1` ⇒ **«موجات دافعة ≡ 0»** و«وسيط الدافعة» **ميّت بنيويًّا** في **4/4 قراءات**.
+//   **البديل (بسند نصّيّ لكلّ ثابت):** `jwf.waveLeftStruct` = تطرّف→تطرّف على **الذيول** (حسم المستخدم؛ الموجة **سابقة للدرجات** فلا مفهوم للجسم)
+//     داخل **نافذة الرؤية `WAVE_WIN=500` شمعة** (مصعب:150-152 «هجيب **آخر 500 شمعة**» = الترجمة الكمّيّة المنطوقة الوحيدة لقاعدة الزووم).
+//     البداية = **التطرّف الأقدم** ⇒ صعودًا القاع · هبوطًا القمّة. **`legTh`/محرّك leg مُلغى من حدّ الموجة · `AUTO_WAVE_LEN` محذوف.**
+//   🔴 **حدّ النطاق بأمانة (رصد فريق الاختبار):** الرقم الملفّق **لم يمت كلّه**. `waveScaleDays` خرج من **حدّ الموجة الجارية فقط**، وما زال يُغذّي
+//     `legInputs` ⇒ **`legTh`** (حدود الموجات **التاريخيّة** في `buildSegments`) و**`bigDir`** (فولباك `segDir`/`curWaveDir` ⇒ كلّ الطبقات).
+//     وقصّ `ampBars` الصامت (ف0-3) **باقٍ حرفيًّا** (`JW_Foundation:69`): على D فأعلى `max(50, 21×~1) ≡ 50` ⇒ المقبض **خامل**. إخراجه نهائيًّا = التمريرة 2 + ف0-3.
+//   **أثر جانبيّ مقصود:** `wLpx/wLtop` صارا **حقيقةً** (وسيطان من نفس الحساب) بدل البحث عن حدّ leg مطابق ⇒ `segLeftTop[0]` صادق ⇒ **ف0-2 يعالَج من جذره**.
+//   ⚠️ تمريرة **تقدير**؛ التمريرة 2 (الانقلاب = كسر مستوى الاتجاه المتوسط بشمعتين — د09 + حسم المستخدم) تُصحّح السلسلة. المواصفة: docs/build/spec_ط0_wave_boundary.md
+// ═══ v2.41.1 — [🔴 ط0/ف0-2: المقطع غير المُرسى لم يعد يُغذّي الكبيرة هبوطًا قسرًا] ═══
 //   v2.41.1 [ف0-2 · المؤشّر فقط بلا نشر · الجولة 1 من خطّة «من الأسفل صعودًا»]: `buildSegments` يضبط `wLpx=na` و`wLtop=true` **معًا** (إسناد ذرّيّ) حين لا يطابق `wL` حدَّ leg — **اليدويّ · أو `bars` فارغة** (الدمج **مُرسى بالتصميم**) ⇒ `true` **افتراض لا حقيقة**. وس946/1015 كانا يثقان به ⇒ **`segDir=-1` قسرًا للموجة كلّها** ⇒ تُغذَّى الكبيرة `feedBreakDown` ولو كان السوق صاعدًا، ومنطق الطرف الكبير المعلّق مقلوب. **والتكوين الافتراضيّ مصاب** (`useBigBreak=false`+`legLiveBreak=true`). الإصلاح: `na(segLeftPx[s])` = علَم «غير مُرسى» (⟺ مُبرهَن: `ps` لا يحوي na قطّ) ⇒ البديل **`curWdir0` = اتجاه الموجة كاملةً** (`flDir@gi=0` = `buildWave(wLb,wRb)`) — **نفس نمط س584**. ⚠️ **`curWdir` لا يصلح** (آخر مقطع فرعيّ ⇒ ينقلب مع `renewFwd` الافتراضيّ ⇒ يُعيد توليد العطب) — اصطاده فريق الاختبار. **نطاق التغيير:** التلقائيّ/الدمج **مطابقة بايتيّة ما دامت `leg.bars` غير فارغة** (`waveLeft` يُرجع عنصرًا منها ⇒ الإرساء يُوجَد ⇒ الفرع القديم حرفيًّا)، والتاريخيّة (`s>0`) مُرساة دائمًا. يُبلَغ الفرع الجديد في: اليدويّ · **أو `bars` فارغة (بداية شارت)** — وهي بالضبط الحالات التي كان فيها `-1` كذبًا.
 // ═══ v2.40.0 — [S1: مساعد الإطار يقرأ السلسلة المرسومة لا الخام (نصيحة الفريم كانت مقلوبة)] ═══
 //   v2.40.0 [S1 · المؤشّر فقط بلا نشر]: لوحة اختبار الموجة كانت تقرأ `mediumDegree.*` = **السلسلة الخام** (`appendEff` = push بلا تناوب/فعاليّة)، و`feedMedium` يدفع **نقطتين من حدث كسر واحد** ⇒ ساق «بار واحد» ⇒ «وسيط الدافعة = 35دق» داخل موجة 4.6 يوم ⇒ **«اصعد فريمًا» مقلوبة**. الآن تقرأ **السلسلة المرسومة** (`mcBar/mcTop/mcTm` بتناوب مفروض عبر f_pushMed) + `mcEff` + **نفس نافذة «زمن الموجة»** (`segLefts[0]=wL` ⇒ الرقمان يصفان المدى نفسه) + استبعاد الطرف الحيّ المعلّق + تجاهُل الساق <بارين + الوسيط يحتاج عيّنتين (median على عيّنة = العيّنة نفسها).
@@ -185,9 +199,9 @@ f_t(string ar, string en) => uiLang == "AR / عربيّة" ? ar : en   // مبد
 
 // ══════════════════════════ ط0 · 🌊 الموجة والإطار / Wave & Frame ══════════════════════════
 string grpWave = "ط0 · 🌊 الموجة والإطار / Wave & Frame"
-string waveMode = input.string("Auto (days) / تلقائيّ (أيّام)", "Wave sizing method / طريقة تحديد الموجة", options = ["Auto (days) / تلقائيّ (أيّام)", "Manual (candles) / يدويّ (شموع)", "Combine / دمج (متوسّط)"], group = grpWave, tooltip = "طريقة واحدة لتحديد حجم الموجة التاريخية:\n• **تلقائيّ (أيّام)**: بالمقبض «حجم الموجة (أيّام)» — يقيس جلسة الأداة، يرسو على التطرّف. (موصى)\n• **يدويّ (شموع)**: بالمقبض «عدد شموع الموجة».\n• **دمج**: متوسّط الطريقتين ثمّ يرسو على أقرب تطرّف (leg) — أفضل نتيجة.")
-float  waveScaleDays = input.float(21.0, "Wave size (days) / حجم الموجة (أيّام)", minval = 1.0, step = 1.0, group = grpWave, tooltip = "🔑 حجم الموجة بالأيّام (وضعا «تلقائيّ» و«دمج»). [درس03: الموجة ~3 أسابيع = ~3 موجات متوسطة 2-8 أيّام] أكبر⇒أكبر. يقيس جلسة الأداة الفعليّة (أيّ أداة/فريم بلا ضبط). الرسو على التطرّف (أدنى صعودًا/أعلى هبوطًا). اللوحة تُصادِق (المتوسطة 2-10 أيّام).")
-int    histBars = input.int(100, "Wave candles (manual) / عدد شموع الموجة", minval = 1, maxval = 4900, group = grpWave, tooltip = "حجم الموجة بعدد الشموع (وضعا «يدويّ» و«دمج»). الحدّ 4900 = نافذة التاريخ المضمونة (< max_bars_back) ⇒ لا انهيار buffer.")
+string waveMode = input.string("Auto (days) / تلقائيّ (أيّام)", "Wave search window / نافذة البحث عن الموجة", options = ["Auto (days) / تلقائيّ (أيّام)", "Manual (candles) / يدويّ (شموع)", "Combine / دمج (متوسّط)"], group = grpWave, tooltip = "[ف0-5] يضبط **نافذة البحث** لا حدّ الموجة. الحدّ **بنيويّ دائمًا**: من أدنى نقطة إلى أعلى نقطة (الذيول) داخل النافذة [مصعب: «بداية الموجة أقلّ سعر فيها»].\n• **تلقائيّ**: 500 شمعة [مصعب: «هجيب آخر 500 شمعة» ≈ ملء الشاشة]. (موصى)\n• **يدويّ**: بالمقبض «نافذة البحث (شموع)».\n• **دمج**: متوسّط الاثنين.")
+float  waveScaleDays = input.float(21.0, "Leg threshold scale (days) / مقياس عتبة الساق (أيّام)", minval = 1.0, step = 1.0, group = grpWave, tooltip = "⚠️ [ف0-5] **لا يحدّد الموجة** (كان يفعل — أُلغي). يقيس **عتبة محرّك leg (`legTh`) و`bigDir`** فقط، وهما يغذّيان حدود الموجات **التاريخيّة**.\n🔴 **لا سند نصّيّ للـ21**: «21 يوم/3 أسابيع» = **صفر تطابُق** في كلّ التفريغات، والدرس يقول النقيض: «مليش دعوة بمدّة الموجة كاملة على بعض» [L03] · «ما تقدرش تحكمها بمدّة زمنيّة» [مصعب2]. مُجدوَل للإزالة (التمريرة 2 + ف0-3).\n⚠️ خامل على D فأعلى (`max(50, 21×~1) ≡ 50`).")
+int    histBars = input.int(100, "Search window (candles) / نافذة البحث (شموع)", minval = 2, maxval = 4900, group = grpWave, tooltip = "[ف0-5] **نافذة البحث** عن تطرّفَي الموجة (وضعا «يدويّ» و«دمج») — **ليست طول الموجة**؛ الحدّ يُشتقّ بنيويًّا داخلها (أدنى→أعلى). الحدّ 4900 = نافذة التاريخ المضمونة (< max_bars_back) ⇒ لا انهيار buffer. الأدنى 2 (بار واحد لا يُعرّف موجة).")
 float  LEG_MIN_RATIO = 0.45      // [ثابت داخليّ] عتبة انعكاس الساق = هذه النسبة × السعة. مدموجة في waveScaleDays (مقبض واحد). السعة دائمًا زمنيّة (تقيس الجلسة).
 int    bigMinSwings = input.int(2, "Min candles per leg / أدنى شموع للساق", minval = 1, maxval = 10, group = grpWave, tooltip = "يكبح السيقان الصغيرة جدًّا.")
 int    histDepth = input.int(7, "History depth (legs) / عمق التواريخ (سيقان)", minval = 1, maxval = 12, group = grpWave, tooltip = "كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة (تاريخ التاريخ). كلّ ساق = موجة واحدة.")
@@ -344,7 +358,12 @@ bool   ewDbg       = input.bool(false, "Diag: pivot/label counts / تشخيص: �
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة عبر waveMode (تلقائيّ/يدويّ/دمج).
 //   ⚠️ رقم عرض لا عتبة منطق — إن أُريد اشتقاقه (مثلًا نسبة من ampLen) فهو تغيير سلوكيّ للاحتياطيّ (يُعرَض قبل التطبيق).
-int AUTO_WAVE_LEN = 150
+// 🔴 [ف0-5] `AUTO_WAVE_LEN=150` **حُذِف**: كان احتياطيَّ «آخر حدّ leg» الذي نُسِخ كلّيًّا (لا سند نصّيّ له).
+//   البديل **نافذة الرؤية** — الترجمة الكمّيّة **المنطوقة الوحيدة** لقاعدة الزووم المعاير:
+//   مصعب:150-152 «الفترة دي بتجيب لك في الشاشة الواحدة حوالي **شهر**… اللي هي تقريبًا **500 شمعة**. **هجيب آخر 500 شمعة**».
+//   بالشموع لا بالأيّام ⇒ ذاتيّ المعايرة عبر الأدوات/الفريمات. سقفها منصوص: «ده سنة ولا عشر شهور؟ **ما لهاش علاقة بينا**» (مصعب2:54).
+//   ⚠️ نافذة **بحث/رؤية** لا حدّ موجة: الحدّ يُشتقّ منها بنيويًّا (تطرّف→تطرّف) في `jwf.waveLeftStruct`.
+int WAVE_WIN = 500
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
 // موضع اللوحة من اختيار نصّيّ.
@@ -364,9 +383,15 @@ var jwf.LegEngine leg = jwf.newLegEngine()
 if barstate.isconfirmed
     jwf.legStep(leg, legTh, bigDir, bigMinSwings, 20)
 
-// [ط0] f_waveLeft ⇒ jwf.waveLeft(leg, waveMode, histBars, AUTO_WAVE_LEN) (نُقلت إلى مكتبة JW_Foundation)
+// [ط0 · ف0-5] f_waveLeft ⇒ **نُسِخت**. البديل `jwf.waveLeftStruct(waveMode, histBars, WAVE_WIN)` ⇒ [wL, wLpx, wLtop] — يُستدعى مرّةً (س~392) ويُخزَّن في wL0/wL0px/wL0top.
 
 // ─── الرسم (islast فقط — منفصل عن الحساب) ───
+// 🔴 [ف0-5] حدّ الموجة يُحسَب **مرّةً واحدةً** (كتلة islast الأولى) ويُقرؤه بقيّة المستهلكين (اللوحة · كتلة الدرجات).
+//   لماذا: (1) **ثابتة «موجة واحدة لكلّ بار»**: استدعاءات متعدّدة قد تتباعد لو تباين وسيطٌ ⇒ موجتان مختلفتان في نفس البار.
+//          (2) الأداء: مسح النافذة O(WAVE_WIN) مرّةً لا ثلاثًا. القديم (`waveLeft`) كان O(1) فتُرك مكرَّرًا؛ الجديد ماسح.
+//   الأمان مُبرهَن: كلّ القرّاء محروسون بـ`barstate.islast` نفسه (أو مجموعة جزئيّة منه) ⇒ القيمة البائتة (0) لا تُقرأ قطّ.
+//   `wLpx`/`wLtop` **لا يُخزَّنان**: مستهلِكهما الوحيد (`buildSegments`) في نفس النطاق ⇒ تخزينهما = حالة شبح (رصده فريق الاختبار).
+var int   wL0    = 0                              // بار بداية الموجة = التطرّف الأقدم داخل النافذة
 var box   waveBox = na
 var label waveLbl = na
 var array<box>   hohBoxes = array.new<box>()    // تواريخ متعدّدة (سيقان leg متتالية)
@@ -383,9 +408,12 @@ if barstate.islast
     if not na(waveLbl)
         label.delete(waveLbl)
         waveLbl := na
-    int wL = jwf.waveLeft(leg, waveMode, histBars, AUTO_WAVE_LEN)
+    // 🔴 [ف0-5 · التمريرة 1] الموجة **بنيويّة**: تطرّف→تطرّف على الذيول داخل نافذة الرؤية (WAVE_WIN) — لا حدّ leg ولا مدّة.
+    [wLs, wLpx, wLtop] = jwf.waveLeftStruct(waveMode, histBars, WAVE_WIN)
+    wL0 := wLs                                    // المصدر الوحيد للحدّ في هذا البار (تقرؤه اللوحة وكتلة الدرجات)
+    int wL = wLs
     int wR = bar_index
-    [sLefts, sRights, sLeftPx, sLeftTop] = jwf.buildSegments(leg, wL, wR, histDepth, useHohN)   // مقاطع التحليل من المكتبة (نواة نقيّة)
+    [sLefts, sRights, sLeftPx, sLeftTop] = jwf.buildSegments(leg, wL, wLpx, wLtop, wR, histDepth, useHohN)   // مقاطع التحليل من المكتبة (نواة نقيّة)
     segLefts   := sLefts                          // استبدال مرجع الـglobals (var) — يستهلكها التحليل متعدّد الموجات
     segRights  := sRights
     segLeftPx  := sLeftPx
@@ -436,8 +464,8 @@ f_durTxt(float d) =>
 
 f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     table.set_position(fht, f_pos(fhPos))
-    int   wL   = jwf.waveLeft(leg, waveMode, histBars, AUTO_WAVE_LEN)
-    float days = jwf.rangeDays(wL, bar_index)                                  // زمن الموجة التاريخية الكاملة (عرض فقط)
+    int   wL   = wL0                                                           // [ف0-5] الحدّ المحسوب مرّةً (س~392) — لا إعادة اشتقاق
+    float days = jwf.rangeDays(wL, bar_index)                                  // زمن الموجة التاريخية الكاملة (عرض فقط · **مصادقة لا قرار**)
     // 🔴 نوع التداول من **وسيط زمن السيقان الدافعة** (medImpDays) لا الموجة كاملةً (القديم: التصحيحيّة تُضلِّل)
     // [إصلاح الحقول الفارغة] احتياطيّ: إن لم توجد سيقان دافعة متوسطة (موجة كبيرة/متوسطة قليلة النقاط) ⇒ استعمل **زمن الموجة الكاملة** بدل الفراغ
     float  refDays = (na(medImpDays) or medImpDays <= 0) ? days : medImpDays
@@ -455,8 +483,10 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     color tvMute = #787B86
     table.cell(fht, 0, 0, f_t("لوحة اختبار الموجة", "Wave Test"), text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(fht, 1, 0, "", bgcolor = tvHdr)
+    // 🔴 [ت2-3 · Fail Loud] «درجات ظاهرة» هو **حَكَم صحّة الموجة/الفريم** (منصوص 3 مرّات: 3✓ · 4⇒اصعد · 2⇒انزل).
+    //   وإن بلغت حلقة التقطيع سقفها (`subCapHit`) فالموجة **مقصوصة** ⇒ كلّ ما تحته مبنيّ على نافذة ناقصة ⇒ **أعلِن ولا تصمت** (§11).
     table.cell(fht, 0, 1, f_t("درجات ظاهرة", "Degrees shown"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
-    table.cell(fht, 1, 1, str.tostring(degShown) + " / 3", text_color = tvMain, bgcolor = tvBg, text_size = size.small)
+    table.cell(fht, 1, 1, str.tostring(degShown) + " / 3" + (subCapHit ? f_t("  ⚠️ موجة مقصوصة", "  ⚠️ wave truncated") : ""), text_color = subCapHit ? #FF9800 : tvMain, bgcolor = tvBg, text_size = size.small)
     table.cell(fht, 0, 2, f_t("موجات دافعة", "Impulse legs"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
     table.cell(fht, 1, 2, str.tostring(impulse), text_color = tvMain, bgcolor = tvBg, text_size = size.small)
     table.cell(fht, 0, 3, f_t("زمن الموجة", "Wave time"), text_color = tvMute, bgcolor = tvBg, text_size = size.small, text_halign = text.align_right)
@@ -526,12 +556,24 @@ var jwd.DegreeLaws mediumEff      = jwd.newDegreeLaws()  // المتوسطة ب�
 var int        curWdir        = 0                // اتجاه **آخر مقطع فرعيّ** [lastL..wRb] (للوحة: عدّ الدافعة)
 var int        curWdir0       = 0                // [ف0-2] اتجاه **الموجة كاملةً** [wLb..wRb] = flDir@gi=0 — بديلٌ أمين لـsegLeftTop حين المقطع غير مُرسى (curWdir لا يصلح: يخصّ آخر مقطع فرعيّ ⇒ ينقلب مع التجديد)
 // [درس09 تجدّد] الموجة ب = التصحيح المعاكس للأمام بعد كسر مستوى المتوسط (revBar). درجاتها مستقلّة (مقطع نظيف، لا فساد م3-ج). [المدخل renewFwd نُقِل إلى كتلة grpWave]
+// 🔴 [ت2-3 · ف0-5] سقف احترازيّ لحلقة التقطيع + **Fail Loud**. ليس عتبة منطق ولا رقمًا سحريًّا: الموجة تُقطَّع عند **كلّ** انقلاب
+//   (لا حدّ نصّيّ لعددها)، والسقف حارس ضدّ حلقة هاربة فقط. بلوغه = **الموجة مقصوصة** ⇒ يُرفَع `subCapHit` وتُنذِر اللوحة (لا صمت — §11).
+int SUB_CAP = 20
+var bool           subCapHit   = false
 var int            curRevB     = na
 var array<int>     curSubL     = na    // [تجدّد متكرّر] حدود الموجات الفرعيّة للموجة الجارية (تطرّفات عند كلّ انقلاب): [wLb, sub1, …, subN]
 var array<float>   curSubPx    = na    // أسعار حدود المقاطع: [0]=طرف الـleg (segLeftPx[0])، [k]=تطرّف الانقلاب k
 
-// [درس09 · تجدّد متكرّر] **آخر** انقلاب لمستوى الدرجة (كـv2.18.1 — نافذة [ssL..rb] تشمل التطرّف الأكبر). na إن لا انقلاب.
-f_lastRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =>
+// [درس09 · تجدّد متكرّر] انقلابُ مستوى الدرجة = **كسر مستوى الاتجاه (على الأجسام) بشمعتين** — هو المُنهي المنصوص للموجة
+//   («أوّل ما يكسر **مستوى تحديد الاتجاه** ده، باعتبر الموجة خلص» د09 [02:18] · عتبة شمعتين [01:04] · حسم المستخدم 2026-07-15:
+//    المُنهي = **مستوى المتوسط الأفقيّ** لا خطّ السيولة المائل). na إن لا انقلاب.
+// 🔴 [ت2-2 · ف0-5] الوسيط `wantFirst`:
+//   • `false` = **آخر** انقلاب (السلوك القديم، كـv2.18.1 — نافذة [ssL..rb] تشمل التطرّف الأكبر).
+//   • `true`  = **أوّل** انقلاب ⇒ حلقة التقطيع تمشي **للأمام انقلابًا انقلابًا** فتلتقطها **كلّها**.
+//   لماذا: بـ«آخر انقلاب» يبتلع المقطعُ الأوّل الانقلاباتِ الوسيطة ويُبنى باتّجاه **واحد** ⇒ `feedPivot` يطبّق الفعاليّة
+//   بمرجع خاطئ على أغلب الموجة. لم يكن ظاهرًا حين الموجة = ساق واحدة (~33 شمعة، انقلاب أو اثنان)؛ صار حاجبًا بعد التمريرة 1.
+//   🔴 دالّة **واحدة** بوسيط — لا مسار مزدوج (الدستور).
+f_lastRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir, bool wantFirst) =>
     int dir   = startDir
     int n     = array.size(aBar)
     int first = -1
@@ -548,7 +590,7 @@ f_lastRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) 
         int   pi     = 0
         for j = first to bar_index
             int o = bar_index - j
-            if o >= 0                                    // (بلا توقّف عند الأوّل ⇒ يُرجِع آخر انقلاب)
+            if o >= 0 and not (wantFirst and not na(revBar))   // [ت2-2] wantFirst ⇒ تجمّد عند أوّل انقلاب · وإلّا تابع ⇒ آخر انقلاب
                 while pi < n and array.get(aBar, pi) <= j
                     if array.get(aEff, pi)
                         int po = bar_index - array.get(aBar, pi)
@@ -574,19 +616,22 @@ f_lastRevBar(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) 
 //   هنا: حدود الموجة [wLb..wRb] معروفة وثابتة عند islast ⇒ اتجاه واحد (أيّ تطرّف أقدم) ⇒ تعمل الفعاليّة/التتابُع ويُسقَط النويز.
 // ═════════════════════════════════════════════════════════════════════════════
 if barstate.islast
-    int wLb = math.max(jwf.waveLeft(leg, waveMode, histBars, AUTO_WAVE_LEN), 0)
+    int wLb = math.max(wL0, 0)                                    // [ف0-5] نفس الحدّ المحسوب س~392 (كتلة س378 تسبق هذه) — ثابتة: موجة واحدة لكلّ بار
     int wRb = bar_index
     // [درس09 · تجدّد متكرّر] الموجة الجارية قد تحوي عدّة انقلابات متتالية (صاعد→هابط→صاعد…) كلّما كُسِر مستوى المتوسط.
     // نكشف حدود موجاتها الفرعيّة تكراريًّا: عند كلّ انقلاب، الحدّ = **تطرّف** المقطع (أعلى قمّة إن صاعدًا/أدنى قاع إن هابطًا) قبل الكسر — لا مستوى الكسر (التالية تبدأ من التطرّف). كلّ مقطع يُبنى مستقلًّا باتّجاهه الطبيعيّ (لا قلب وسط مقطع = تجنّب م3-ج).
-    curRevB  := na
+    curRevB   := na
+    subCapHit := false                                                // [ت2-3] يُعاد تصفيره كلّ تقييم (لا يعلق من بار سابق)
     curSubL  := array.new<int>()
     curSubPx := array.new<float>()
     array.push(curSubL, wLb)
     array.push(curSubPx, array.size(segLeftPx) > 0 ? array.get(segLeftPx, 0) : na)
     int ssL = wLb
-    // [إصلاح · segDir لا segLeftTop] بذرة الاتجاه = **اتجاه المقطع نفسه** (مُرجَع buildWave) — يصحّ في الوضع اليدويّ (segLeftTop لا يطابق wLb). كلّ مقطع يبدأ عند تطرّف فاتجاهه الصافي = اتجاه ساقه الأولى. **آخر** انقلاب (f_lastRevBar، كـv2.18.1) يضمن نافذة [ssL..rb] تشمل التطرّف الأكبر (30760).
+    // [إصلاح · segDir لا segLeftTop] بذرة الاتجاه = **اتجاه المقطع نفسه** (مُرجَع buildWave). كلّ مقطع يبدأ عند تطرّف فاتجاهه الصافي = اتجاه ساقه الأولى.
+    // 🔴 [ت2-3 · ف0-5] السقف رُفِع 6 ⇒ SUB_CAP=20 **مع Fail Loud**: كان يكفي لموجة «ساق واحدة» (~33 شمعة، انقلاب أو اثنان)؛
+    //   بعد التمريرة 1 قد تحوي الموجة عشرات الانقلابات ⇒ بلوغ السقف = **قصّ صامت** للموجة (خرق §11). الآن يُرفَع علَم `subCapHit` يُعرَض في اللوحة.
     int flDir = na
-    for gi = 0 to 5                                                   // حدّ أقصى 6 انقلابات في الموجة الجارية
+    for gi = 0 to SUB_CAP - 1                                         // سقف احترازيّ (لا عتبة منطق): تجاوزه ⇒ علَم لا صمت
         jwd.DegreeLaws tsd = jwd.newDegreeLaws()
         jwd.DegreeLaws tmd = jwd.newDegreeLaws()
         jwd.DegreeLaws tme = jwd.newDegreeLaws()
@@ -597,7 +642,7 @@ if barstate.islast
         bool cont = false
         if renewFwd and array.size(tme.effectiveBars) > 1
             array<bool> allT = array.new<bool>(array.size(tme.effectiveBars), true)
-            int rb = f_lastRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, flDir)   // **آخر** انقلاب (نافذة تشمل التطرّف الأكبر)
+            int rb = f_lastRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, flDir, true)   // 🔴 [ت2-2] **أوّل** انقلاب ⇒ الحلقة تمشي للأمام فتلتقط كلّ الانقلابات (بـ«آخر» كان المقطع الأوّل يبتلع الوسيطة ويُبنى باتّجاه واحد)
             if not na(rb) and rb > ssL and rb < wRb
                 int   splitBar = rb
                 float ext      = na
@@ -619,6 +664,8 @@ if barstate.islast
                     cont := true
         if not cont
             break
+        else if gi == SUB_CAP - 1                                     // [ت2-3] خرجنا بالسقف لا بالتقارُب ⇒ الموجة **مقصوصة** (انقلابات لم تُلتقَط) ⇒ أنذِر
+            subCapHit := true
     // المقطع الأخير (= الموجة الجارية) في الدرجات الرئيسة — للّوحة و curWdir (كلّ المقاطع تُبنى وتُرسَم في كتلة الرسم)
     int lastL = array.get(curSubL, array.size(curSubL) - 1)
     smallDegree  := jwd.newDegreeLaws()
@@ -2022,7 +2069,11 @@ if showFrameHelper and barstate.islast
         for i = 1 to wpMn - 1
             bool pT = array.get(wTop, i - 1)
             bool cT = array.get(wTop, i)
-            if (curWdir == 1 and (not pT) and cT) or (curWdir == -1 and pT and (not cT))   // ساق باتجاه الموجة = دافعة
+            // 🔴 [ف0-5] `curWdir0` لا `curWdir`: **محاذاة النافذة بالمرجع**. نافذة `wTop` مُرشَّحة بـ`mcBar >= wlB` = **الموجة كاملةً**،
+            //   فالمرجع يجب أن يكون **اتجاه الموجة كاملةً** (`curWdir0` = `buildWave(wLb,wRb)`، س~623). و`curWdir` = اتجاه **آخر مقطع فرعيّ**
+            //   (`buildWave(lastL,wRb)`) ⇒ مع `renewFwd` (افتراضيّ) يقسم عند تطرّف الموجة فيصير المقطع الأخير = **التصحيح** ⇒ المرجع معكوس
+            //   ⇒ اللوحة تعدّ السيقان **التصحيحيّة** وتحسب وسيطها. (اصطاده فريق الاختبار — نفس عطب ف0-2 في موضع آخر.)
+            if (curWdir0 == 1 and (not pT) and cT) or (curWdir0 == -1 and pT and (not cT))   // ساق باتجاه الموجة = دافعة
                 if array.get(wBr, i) - array.get(wBr, i - 1) >= 2                          // [S1] تجاهُل الساق < بارين (نويز/ازدواج)
                     wpImp := wpImp + 1
                     array.push(impDur, (array.get(wTm, i) - array.get(wTm, i - 1)) / 86400000.0)
