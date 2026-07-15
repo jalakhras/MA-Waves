@@ -404,32 +404,16 @@ var array<int>   segLefts  = array.new<int>()   // [درس03] مقاطع الت�
 var array<int>   segRights = array.new<int>()
 var array<float> segLeftPx = array.new<float>() // سعر طرف الـleg عند يسار كلّ مقطع — لإرساء الحدود المشتركة (نهاية موجة = بداية التالية)
 var array<bool>  segLeftTop = array.new<bool>() // [درس07] نوع طرف الـleg (قمّة/قاع) لكلّ حدّ — مصدر الكبيرة (كلّ حدّ موجة = قمّة/قاع كبير)
+// ═══ [ف0-5 · التمريرة 1] **مرساة البحث** فقط: تطرّف→تطرّف على الذيول داخل نافذة الرؤية (WAVE_WIN) — لا حدّ leg ولا مدّة ═══
+//   🔴 هذه ليست «الموجة»: إنّها بداية **أقدم** موجة في السلسلة (بذرة التقطيع). الموجة الجارية = `segLefts[0]` (منذ آخر انقلاب).
+//   🔴 [ت2-1] `jwf.buildSegments` **نُسِخت**: كانت تبني التاريخ من `leg.bars` (عتبة `legTh` ⇐ الـ21 يومًا الملفّق) بينما الجارية
+//   تُقطَّع بالانقلاب ⇒ **مسار مزدوج + سلسلة مكسورة في منتصفها**. الآن السلسلة **كلّها** من الانقلابات — تُبنى بعد التقطيع.
+//   ⇒ `segLefts` غير جاهزة هنا ⇒ **الرسم كلّه** (الصندوق + مستطيلات التاريخ) نُقِل إلى ما بعد بنائها.
 if barstate.islast
-    // ===== الموجة التاريخية: من الأصل (أو نافذة يدويّة) إلى الآن =====
-    if not na(waveBox)
-        box.delete(waveBox)
-        waveBox := na
-    if not na(waveLbl)
-        label.delete(waveLbl)
-        waveLbl := na
-    // 🔴 [ف0-5 · التمريرة 1] الموجة **بنيويّة**: تطرّف→تطرّف على الذيول داخل نافذة الرؤية (WAVE_WIN) — لا حدّ leg ولا مدّة.
     [wLs, wLpx, wLtop] = jwf.waveLeftStruct(waveMode, histBars, WAVE_WIN)
-    wL0    := wLs                                 // مرساة البحث (تقرؤها اللوحة وكتلة التقطيع)
+    wL0    := wLs                                 // مرساة البحث (تقرؤها كتلة التقطيع)
     wL0px  := wLpx
     wL0top := wLtop
-    int wL = wLs
-    int wR = bar_index
-    // 🔴 [ت2-1] `jwf.buildSegments` **نُسِخت من هنا**: كانت تبني السلسلة (التاريخ) من `leg.bars` = **مسار ثانٍ** لنفس الوظيفة
-    //   (الموجة الجارية تُقطَّع بالانقلاب · والتاريخ بعتبة `legTh` المشتقّة من الـ21 يومًا الملفّق) ⇒ **السلسلة مكسورة في منتصفها**
-    //   وخرقٌ للخطّ الأحمر «لا مسار مزدوج». الآن السلسلة **كلّها** من الانقلابات (كسر مستوى المتوسط بشمعتين) — تُبنى بعد التقطيع (كتلة س~640).
-    //   ⇒ `segLefts` **غير جاهزة هنا**؛ لا تستعملها في هذه الكتلة. ومستطيلات التاريخ نُقِلت معها (تحتاجها).
-    [wHi, wLo] = jwf.rangeHiLo(wL, wR)
-    if showHist and not na(wHi) and not na(wLo)
-        color hBd = f_dark(cHist)
-        waveBox := box.new(wL, wHi, wR, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 0, bgcolor = cHist)
-        string hTxt = waveMode == "Manual (candles) / يدويّ (شموع)" ? "الموجة التاريخية (يدوي)" : waveMode == "Combine / دمج (متوسّط)" ? "الموجة التاريخية (دمج)" : "الموجة التاريخية (تلقائي)"
-        waveLbl := label.new(wL, wHi, hTxt, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_lower_right, color = hBd, textcolor = color.white, size = size.tiny)
-    // [ت2-1] مستطيلات التاريخ نُقِلت إلى ما بعد بناء السلسلة (كتلة س~640) — تحتاج `segLefts` وهي لم تُبنَ بعد.
 
 // ─── لوحة اختبار الموجة (تصميم الكود السابق) ───
 // الدرس 03 خ6: زمن الموجة ⇒ نوع التداول. موجات الدفعة/عدّ الدرجات/ملاءمة الفريم يكتمل بـط1.
@@ -690,6 +674,22 @@ if barstate.islast
             array.set(mediumDegree.effectiveTimes, 0, time[lo0])
             if array.size(mediumEff.effectiveBars) > 0
                 array.set(mediumEff.effectiveBars, 0, lastL)   // مزامنة فحص الفعاليّة مع الإرساء
+    // ═══ [ف0-5] صندوق «الموجة التاريخية» = **الموجة الجارية** `[segLefts[0] .. now]` = **آخر صعود/هبوط قويّ** (حسم المستخدم 2026-07-15) ═══
+    //   يحوي بداخله المتوسطة والصغيرة، وينتهي بكسر **مستوى المتوسط الأصفر** فتُبدَأ قوانين الموجة **المعاكسة** (د09).
+    //   🔴 كان يُرسَم على `wL0` (مرساة البحث = **عدّة** موجات، 500 شمعة) ⇒ ابتلع مستطيلات التاريخ داخله = **تعشيش مقلوب**
+    //   وتناقَض مع كلّ الطبقات التي تقرأ `segLefts[0]`. (اصطاده فريق الاختبار.)
+    if not na(waveBox)
+        box.delete(waveBox)
+        waveBox := na
+    if not na(waveLbl)
+        label.delete(waveLbl)
+        waveLbl := na
+    int   cwL = array.get(segLefts, 0)
+    [wHi, wLo] = jwf.rangeHiLo(cwL, wRb)
+    if showHist and not na(wHi) and not na(wLo)
+        color hBd = f_dark(cHist)
+        waveBox := box.new(cwL, wHi, wRb, wLo, xloc = xloc.bar_index, border_color = hBd, border_width = 0, bgcolor = cHist)
+        waveLbl := label.new(cwL, wHi, "الموجة الجارية", xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_lower_right, color = hBd, textcolor = color.white, size = size.tiny)
     // ═══ [ت2-1] مستطيلات التاريخ — نُقِلت من كتلة الرسم (س~403) إلى هنا: تحتاج `segLefts` وهي تُبنى أعلاه لا هناك ═══
     for bx in hohBoxes
         box.delete(bx)
