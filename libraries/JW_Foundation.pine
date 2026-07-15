@@ -166,40 +166,10 @@ export waveLeftStruct(string waveMode, int histBars, int winBars) =>
     int  wL  = math.min(hiB, loB)
     [wL, top ? hi : lo, top]
 
-// بناء مقاطع التحليل (بلا رسم): المقطع 0 = الموجة الحاليّة (دائمًا) ثمّ التواريخ = سيقان leg
-//   خلف wL (تلقائيّ فقط). في وضع التاريخ اليدويّ (useHohN) لا تُبنى مقاطع تاريخ (المقطع 0 فقط)
-//   — مطابقٌ للأصل (المستطيل اليدويّ عرضٌ بحت لا مقطع تحليل). المؤشّر يرسم من المصفوفات الأربع.
-//   🔴 [ف0-5 · v3] `wLpx`/`wLtop` صارا **وسيطَين** (من `waveLeftStruct`) بدل البحث عن حدّ leg مطابق لـ`wL`.
-//     لماذا: بعد إعادة التعريف `wL` = **تطرّف خام** لا حدّ leg ⇒ البحث القديم كان سيفشل **دائمًا**
-//     فيُرجِع `wLpx=na` و`wLtop=true` (افتراض لا حقيقة) ⇒ يُعيد إنتاج عطب ف0-2 على **كلّ** الأوضاع.
-//     الآن الطرف **معروف يقينًا** (سعره ونوعه من نفس الحساب) ⇒ `leftTop[0]` **حقيقة** ⇒ `segDir` صادق بلا فولباك.
-export buildSegments(LegEngine self, int wL, float wLpx, bool wLtop, int wR, int histDepth, bool useHohN) =>
-    array<int>   lefts   = array.new<int>()
-    array<int>   rights  = array.new<int>()
-    array<float> leftPx  = array.new<float>()
-    array<bool>  leftTop = array.new<bool>()
-    // المقطع 0 = الموجة الحاليّة
-    array.push(lefts, wL)
-    array.push(rights, wR)
-    array.push(leftPx, wLpx)
-    array.push(leftTop, wLtop)
-    // التواريخ = سيقان leg خلف wL، مُرساة على بداية الموجة (لا فجوة) — تلقائيّ فقط
-    if not useHohN
-        int n        = array.size(self.bars)
-        int rightBar = wL
-        int drawn    = 0
-        int li       = n - 1
-        while li >= 0 and drawn < histDepth
-            int legB = array.get(self.bars, li)
-            if legB < rightBar and bar_index - legB <= MAX_HIST   // طرف خلف الحدّ + ضمن نافذة buffer مضمونة
-                float pL = array.get(self.ps, li)
-                [rh, rl] = rangeHiLo(legB, rightBar)
-                if not na(rh) and not na(rl)
-                    array.push(lefts, legB)            // مقطع تحليل دائمًا (لا يتأثّر بإخفاء المستطيل)
-                    array.push(rights, rightBar)
-                    array.push(leftPx, pL)
-                    array.push(leftTop, array.get(self.tops, li))   // نوع الحدّ (مصدر الكبيرة)
-                    rightBar := legB
-                    drawn    := drawn + 1
-            li := li - 1
-    [lefts, rights, leftPx, leftTop]
+// 🔴 [ت2-1 · ف0-5 · v3] `buildSegments` **حُذِفت**. كانت تبني السلسلة (التاريخ) من **سيقان leg** (`self.bars`) —
+//   أي بعتبة `legTh` المشتقّة من `waveScaleDays=21` **الملفّق** (صفر تطابُق في 14 تفريغًا) — بينما الموجة الجارية
+//   تُقطَّع بـ**الانقلاب** (كسر مستوى الاتجاه المتوسط بشمعتين، د09). ⇒ **مسار مزدوج لنفس الوظيفة** (خطّ أحمر)
+//   و**سلسلة مكسورة في منتصفها**: أوّلها بقانون وبقيّتها بقانون آخر.
+//   البديل: المؤشّر يبني السلسلة **كلّها** من `curSubL` (تقطيع الانقلابات) — الموجة الجارية = آخر مقطع، وما قبله
+//   التاريخ فتاريخ التاريخ. ⇒ `legTh`/`waveScaleDays` خرجا من **حدود الموجات كلّها** (يبقيان في `bigDir` — ف0-3).
+//   ⇒ لم يبقَ لـ`LegEngine` مستهلِك في هذا الملفّ سوى `legInputs`/`legStep`/`bigDir`.
