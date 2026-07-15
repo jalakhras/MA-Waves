@@ -606,20 +606,31 @@ if barstate.islast
         jwd.DegreeLaws tmd = jwd.newDegreeLaws()
         jwd.DegreeLaws tme = jwd.newDegreeLaws()
         jwd.BreakProc  tmb = jwd.newBreakProc()
-        flDir := jwd.buildWave(tsd, tmd, tme, tmb, ssL, wRb, useValid, minCorr)   // اتجاه المقطع = بذرة البحث ونوع التطرّف
-        if gi == 0                                                    // [ف0-2] ssL=wLb هنا (س618 يعدّله بعدُ) ⇒ flDir = buildWave(wLb, wRb) = **اتجاه الموجة كاملةً** ∈ {−1,+1} حصرًا (JW_Degrees س307: ثلاثيّ بين حرفَين). يُستعمَل **حصريًّا حين المقطع غير مُرسى** (س950/1019) — الفرعان **متنافيان فلا تلزم المكافئة** مع segLeftTop.
+        flDir := jwd.buildWave(tsd, tmd, tme, tmb, ssL, wRb, useValid, minCorr)   // يبني الدرجات على [ssL..wRb]؛ ومُرجَعه = اتجاه **عالميّ** من تطرّفات المدى كلّه
+        if gi == 0                                                    // ssL=wLb هنا ⇒ flDir = buildWave(wLb, wRb) = **اتجاه السلسلة كاملةً** ∈ {−1,+1} حصرًا (JW_Degrees س307). تقرؤه لوحة الفريم.
             curWdir0 := flDir
+        // 🔴 [إصلاح الجمود · ف0-5] بذرة الاتجاه **بنيويّة (تناوبيّة)** لا عالميّة — اصطاده فريق الاختبار وبرهنه.
+        //   العلّة: الحلقة تتّكئ على **ثابتة ضمنيّة غير معلَنة**: «`ssL` هو التطرّف المطلق للمدى [ssL..wRb]».
+        //   • صادقة عند gi=0 (wLb = تطرّف النافذة) ⇒ `flDir` يوافق نوعه حتمًا ⇒ القصّة الأولى تنجح.
+        //   • ومع «آخر انقلاب» كانت **تُحفَظ ذاتيًّا** بالصدفة (المدى [ssL..rb] طويل ⇒ splitBar ≈ التطرّف المطلق).
+        //   • فلمّا صار «أوّل انقلاب» (ت2-2) صار `splitBar` تطرّفًا **محلّيًّا** ⇒ الثابتة تنهار من gi=1:
+        //     `flDir` يُعاد حسابه **عالميًّا** فيُرجِع نفس الإشارة ⇒ س~626 يبحث عن **نفس نوع التطرّف الذي `ssL` هو إيّاه**
+        //     ⇒ `splitBar == ssL` ⇒ حارس `splitBar > ssL` كاذب ⇒ `break` **صامت** ⇒ **`nSub ≡ 2` أبدًا** و`SUB_CAP` كود ميّت.
+        //   الإصلاح: اشتقّ الاتجاه من **نوع `ssL` نفسه** — والكود يعرفه أصلًا (`curSubTop` يسجّل «انتهى بقمّة» ⇒ التالي يهبط).
+        //   قمّة ⇒ نبحث عن أدنى قاع ⇒ **يستحيل** أن يكون `ssL` ⇒ لا جمود. وعند gi=0 **عمليّة صفريّة** (`curSubTop[0]=wL0top` ⇒ `sDir ≡ flDir`).
+        //   ⚠️ فجوة متبقّية (مسجَّلة): `buildWave` يبني `tme` باتّجاهه **العالميّ** لا بـ`sDir` ⇒ جودة الفعاليّة على المقاطع المعاكسة تبقى ناقصة حتّى يُمرَّر `wdir` وسيطًا (تعديل JW_Degrees + نشر).
+        int sDir = array.get(curSubTop, array.size(curSubTop) - 1) ? -1 : 1
         bool cont = false
         if renewFwd and array.size(tme.effectiveBars) > 1
             array<bool> allT = array.new<bool>(array.size(tme.effectiveBars), true)
-            int rb = f_lastRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, flDir, true)   // 🔴 [ت2-2] **أوّل** انقلاب ⇒ الحلقة تمشي للأمام فتلتقط كلّ الانقلابات (بـ«آخر» كان المقطع الأوّل يبتلع الوسيطة ويُبنى باتّجاه واحد)
+            int rb = f_lastRevBar(tme.effectiveBars, tme.effectiveIsTop, allT, sDir, true)   // 🔴 [ت2-2] **أوّل** انقلاب ⇒ الحلقة تمشي للأمام فتلتقط كلّ الانقلابات · و`sDir` (تناوبيّ) لا `flDir` (عالميّ) ⇒ يصطاد كسر **الجهة الصحيحة**
             if not na(rb) and rb > ssL and rb < wRb
                 int   splitBar = rb
                 float ext      = na
                 for j = ssL to rb
                     int o = bar_index - j
                     if o >= 0
-                        if flDir == 1                              // مقطع صاعد ⇒ ينتهي بقمّة (أعلى high)؛ هابط ⇒ بقاع (أدنى low)
+                        if sDir == 1                               // [إصلاح الجمود] `sDir` التناوبيّ: مقطع صاعد ⇒ ينتهي بقمّة (أعلى high) · هابط ⇒ بقاع (أدنى low). بـ`flDir` العالميّ كان يبحث عن نوع `ssL` نفسه ⇒ splitBar==ssL ⇒ جمود.
                             if na(ext) or high[o] > ext
                                 ext := high[o]
                                 splitBar := j
@@ -633,7 +644,7 @@ if barstate.islast
                     else
                         array.push(curSubL, splitBar)
                         array.push(curSubPx, ext)
-                        array.push(curSubTop, flDir == 1)              // [ت2-1] المقطع صاعد ⇒ ينتهي بـ**قمّة** (ext=أعلى high) · هابط ⇒ بـ**قاع**. النوع **مشتقّ يقينًا** من نفس الحساب — لا افتراض (جذر ف0-2).
+                        array.push(curSubTop, sDir == 1)              // [ت2-1] المقطع صاعد ⇒ ينتهي بـ**قمّة** (ext=أعلى high) · هابط ⇒ بـ**قاع**. النوع **مشتقّ يقينًا** من نفس حساب `ext` — لا افتراض (جذر ف0-2). و`sDir` يضمن **التناوب** ⇒ لا قمّتان متتاليتان.
                         ssL  := splitBar
                         cont := true
         if not cont
