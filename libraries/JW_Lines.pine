@@ -28,8 +28,9 @@ export f_levelLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<in
             ln := line.new(array.get(aTm, found), lvl, rightTm, lvl, xloc = xloc.bar_time, color = col, width = w)
     ln
 
-// ─── ج2 [درس08]: انتقاء طرفَي خطّ السيولة — آخر زوج **متّسق مع الاتجاه** من الموجة الحيّة (عند atBar) ───
-//   قاعان متصاعدان صعودًا · قمّتان متنازلتان هبوطًا؛ يستثني ما لم يتكوّن بعد (aBar>atBar). إن لا زوج متّسق ⇒ آخر طرفين (احتياطيّ).
+// ─── ج2 [درس08]: انتقاء طرفَي خطّ السيولة — الزوج **الأحدث المجاور** المتّسق مع الاتجاه من الموجة الحيّة (عند atBar) ───
+//   قاعان متصاعدان صعودًا · قمّتان متنازلتان هبوطًا؛ يستثني ما لم يتكوّن بعد (aBar>atBar).
+//   [حسم 2026-07-14 · مصعب 14:33 + ق7] الزوج = الأخيران فقط (px[m-2],px[m-1]). غير متّسق ⇒ [-1,-1] (لا خطّ ⇒ عرضيّ). **لا قفز لزوج أقدم ولا ارتداد لآخر طرفين.**
 export f_liqPairAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
     bool wantTop = wdir == -1
     array<int>   px = array.new<int>()
@@ -45,6 +46,42 @@ export f_liqPairAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir
     int r1 = -1
     int r2 = -1
     if m >= 2
+        float w1 = array.get(pw, m - 2)                                  // الطرفان **الأخيران** المجاوران فقط (ق7)
+        float w2 = array.get(pw, m - 1)
+        if wantTop ? (w2 < w1) : (w2 > w1)                               // هابط: قمّتان متنازلتان · صاعد: قاعان متصاعدان
+            r1 := array.get(px, m - 2)
+            r2 := array.get(px, m - 1)
+        // غير متّسق ⇒ يبقى [-1,-1] (لا خطّ) ⇒ السوق «عرضيّ». لا قفز لزوج أقدم ولا ارتداد (مصعب 14:33).
+    [r1, r2]
+
+// غلاف رفيع: التقييم عند البار الحاليّ (atBar=bar_index).
+export f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
+    [q1, q2] = f_liqPairAt(aBar, aTop, aEff, wdir, bar_index)
+    [q1, q2]
+
+// ─── ج2-ب [ط3/د11] زوج **آلة المراحل** — أحدث زوج **متّسق** (يقفز لزوج أقدم إن لزم) + ارتداد لآخر طرفين ───
+//   🔴 [إصلاح انحدار v2.39.2] **لا تستعمل f_liqPairAt (ق2) لآلة المراحل:** حسم مصعب [14:33] «لا زوج متّسق ⇒ لا خطّ»
+//   يخصّ **الخطّ المرسوم (ط2/د08)** لا المراحل (ط3). تطبيقه على المراحل جعل `i2` = **التطرّف المُقيَّم نفسه** ⇒
+//   `lineNow = ذيله` ⇒ `midNow` لا يتجاوزه أبدًا (mid≥low) ⇒ **الكسر مستحيل رياضيًّا** ⇒ صفر إشارات درجات،
+//   و`cnt≡0` ⇒ **اليأس/التجميع غير قابلَين للوصول**. المراحل تحتاج الخطّ **الذي كُسِر** (زوج أقدم متّسق) لتقيس الكسر بعده.
+export f_liqPairPhaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, int atBar) =>
+    bool wantTop = wdir == -1
+    array<int>   px = array.new<int>()
+    array<float> pw = array.new<float>()
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        // 🔴 [الجذر · v2.39.3] `< atBar` **أصغر تمامًا** لا `<=`: إدخال التطرّف المُقيَّم نفسه في مرشّحي الزوج = **look-ahead**
+        //   (الشمعة المُختبَرة تُعرِّف الخطّ الذي تُختبَر به) ⇒ `i2=atBar` ⇒ `lineNow`=ذيله ⇒ الكسر مستحيل رياضيًّا.
+        //   بالاستثناء: `i2 < atBar` دائمًا ⇒ الكسر ممكن بلا شرط، والتقييم أمينٌ لما رآه السوق **قبل** التطرّف.
+        if n > 0 and array.get(aEff, i) and array.get(aTop, i) == wantTop and array.get(aBar, i) < atBar
+            int o = bar_index - array.get(aBar, i)
+            if o >= 0
+                array.push(px, i)
+                array.push(pw, wantTop ? high[o] : low[o])                // الذيل (لا الجسم)
+    int m  = array.size(px)
+    int r1 = -1
+    int r2 = -1
+    if m >= 2
         for k = m - 1 to 1                                               // من الأحدث للأقدم: أوّل زوج متّسق
             if r2 < 0
                 float w1 = array.get(pw, k - 1)
@@ -52,15 +89,10 @@ export f_liqPairAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir
                 if wantTop ? (w2 < w1) : (w2 > w1)                        // هابط: قمّتان متنازلتان · صاعد: قاعان متصاعدان
                     r1 := array.get(px, k - 1)
                     r2 := array.get(px, k)
-        if r2 < 0                                                        // لا زوج متّسق ⇒ آخر طرفين (تباعد/كسر)
+        if r2 < 0                                                        // لا زوج متّسق ⇒ آخر طرفين (الخطّ المكسور = مرجع قياس الذعر)
             r1 := array.get(px, m - 2)
             r2 := array.get(px, m - 1)
     [r1, r2]
-
-// غلاف رفيع: التقييم عند البار الحاليّ (atBar=bar_index).
-export f_liqPair(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
-    [q1, q2] = f_liqPairAt(aBar, aTop, aEff, wdir, bar_index)
-    [q1, q2]
 
 // ─── خطّ السيولة — مائل على **الذيول** يمرّ بالطرفين تمامًا (بلا إزاحة) ثمّ يمتدّ liqExtend شمعة يمينًا ───
 export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir, int liqExtend) =>
@@ -75,6 +107,9 @@ export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int>
             float wp2 = wantTop ? high[o2] : low[o2]
             int   b1  = array.get(aBar, i1)
             int   b2  = array.get(aBar, i2)
+            // 🔴 [رجوع عن #3 · v2.39.2] الميل **بالشموع** لا بالزمن: محور TradingView **بالبار** (البارات متساوية التباعد)،
+            //   فخطّ xloc.bar_time يُرسَم مستقيمًا في **فضاء البار** ⇒ الحساب الشمعيّ هو ما يجعله يمرّ بالطرف الثاني تمامًا.
+            //   (الميل الزمنيّ كان يكسر ذلك على الأدوات ذات الفجوات — فرضيّة خاطئة، رصدها صائد الانحدارات.)
             float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0        // ميل الخطّ لكلّ شمعة (b2>b1 مضمون؛ حارس احترازيّ)
             int   targetBar = bar_index + liqExtend
             float projP = wp1 + slope * (targetBar - b1)                  // يمرّ بالطرفين تمامًا ثمّ يمتدّ يمينًا — بلا إزاحة

@@ -7,6 +7,10 @@
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Foundation", overlay = true)
 
+// نافذة التاريخ المضمونة (< max_bars_back=5000 في المستهلِك) — مصدر حقيقة واحد لحارس الـbuffer عبر كلّ الدوالّ.
+//   🔴 يتطلّب المستهلِك: max_bars_back ≥ MAX_HIST+1.
+int MAX_HIST = 4900
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1) دوالّ نقيّة
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,7 +24,7 @@ export waveLen(int nBars) =>
 export rangeHiLo(int leftB, int rightB) =>
     float hi = na
     float lo = na
-    int safeLeft = na(leftB) ? na : math.max(leftB, bar_index - 4900)
+    int safeLeft = na(leftB) ? na : math.max(leftB, bar_index - MAX_HIST)
     if not na(safeLeft) and not na(rightB) and rightB >= safeLeft
         for j = safeLeft to rightB
             int off = bar_index - j
@@ -29,9 +33,13 @@ export rangeHiLo(int leftB, int rightB) =>
                 lo := na(lo) or low[off] < lo ? low[off] : lo
     [hi, lo]
 
-// زمن نطاق بارات [leftB..rightB] بالأيّام.
+// زمن نطاق بارات [leftB..rightB] بالأيّام. حارس buffer (مطابق rangeHiLo): طرف أقدم من نافذة MAX_HIST
+//   أو مدخلات مقلوبة/na ⇒ na (المستهلك يعرض «—»)، لا وصول بإزاحة تتجاوز max_bars_back ⇒ لا crash.
 export rangeDays(int leftB, int rightB) =>
-    (time[bar_index - rightB] - time[bar_index - leftB]) / 86400000.0
+    float r = na
+    if not na(leftB) and not na(rightB) and rightB >= leftB and rightB <= bar_index and (bar_index - leftB) <= MAX_HIST
+        r := (time[bar_index - rightB] - time[bar_index - leftB]) / 86400000.0
+    r
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2) محرّك الـleg (كلّ الحالة في UDT — كنمط DegreeLaws/BreakProc)
@@ -58,7 +66,7 @@ export legInputs(LegEngine self, float waveScaleDays, float legMinRatio) =>
     int   lookB      = math.min(bar_index, 200)                                   // نافذة تقدير شموع-اليوم
     float spanMs     = lookB > 0 ? (time - time[lookB]) : na                      // المدّة التقويميّة الفعليّة
     float barsPerDay = (not na(spanMs) and spanMs > 0) ? (lookB * 86400000.0 / spanMs) : (86400.0 / timeframe.in_seconds())
-    int   ampBars    = math.min(4900, math.max(50, int(math.round(waveScaleDays * barsPerDay))))   // الموجة ~waveScaleDays يومًا
+    int   ampBars    = math.min(MAX_HIST, math.max(50, int(math.round(waveScaleDays * barsPerDay))))   // الموجة ~waveScaleDays يومًا
     float ampHist    = ta.highest(high, ampBars) - ta.lowest(low, ampBars)        // سعة مرجعيّة (مقياس العتبة فقط)
     float legTh      = legMinRatio * ampHist
     int   hbW        = ta.highestbars(high, ampBars)
@@ -166,7 +174,7 @@ export buildSegments(LegEngine self, int wL, int wR, int histDepth, bool useHohN
         int li       = n - 1
         while li >= 0 and drawn < histDepth
             int legB = array.get(self.bars, li)
-            if legB < rightBar and bar_index - legB <= 4900   // طرف خلف الحدّ + ضمن نافذة buffer مضمونة
+            if legB < rightBar and bar_index - legB <= MAX_HIST   // طرف خلف الحدّ + ضمن نافذة buffer مضمونة
                 float pL = array.get(self.ps, li)
                 [rh, rl] = rangeHiLo(legB, rightBar)
                 if not na(rh) and not na(rl)
