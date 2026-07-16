@@ -9,7 +9,11 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.43.0 — [🔬 م2-0 · كناري المُصرِّف: feedBar من المؤشّر — مؤقّت يُحذف بعد القبول] ═══
+// ═══ الإصدار: v2.44.0 — [م2-1 · إزالة البناء المزدوج للمقطع الجاري — تكافؤ مُبرهَن، تطابُق حرفيّ شرط القبول] ═══
+//   v2.44.0 [م2-1 · spec_نقلة2_محرك_أمامي §2]: كتلة الرسم كانت تبني المقطع الجاري **مرّة رابعة** (`sdc/mdc/mec/mbc` عبر
+//     `buildWave`) على نفس المدى ونفس الإرساء اللذَين بُنيت بهما الدرجات الرئيسة في نهاية التقطيع ⇒ حُذف البناء وتُقرأ
+//     `smallDegree/mediumDegree/mediumEff` مباشرةً. التكافؤ مُبرهَن (subL=lastL · subR=wRb · startPx=lastLPx · نفس مزامنة
+//     الإرساء) + لا طفرات بين الكتلتين (مقيس grep) + شرطاهما متطابقان (islast خام). إصلاحا ع1/ع2 محفوظان بالبناء.
 //   v2.43.0 [م2-0 · spec_نقلة2_محرك_أمامي §2]: **إضافة تشخيصيّة بحتة، صفر تغيير سلوكيّ.** قبل بناء النقلة 2 على `jwd.feedBar`
 //     نقيس ترجمتها من المؤشّر (عيب `/2` كان نمط «كائن محلّيّ + method» في **المكتبات** — والمؤشّر غير مقيس):
 //     • الساق B (محلّيّ): إعادة بناء المقطع الجاري [lastL..wRb] بـ`SmallScan` محلّيّ + `feedBar` ⇒ يجب ≡ A (`buildWave` inline).
@@ -1020,40 +1024,23 @@ if barstate.islast
     //   ⇒ الكتلة (1) تملك التاريخ (وتحترم `histDepth`)، وهذه تملك **الجارية فقط**.
     int nSub = array.size(curSubL)
     if nSub > 0
-        int  si   = nSub - 1
-        int  subL = array.get(curSubL, si)
-        int  subR = bar_index                                     // الجاري ⇒ الطرف الأيمن = الآن
-        jwd.DegreeLaws sdc = jwd.newDegreeLaws()
-        jwd.DegreeLaws mdc = jwd.newDegreeLaws()
-        jwd.DegreeLaws mec = jwd.newDegreeLaws()
-        jwd.BreakProc  mbc = jwd.newBreakProc()
-        jwd.buildWave(sdc, mdc, mec, mbc, subL, subR, useValid, minCorr)
-        // 🔴 [إصلاح ع2] إرساء البداية = تطرّف **هذا المقطع** (`curSubPx[si]`). كان `si == 0 ? segLeftPx[0] : …` — و`segLeftPx[0]`
-        //   بعد ت2-1 = `curSubPx[nSub-1]` (**الأحدث**) لا `curSubPx[0]` (الأقدم) ⇒ كان يُرسي المقطع بسعر الطرف المعاكس للسلسلة.
-        //   مُبرهَن: `curSubPx` لا يحوي na قطّ ([0]=تطرّف التمريرة 1 · [k]=تطرّف انقلاب) ⇒ لا حاجة لفولباك.
-        float startPx = array.get(curSubPx, si)
-        if array.size(mdc.effectiveBars) > 0 and not na(startPx)
-            int loS = bar_index - subL
-            if loS >= 0
-                array.set(mdc.effectiveBars, 0, subL)
-                array.set(mdc.effectivePrices, 0, startPx)
-                array.set(mdc.effectiveTimes, 0, time[loS])
-                if array.size(mec.effectiveBars) > 0
-                    array.set(mec.effectiveBars, 0, subL)
-        int mchS = array.size(mdc.effectiveBars)
+        // 🔴 [م2-1 · إزالة البناء المزدوج للجارية] كان هنا بناء رابع الكائنات (`sdc/mdc/mec/mbc`) بـ`buildWave` على
+        //   **نفس المدى** الذي بُنيت عليه الدرجات الرئيسة في نهاية التقطيع (`subL = curSubL[nSub-1] = lastL` ·
+        //   `subR = bar_index = wRb`) و**بنفس الإرساء** (`startPx = curSubPx[nSub-1] = lastLPx` — إصلاح ع2 محفوظ هناك).
+        //   ⇒ تكافؤ مُبرهَن حرفيًّا ⇒ نقرأ `smallDegree/mediumDegree/mediumEff` مباشرةً (نصف كلفة بناء الجارية، −4 كائنات).
+        //   [إصلاح ع1 محفوظ] الطرف المتوسط الجاري (المعلّق) **لا يُدفَع** = قاعدة الانتظار (د06). الكتلة (1) تتولّى التاريخ.
+        int mchS = array.size(mediumDegree.effectiveBars)
         for i = 0 to (mchS > 0 ? mchS - 1 : 0)
             if mchS > 0
-                int b = array.get(mdc.effectiveBars, i)
-                bool eff = array.includes(mec.effectiveBars, b) or (mec.pendingType != 0 and b == mec.pendingBar)
-                f_pushMed(b, array.get(mdc.effectivePrices, i), array.get(mdc.effectiveIsTop, i), eff, array.get(mdc.effectiveTimes, i))
-        // [إصلاح ع1] الطرف الجاري (معلّق غير مكسور) **لا يُدفَع** = قاعدة الانتظار (د06). هذا المقطع هو الأخير **دائمًا** الآن
-        //   ⇒ فرع `not isLastSub` (دفع حدود الانقلاب المؤكَّدة + إرساء النهاية) صار **لا يُبلَغ** ⇒ حُذِف. الكتلة (1) تتولّى التاريخ.
-        int schS = array.size(sdc.effectiveBars)
+                int b = array.get(mediumDegree.effectiveBars, i)
+                bool eff = array.includes(mediumEff.effectiveBars, b) or (mediumEff.pendingType != 0 and b == mediumEff.pendingBar)
+                f_pushMed(b, array.get(mediumDegree.effectivePrices, i), array.get(mediumDegree.effectiveIsTop, i), eff, array.get(mediumDegree.effectiveTimes, i))
+        int schS = array.size(smallDegree.effectiveBars)
         for i = 0 to (schS > 0 ? schS - 1 : 0)
             if schS > 0
-                f_pushSmall(array.get(sdc.effectiveBars, i), array.get(sdc.effectivePrices, i), array.get(sdc.effectiveIsTop, i), true, array.get(sdc.effectiveTimes, i))
-        if sdc.pendingType != 0
-            f_pushSmall(sdc.pendingBar, sdc.pendingPrice, sdc.pendingType == 1, true, sdc.pendingTime)
+                f_pushSmall(array.get(smallDegree.effectiveBars, i), array.get(smallDegree.effectivePrices, i), array.get(smallDegree.effectiveIsTop, i), true, array.get(smallDegree.effectiveTimes, i))
+        if smallDegree.pendingType != 0
+            f_pushSmall(smallDegree.pendingBar, smallDegree.pendingPrice, smallDegree.pendingType == 1, true, smallDegree.pendingTime)
     // (3) الرسم: دوائر (🟠 فعّال · 🔴 غير فعّال · رماديّ للطرف الحيّ) + **خطّ واحد متواصل** بكلّ النقاط
     for lb in medCircles
         label.delete(lb)
