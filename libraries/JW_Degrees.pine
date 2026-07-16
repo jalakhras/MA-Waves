@@ -5,7 +5,8 @@
 //   النواة معمّمة على الدرجة (نفس القوانين للصغيرة/المتوسطة/الكبيرة). الاقتران الوحيد بالعالم (useValid/minCorr) وسيطان.
 //   [v2 · المحرّك الأماميّ · spec_ط0_reset §0-ب] استُخرِج كاشف الصغيرة من حلقة buildWave إلى **SmallScan + feedBar**
 //   (خطوة بار-واحد، OHLC قيمًا صريحة) + **syncPending** ⇒ يدعم التدفّق بار بار (الرسم اللحظيّ بمجرّد تحقّق الشروط —
-//   متطلّب المستخدم). `buildWave` بقيت **غلافًا دفعيًّا رقيقًا** فوقهما (مطابقة بايتيّة، توافق خلفيّ) — المحرّك الأماميّ يتجاوزها.
+//   متطلّب المستخدم). ⛔ /2 محظورة (عيب ترجمة «كائن محلّيّ + method») · /3 = جسم buildWave الأصليّ + المُصدَّرات.
+//   [v4 · م2-5] `buildWave` حُذفت نهائيًّا (صفر مستدعين — المؤشّر v2.48+ كلّه على feedBar/syncPending بالمحرّك الأماميّ).
 //   OHLC/time بالإزاحة مسموحة في مكتبات v6.
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Degrees", overlay = true)
@@ -433,132 +434,6 @@ export syncPending(DegreeLaws md, BreakProc mb, int wdir) =>
             md.pendingBar   := mb.minSinceBar
             md.pendingTime  := mb.minSinceTime
 
-// [درس03] بناء موجة واحدة [segL→segR]: اتجاهها من تطرّفاتها ثمّ الصغيرة (شمعتان) → قاعدة(ب) → المتوسطة. يُرجع الاتجاه.
-//   useValid/minCorr وسيطان (كانا عالميَّين في المؤشّر). OHLC/time بالإزاحة داخل المكتبة.
-// 🔴 [v3 · رجوع مقيس عن غلاف SmallScan] النسخة /2 جعلت هذا غلافًا فوق `scan.feedBar(...)` (كائن محلّيّ + نداء method)
-//   — **دلاليًّا مطابق، وسلوكيًّا منهار**: A/B على نفس الشارت واللحظة أثبت أنّ /2 تُفسد الكشف جذريًّا
-//   («درجات ظاهرة 0/3» · الموجة = النافذة كاملةً) بينما /1 (هذا الجسم نفسه) سليمة — والمصدر المنشور /2 مُتحقَّق أنّه
-//   الكود الصحيح ⇒ **عيب ترجمة في مُصرِّف TradingView لنمط «كائن محلّيّ + method يُطفِر وسائط هاربة»** (نفس جذر CE10237؛
-//   إسكات الرسالة لا يُصلح الترجمة). ⇒ أُعيد الجسم الأصليّ **حرفيًّا** (النمط الذي يعمل يقينًا).
-//   ⚠️ الازدواج مع feedBar **مؤقّت ومُعلَن**: النقلة 2 تستعمل feedBar بسياق مختلف (حالة `var` في المؤشّر، لا كائن محلّيّ)
-//   وتُختبر A/B هناك، ثمّ تُحذف buildWave كلّها. 🔴 لا تُعِد الغلاف مهما بدا أنظف — القياس حاكم.
-export buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL, int segR, bool useValid, int minCorr) =>
-    float wHiP = na
-    float wLoP = na
-    int   wHiB = na
-    int   wLoB = na
-    for j = segL to segR
-        int o = bar_index - j
-        if o >= 0
-            if na(wHiP) or high[o] > wHiP
-                wHiP := high[o]
-                wHiB := j
-            if na(wLoP) or low[o] < wLoP
-                wLoP := low[o]
-                wLoB := j
-    int wdir = wHiB <= wLoB ? -1 : 1
-    int   scD  = 0
-    float rHiP = na
-    int   rHiB = na
-    int   rHiT = na
-    float rLoP = na
-    int   rLoB = na
-    int   rLoT = na
-    int   ccD  = 0
-    float cpHi = na
-    float cpLo = na
-    for j = segL to segR
-        int o = bar_index - j
-        if o >= 0
-            float bs   = math.abs(close[o] - open[o])
-            float uw   = high[o] - math.max(close[o], open[o])
-            float lw   = math.min(close[o], open[o]) - low[o]
-            bool  vc   = (not useValid) or (bs > 0 and bs >= uw and bs >= lw)
-            bool  bear = close[o] < open[o]
-            bool  bull = close[o] > open[o]
-            float bHi  = math.max(open[o], close[o])
-            float bLo  = math.min(open[o], close[o])
-            if scD == 0
-                scD  := wdir != 0 ? -wdir : 1
-                rHiP := high[o]
-                rHiB := j
-                rHiT := time[o]
-                rLoP := low[o]
-                rLoB := j
-                rLoT := time[o]
-            else if scD == 1
-                if wdir == -1 and low[o] < nz(sd.lastEffBottomPrice, rLoP)  // [ق7+ق5 · استئناف] موجة هابطة: نزل تحت آخر قاع فعّال ⇒ أصدِر القمّة فورًا
-                    sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
-                    feedMedium(sd, mb, md, me, wdir)
-                    scD  := -1
-                    rLoP := low[o]
-                    rLoB := j
-                    rLoT := time[o]
-                    ccD  := 0
-                    cpHi := na
-                    cpLo := na
-                else if high[o] > rHiP
-                    rHiP := high[o]
-                    rHiB := j
-                    rHiT := time[o]
-                    ccD  := 0
-                    cpHi := na
-                    cpLo := na
-                else if vc and bear
-                    if ccD == 0
-                        ccD  := 1
-                        cpHi := bHi
-                        cpLo := bLo
-                    else if bLo < cpLo                          // [ق4] القفل تحت قفل الشمعة السابقة (الأحمر: القفل=bLo) — لا الجسم كاملًا (ق5)
-                        ccD  := ccD + 1
-                        cpHi := bHi
-                        cpLo := bLo
-                    if ccD >= minCorr
-                        sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
-                        feedMedium(sd, mb, md, me, wdir)
-                        scD  := -1
-                        rLoP := low[o]
-                        rLoB := j
-                        rLoT := time[o]
-                        ccD  := 0
-                        cpHi := na
-                        cpLo := na
-            else
-                if wdir == 1 and high[o] > nz(sd.lastEffTopPrice, rHiP)   // [ق6+ق4 · استئناف] موجة صاعدة: تجاوز آخر قمّة فعّالة ⇒ أصدِر القاع فورًا
-                    sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
-                    feedMedium(sd, mb, md, me, wdir)
-                    scD  := 1
-                    rHiP := high[o]
-                    rHiB := j
-                    rHiT := time[o]
-                    ccD  := 0
-                    cpHi := na
-                    cpLo := na
-                else if low[o] < rLoP
-                    rLoP := low[o]
-                    rLoB := j
-                    rLoT := time[o]
-                    ccD  := 0
-                    cpHi := na
-                    cpLo := na
-                else if vc and bull
-                    if ccD == 0
-                        ccD  := 1
-                        cpHi := bHi
-                        cpLo := bLo
-                    else if bHi > cpHi                          // [ق4] القفل فوق قفل الشمعة السابقة (الأخضر: القفل=bHi) — لا الجسم كاملًا (ق5)
-                        ccD  := ccD + 1
-                        cpHi := bHi
-                        cpLo := bLo
-                    if ccD >= minCorr
-                        sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
-                        feedMedium(sd, mb, md, me, wdir)
-                        scD  := 1
-                        rHiP := high[o]
-                        rHiB := j
-                        rHiT := time[o]
-                        ccD  := 0
-                        cpHi := na
-                        cpLo := na
-    syncPending(md, mb, wdir)
-    wdir
+// [v4 · م2-5] `buildWave` (الغلاف الدفعيّ) **حُذفت** — صفر مستدعين بعد أن صار المؤشّر كلّه على المحرّك الأماميّ
+//   (feedBar بحالة var عند كلّ بار مؤكَّد + syncPending). زال الازدواج المؤقّت المُعلَن في /3.
+//   🔴 تذكير دائم: لا غلاف method على كائن محلّيّ في المكتبات أبدًا (عيب ترجمة /2 المقيس).
