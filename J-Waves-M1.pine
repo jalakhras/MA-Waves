@@ -1,7 +1,7 @@
 //@version=6
 import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
 import Jassar_Mahmoud/JW_Foundation/3 as jwf                    // [ط0] الأساس: leg + الموجة التاريخيّة (v3 = 🔴 ف0-5: waveLeftStruct بنيويّ «تطرّف→تطرّف» يَنسخ waveLeft الزمنيّة + buildSegments بطرفٍ مُمرَّر؛ v2 = حارس MAX_HIST)
-import Jassar_Mahmoud/JW_Degrees/2 as jwd                     // [ط1] الدرجات (v2 = 🔴 المحرّك الأماميّ: SmallScan+feedBar خطوة بار-واحد + syncPending؛ buildWave غلاف دفعيّ رقيق فوقها — مطابقة بايتيّة)
+import Jassar_Mahmoud/JW_Degrees/1 as jwd                     // ⚠️ [مثبَّت مؤقّتًا على /1 المستقرّة] A/B أثبت أنّ /2 المنشورة معطوبة سلوكيًّا (0/3 · الموجة=النافذة كاملةً ⇒ feedBar محذوف من ترجمتها). قيد الحسم: هل /2 نسخة محرّر وسيطة [nz(sd.pendingType)] أم ملفّ القرص [nz(scan.scD)]؟ ⇒ يتحقّق المستخدم من مصدر /2 المنشور. 🔴 ولا يُعتمَد pine_check للتحقّق من أرقام الإصدارات (صادق على /3 غير الموجودة)
 import Jassar_Mahmoud/JW_Lines/4 as jwl                       // [ط2] الخطوط (v4 = f_liqPairPhaseAt: زوج المراحل منفصل عن زوج الرسم ق2 + رجوع المحور الشمعيّ؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المناطق: التزويج الموحّد (v2 = بركة موحّدة، أيّ نوع، إلّا قمّة+تصحيحها المباشر، لا حدّ أدنى) — حسم المستخدم 2026-07-14

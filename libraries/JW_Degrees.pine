@@ -433,9 +433,15 @@ export syncPending(DegreeLaws md, BreakProc mb, int wdir) =>
             md.pendingBar   := mb.minSinceBar
             md.pendingTime  := mb.minSinceTime
 
-// [درس03] بناء موجة واحدة [segL→segR] — **غلاف دفعيّ رقيق** فوق feedBar/syncPending (مطابقة بايتيّة للقديم).
-//   ⚠️ دفعيّ: يقرأ حدود المقطع ويشتقّ wdir من تطرّفات المدى — **المحرّك الأماميّ يتجاوزه** (feedBar مباشرةً بار بار،
-//   بـwdir من حدث الانقلاب لا من إعادة مسح المدى). يبقى للتوافق الخلفيّ حتّى اكتمال التحويل.
+// [درس03] بناء موجة واحدة [segL→segR]: اتجاهها من تطرّفاتها ثمّ الصغيرة (شمعتان) → قاعدة(ب) → المتوسطة. يُرجع الاتجاه.
+//   useValid/minCorr وسيطان (كانا عالميَّين في المؤشّر). OHLC/time بالإزاحة داخل المكتبة.
+// 🔴 [v3 · رجوع مقيس عن غلاف SmallScan] النسخة /2 جعلت هذا غلافًا فوق `scan.feedBar(...)` (كائن محلّيّ + نداء method)
+//   — **دلاليًّا مطابق، وسلوكيًّا منهار**: A/B على نفس الشارت واللحظة أثبت أنّ /2 تُفسد الكشف جذريًّا
+//   («درجات ظاهرة 0/3» · الموجة = النافذة كاملةً) بينما /1 (هذا الجسم نفسه) سليمة — والمصدر المنشور /2 مُتحقَّق أنّه
+//   الكود الصحيح ⇒ **عيب ترجمة في مُصرِّف TradingView لنمط «كائن محلّيّ + method يُطفِر وسائط هاربة»** (نفس جذر CE10237؛
+//   إسكات الرسالة لا يُصلح الترجمة). ⇒ أُعيد الجسم الأصليّ **حرفيًّا** (النمط الذي يعمل يقينًا).
+//   ⚠️ الازدواج مع feedBar **مؤقّت ومُعلَن**: النقلة 2 تستعمل feedBar بسياق مختلف (حالة `var` في المؤشّر، لا كائن محلّيّ)
+//   وتُختبر A/B هناك، ثمّ تُحذف buildWave كلّها. 🔴 لا تُعِد الغلاف مهما بدا أنظف — القياس حاكم.
 export buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL, int segR, bool useValid, int minCorr) =>
     float wHiP = na
     float wLoP = na
@@ -451,16 +457,108 @@ export buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int 
                 wLoP := low[o]
                 wLoB := j
     int wdir = wHiB <= wLoB ? -1 : 1
-    SmallScan scan = newSmallScan()                                 // حالة محلّيّة للدفعة (التدفّق يستعمل `var` في المؤشّر)
+    int   scD  = 0
+    float rHiP = na
+    int   rHiB = na
+    int   rHiT = na
+    float rLoP = na
+    int   rLoB = na
+    int   rLoT = na
+    int   ccD  = 0
+    float cpHi = na
+    float cpLo = na
     for j = segL to segR
         int o = bar_index - j
         if o >= 0
-            scan.feedBar(sd, md, me, mb, high[o], low[o], open[o], close[o], j, time[o], wdir, useValid, minCorr)
+            float bs   = math.abs(close[o] - open[o])
+            float uw   = high[o] - math.max(close[o], open[o])
+            float lw   = math.min(close[o], open[o]) - low[o]
+            bool  vc   = (not useValid) or (bs > 0 and bs >= uw and bs >= lw)
+            bool  bear = close[o] < open[o]
+            bool  bull = close[o] > open[o]
+            float bHi  = math.max(open[o], close[o])
+            float bLo  = math.min(open[o], close[o])
+            if scD == 0
+                scD  := wdir != 0 ? -wdir : 1
+                rHiP := high[o]
+                rHiB := j
+                rHiT := time[o]
+                rLoP := low[o]
+                rLoB := j
+                rLoT := time[o]
+            else if scD == 1
+                if wdir == -1 and low[o] < nz(sd.lastEffBottomPrice, rLoP)  // [ق7+ق5 · استئناف] موجة هابطة: نزل تحت آخر قاع فعّال ⇒ أصدِر القمّة فورًا
+                    sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
+                    feedMedium(sd, mb, md, me, wdir)
+                    scD  := -1
+                    rLoP := low[o]
+                    rLoB := j
+                    rLoT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if high[o] > rHiP
+                    rHiP := high[o]
+                    rHiB := j
+                    rHiT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if vc and bear
+                    if ccD == 0
+                        ccD  := 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    else if bLo < cpLo                          // [ق4] القفل تحت قفل الشمعة السابقة (الأحمر: القفل=bLo) — لا الجسم كاملًا (ق5)
+                        ccD  := ccD + 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    if ccD >= minCorr
+                        sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
+                        feedMedium(sd, mb, md, me, wdir)
+                        scD  := -1
+                        rLoP := low[o]
+                        rLoB := j
+                        rLoT := time[o]
+                        ccD  := 0
+                        cpHi := na
+                        cpLo := na
+            else
+                if wdir == 1 and high[o] > nz(sd.lastEffTopPrice, rHiP)   // [ق6+ق4 · استئناف] موجة صاعدة: تجاوز آخر قمّة فعّالة ⇒ أصدِر القاع فورًا
+                    sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
+                    feedMedium(sd, mb, md, me, wdir)
+                    scD  := 1
+                    rHiP := high[o]
+                    rHiB := j
+                    rHiT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if low[o] < rLoP
+                    rLoP := low[o]
+                    rLoB := j
+                    rLoT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if vc and bull
+                    if ccD == 0
+                        ccD  := 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    else if bHi > cpHi                          // [ق4] القفل فوق قفل الشمعة السابقة (الأخضر: القفل=bHi) — لا الجسم كاملًا (ق5)
+                        ccD  := ccD + 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    if ccD >= minCorr
+                        sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
+                        feedMedium(sd, mb, md, me, wdir)
+                        scD  := 1
+                        rHiP := high[o]
+                        rHiB := j
+                        rHiT := time[o]
+                        ccD  := 0
+                        cpHi := na
+                        cpLo := na
     syncPending(md, mb, wdir)
-    // 🔴 [CE10237 · عيب محلّل محرّر TradingView — مُشخَّص تجريبيًّا 2026-07-16] نداء method على كائن **محلّيّ لا يهرب**
-    //   (`scan.feedBar`) يُعَدّ ميتًا رغم أنّه يُطفِر `sd/md/me/mb` الهاربة ⇒ تُبلَّغ وسائطه «Unused» واحدًا واحدًا
-    //   (sd ⇒ me ⇒ useValid — سلسلة whack-a-mole، ⚠️ وفاحص الـAPI `pine_check` لا يلتقطها: تظهر عند حفظ/نشر المحرّر فقط).
-    //   العلاج: قراءة `scan.scD` بعد الحلقة مضمومةً للمُرجَع بمتطابقة `min(a, max(a, x)) = a` — **لا تغيّر wdir أبدًا**
-    //   (برهان: x≤a ⇒ max=a ⇒ min(a,a)=a · x>a ⇒ max=x ⇒ min(a,x)=a)، فيحيا النداء **وكلّ وسائطه دفعةً** (مُثبَت تجريبيًّا).
-    wdir := math.min(wdir, math.max(wdir, nz(scan.scD)))
     wdir
