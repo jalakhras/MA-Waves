@@ -457,4 +457,10 @@ export buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int 
         if o >= 0
             scan.feedBar(sd, md, me, mb, high[o], low[o], open[o], close[o], j, time[o], wdir, useValid, minCorr)
     syncPending(md, mb, wdir)
+    // 🔴 [CE10237 · عيب محلّل محرّر TradingView — مُشخَّص تجريبيًّا 2026-07-16] نداء method على كائن **محلّيّ لا يهرب**
+    //   (`scan.feedBar`) يُعَدّ ميتًا رغم أنّه يُطفِر `sd/md/me/mb` الهاربة ⇒ تُبلَّغ وسائطه «Unused» واحدًا واحدًا
+    //   (sd ⇒ me ⇒ useValid — سلسلة whack-a-mole، ⚠️ وفاحص الـAPI `pine_check` لا يلتقطها: تظهر عند حفظ/نشر المحرّر فقط).
+    //   العلاج: قراءة `scan.scD` بعد الحلقة مضمومةً للمُرجَع بمتطابقة `min(a, max(a, x)) = a` — **لا تغيّر wdir أبدًا**
+    //   (برهان: x≤a ⇒ max=a ⇒ min(a,a)=a · x>a ⇒ max=x ⇒ min(a,x)=a)، فيحيا النداء **وكلّ وسائطه دفعةً** (مُثبَت تجريبيًّا).
+    wdir := math.min(wdir, math.max(wdir, nz(scan.scD)))
     wdir
