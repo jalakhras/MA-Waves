@@ -9,7 +9,15 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.46.0 — [🔴🔴 م2-3 · المحرّك الأماميّ: أوّل موجة من كلّ التاريخ ثمّ بار بار — تزول التمريرة 1 وfor gi] ═══
+// ═══ الإصدار: v2.47.0 — [م2-4 · إصلاحات فريق الاختبار الثلاثة: حارس الكسر + توحيد الاتجاه + Fail Loud للقصّ] ═══
+//   v2.47.0 [م2-4 · تحقيق ثلاثيّ الوكلاء 2026-07-17 — فرضيّة «كبح المعلَّق» دُحضت قياسًا وبرهانًا، والعيوب الحقيقيّة]:
+//     (1) **حارس الكسر**: كان `fwExtBar < p` يخنق انقلابًا حدُّه على بار الكسر نفسه (الدفعة كانت تقبله: البحث [ssL..rb]
+//     شامل rb) ⇒ أُسقط الشرط (يبقى `> lastB` — برهان إنهاء الحلقة قائم: الحدود تتزايد حصرًا).
+//     (2) **توحيد الاتجاه**: `curWdir := fwDir` — كان العرض يعيد حساب الاتجاه بأسبقيّة التطرّف فينقلب ضدّ المحرّك حين
+//     يتجاوز السعر تطرّف الحدّ بلا انقلاب ⇒ مستويات مرسومة بغير اتجاه الحكم؛ التوحيد يغلق فجوة sDir/tme في العرض أيضًا.
+//     (3) **Fail Loud**: بارات الموجة خلف نافذة الـbuffer (FW_MAXO) كانت تُتخطّى صامتةً ⇒ `subCapHit` أُحيي بدلالة جديدة
+//     («موجة مقصوصة» = تحليلها الفعليّ يبدأ من حافّة النافذة) — يُرفَع عند القصّ ويُصفَّر عند بذرة/حدّ جديد.
+//     (مُوثَّق بلا إصلاح: الالتزام الحيّ اللارجعيّ بحدٍّ على مستوى معلَّق = طبيعة المتداول الحيّ — مقصود.)
 //   v2.46.0 [م2-3 · حسم المستخدم 2026-07-16 «تحدّد أوّل موجة في كلّ التاريخ ثمّ تحلّلها ثمّ تتقدّم بار بار وهكذا»]:
 //     السلسلة `curSubL/Px/Top` صارت **حالة حيّة** يبنيها محرّك أماميّ عند كلّ بار مؤكَّد (بذرة تطرّف→تطرّف من سجلّي
 //     الشارت، تتجمّد بأوّل انقلاب · تلقيم feedBar بحالة var · توأم f_lastRevBar تزايديّ: مستويا الأجسام من متوسطة
@@ -442,8 +450,9 @@ var array<int>   segLefts  = array.new<int>()   // [درس03] مقاطع الت�
 var array<int>   segRights = array.new<int>()
 var array<float> segLeftPx = array.new<float>() // سعر طرف الـleg عند يسار كلّ مقطع — لإرساء الحدود المشتركة (نهاية موجة = بداية التالية)
 var array<bool>  segLeftTop = array.new<bool>() // [درس07] نوع طرف الـleg (قمّة/قاع) لكلّ حدّ — مصدر الكبيرة (كلّ حدّ موجة = قمّة/قاع كبير)
-// [م2-3] التمريرة 1 (waveLeftStruct — مرساة من نافذة) **حُذفت**: البذرة والسلسلة كلتاهما في المحرّك الأماميّ (فوق).
-//   وSUB_CAP حُذف (لا حلقة تقطيع ⇒ لا سقف) — `subCapHit` بقي علَمًا خاملًا (false دائمًا) تقرؤه اللوحة، يُنظَّف في م2-5.
+// [م2-3] التمريرة 1 (waveLeftStruct — مرساة من نافذة) حُذفت: البذرة والسلسلة كلتاهما في المحرّك الأماميّ.
+// [م2-4] `subCapHit` أُحيي بدلالة جديدة (Fail Loud): **موجة مقصوصة** = بارات من الموجة الجارية خلف نافذة الـbuffer
+//   (FW_MAXO=4900) تُخطّيت بلا تلقيم ⇒ تحليلها الفعليّ يبدأ من حافّة النافذة. يُرفَع في المحرّك ويُصفَّر عند بذرة/حدّ جديد.
 var bool  subCapHit = false
 
 // ─── لوحة اختبار الموجة (تصميم الكود السابق) ───
@@ -681,11 +690,14 @@ if barstate.isconfirmed
         fwFedTo  := origin - 1
         fwExt    := na
         fwExtBar := na
+        subCapHit := false                           // [م2-4] موجة جديدة ⇒ صفِّر إنذار القصّ (يخصّ الموجة الجارية)
     bool fwTwoC = lvlBreakMode == "2 candles"
     int p = fwFedTo + 1
     while p <= bar_index
         int o = bar_index - p
-        if o >= 0 and o <= FW_MAXO
+        if o > FW_MAXO
+            subCapHit := true                        // [م2-4 · Fail Loud] بار من الموجة خلف نافذة الـbuffer ⇒ التحليل مقصوص — تُنذر اللوحة («موجة مقصوصة»)
+        else if o >= 0
             fwScan.feedBar(fwSd, fwMd, fwMe, fwMb, high[o], low[o], open[o], close[o], p, time[o], fwDir, useValid, minCorr)
             jwd.syncPending(fwMd, fwMb, fwDir)
             if fwDir == 1
@@ -726,10 +738,13 @@ if barstate.isconfirmed
                 else if fwDir == 1 and not na(botLvl)
                     brk := fwTwoC ? (p > 0 and close[o] < botLvl and close[o + 1] < botLvl) : low[o] < botLvl
             int lastB = array.get(curSubL, array.size(curSubL) - 1)
-            if brk and not na(fwExtBar) and fwExtBar > lastB and fwExtBar < p
+            // [م2-4] `fwExtBar < p` أُسقط: الحدّ قد يقع على بار الكسر نفسه (شمعة تصنع التطرّف وتكسر معًا) — الدفعة كانت
+            //   تقبله ([ssL..rb] شامل rb). `> lastB` وحده يكفي وبه يبقى إنهاء الحلقة مُبرهَنًا (الحدود تتزايد حصرًا).
+            if brk and not na(fwExtBar) and fwExtBar > lastB
                 array.push(curSubL, fwExtBar)
                 array.push(curSubPx, fwExt)
                 array.push(curSubTop, fwDir == 1)
+                subCapHit := false                   // [م2-4] انقلاب ⇒ موجة جديدة حديثة ⇒ صفِّر إنذار القصّ
                 fwDir    := -fwDir
                 fwScan   := jwd.newSmallScan()
                 fwSd     := jwd.newDegreeLaws()
@@ -786,21 +801,10 @@ if barstate.islast and fwReady
     mediumDegree := jwd.newDegreeLaws()
     mediumEff    := jwd.newDegreeLaws()
     mediumBreak  := jwd.newBreakProc()
-    // [م2-2] نقل حرفيّ لجسم buildWave — نفس نمط الكناري (الذي يقيس هذا الموضع نفسه بساقه B كلّ تكّة).
-    float bwHiP = na
-    float bwLoP = na
-    int   bwHiB = na
-    int   bwLoB = na
-    for j = lastL to wRb
-        int o = bar_index - j
-        if o >= 0 and o <= FW_MAXO
-            if na(bwHiP) or high[o] > bwHiP
-                bwHiP := high[o]
-                bwHiB := j
-            if na(bwLoP) or low[o] < bwLoP
-                bwLoP := low[o]
-                bwLoB := j
-    curWdir := bwHiB <= bwLoB ? -1 : 1
+    // [م2-4 · توحيد المصدر] اتجاه العرض = اتجاه المحرّك (`fwDir` التناوبيّ البنيويّ). كان يُعاد حسابه بأسبقيّة تطرّف
+    //   المدى فينقلب ضدّ المحرّك حين يتجاوز السعرُ تطرّفَ الحدّ بلا انقلاب مكتشَف (اصطاده فريق الاختبار) ⇒ مستويات
+    //   مرسومة بغير اتجاه الحكم. والتوحيد يغلق فجوة sDir/tme في العرض (كلّ موجة تُبنى باتجاهها هي — د05/د09).
+    curWdir := fwDir
     jwd.SmallScan bwScan = jwd.newSmallScan()
     for j = lastL to wRb
         int o = bar_index - j
@@ -827,20 +831,7 @@ if barstate.islast and fwReady
     jwd.DegreeLaws cnMd   = jwd.newDegreeLaws()
     jwd.DegreeLaws cnMe   = jwd.newDegreeLaws()
     jwd.BreakProc  cnMb   = jwd.newBreakProc()
-    float cnHiP = na
-    float cnLoP = na
-    int   cnHiB = na
-    int   cnLoB = na
-    for j = lastL to wRb
-        int o = bar_index - j
-        if o >= 0 and o <= FW_MAXO
-            if na(cnHiP) or high[o] > cnHiP
-                cnHiP := high[o]
-                cnHiB := j
-            if na(cnLoP) or low[o] < cnLoP
-                cnLoP := low[o]
-                cnLoB := j
-    int cnWdir = cnHiB <= cnLoB ? -1 : 1
+    int cnWdir = curWdir                             // [م2-4] الكناري يوازن بنفس مدخلات A (كان يحسب اتجاهًا مستقلًّا بأسبقيّة التطرّف — زال مع التوحيد؛ غرض الساق B = سلامة الترجمة لا اشتقاق الاتجاه)
     for j = lastL to wRb
         int o = bar_index - j
         if o >= 0 and o <= FW_MAXO
