@@ -9,7 +9,12 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.44.0 — [م2-1 · إزالة البناء المزدوج للمقطع الجاري — تكافؤ مُبرهَن، تطابُق حرفيّ شرط القبول] ═══
+// ═══ الإصدار: v2.45.0 — [م2-2 · feedBar تُحلّ محلّ buildWave في المواضع الثلاثة — صفر مستدعٍ لـbuildWave] ═══
+//   v2.45.0 [م2-2 · spec_نقلة2_محرك_أمامي §2]: المواضع الثلاثة (حلقة for gi · الدرجات الرئيسة · بناء التواريخ) صارت
+//     تستدعي `jwd.feedBar` بحلقة على أشرطة المقطع + `jwd.syncPending` — **نقل حرفيّ** لجسم `buildWave` (رأس الاتجاه من
+//     أسبقيّة تطرّف المدى ثمّ التلقيم) الذي برهن الكناري (م2-0) تكافؤه في نمط الكتلة بالمؤشّر. **قرار متعمَّد:** لا دالّة
+//     مساعدة رغم تكرار النمط ×3 — «دالّة + كائن محلّيّ + method» هو الأقرب لنمط /2 المعطوب، والازدواج مؤقّت يزول في م2-3/4.
+//     `wdir` يبقى عالميًّا كما كان (الفجوة المسجَّلة تُحلّ منفصلةً). بعد القبول: `buildWave` بلا مستدعٍ ⇒ تُحذف في م2-5 (نشر /4).
 //   v2.44.0 [م2-1 · spec_نقلة2_محرك_أمامي §2]: كتلة الرسم كانت تبني المقطع الجاري **مرّة رابعة** (`sdc/mdc/mec/mbc` عبر
 //     `buildWave`) على نفس المدى ونفس الإرساء اللذَين بُنيت بهما الدرجات الرئيسة في نهاية التقطيع ⇒ حُذف البناء وتُقرأ
 //     `smallDegree/mediumDegree/mediumEff` مباشرةً. التكافؤ مُبرهَن (subL=lastL · subR=wRb · startPx=lastLPx · نفس مزامنة
@@ -706,7 +711,28 @@ if barstate.islast
         jwd.DegreeLaws tmd = jwd.newDegreeLaws()
         jwd.DegreeLaws tme = jwd.newDegreeLaws()
         jwd.BreakProc  tmb = jwd.newBreakProc()
-        flDir := jwd.buildWave(tsd, tmd, tme, tmb, ssL, wRb, useValid, minCorr)   // يبني الدرجات على [ssL..wRb]؛ ومُرجَعه = اتجاه **عالميّ** من تطرّفات المدى كلّه
+        // [م2-2] نقل حرفيّ لجسم buildWave (رأس الاتجاه + تلقيم feedBar + syncPending) — النمط الكتليّ الذي برهنه الكناري.
+        //   الاتجاه **عالميّ** من تطرّفات المدى [ssL..wRb] كما كان مُرجَع buildWave حرفيًّا (الفجوة المسجَّلة sDir تُحلّ لاحقًا لا هنا).
+        float gHiP = na
+        float gLoP = na
+        int   gHiB = na
+        int   gLoB = na
+        for j = ssL to wRb
+            int o = bar_index - j
+            if o >= 0
+                if na(gHiP) or high[o] > gHiP
+                    gHiP := high[o]
+                    gHiB := j
+                if na(gLoP) or low[o] < gLoP
+                    gLoP := low[o]
+                    gLoB := j
+        flDir := gHiB <= gLoB ? -1 : 1
+        jwd.SmallScan gScan = jwd.newSmallScan()
+        for j = ssL to wRb
+            int o = bar_index - j
+            if o >= 0
+                gScan.feedBar(tsd, tmd, tme, tmb, high[o], low[o], open[o], close[o], j, time[o], flDir, useValid, minCorr)
+        jwd.syncPending(tmd, tmb, flDir)
         if gi == 0                                                    // ssL=wLb هنا ⇒ flDir = buildWave(wLb, wRb) = **اتجاه السلسلة كاملةً** ∈ {−1,+1} حصرًا (JW_Degrees س307). تقرؤه لوحة الفريم.
             curWdir0 := flDir
         // 🔴 [إصلاح الجمود · ف0-5] بذرة الاتجاه **بنيويّة (تناوبيّة)** لا عالميّة — اصطاده فريق الاختبار وبرهنه.
@@ -791,7 +817,27 @@ if barstate.islast
     mediumDegree := jwd.newDegreeLaws()
     mediumEff    := jwd.newDegreeLaws()
     mediumBreak  := jwd.newBreakProc()
-    curWdir := jwd.buildWave(smallDegree, mediumDegree, mediumEff, mediumBreak, lastL, wRb, useValid, minCorr)
+    // [م2-2] نقل حرفيّ لجسم buildWave — نفس نمط الكناري (الذي يقيس هذا الموضع نفسه بساقه B كلّ تكّة).
+    float bwHiP = na
+    float bwLoP = na
+    int   bwHiB = na
+    int   bwLoB = na
+    for j = lastL to wRb
+        int o = bar_index - j
+        if o >= 0
+            if na(bwHiP) or high[o] > bwHiP
+                bwHiP := high[o]
+                bwHiB := j
+            if na(bwLoP) or low[o] < bwLoP
+                bwLoP := low[o]
+                bwLoB := j
+    curWdir := bwHiB <= bwLoB ? -1 : 1
+    jwd.SmallScan bwScan = jwd.newSmallScan()
+    for j = lastL to wRb
+        int o = bar_index - j
+        if o >= 0
+            bwScan.feedBar(smallDegree, mediumDegree, mediumEff, mediumBreak, high[o], low[o], open[o], close[o], j, time[o], curWdir, useValid, minCorr)
+    jwd.syncPending(mediumDegree, mediumBreak, curWdir)
     curRevB := array.size(curSubL) > 1 ? lastL : na
     // [درس03] إرساء بداية المقطع الأخير = تطرّفه. [ت2-1] `curSubPx` الأخير **دائمًا** (مقطع وحيد ⇒ [0] = تطرّف التمريرة 1 · متعدّد ⇒ تطرّف آخر انقلاب) ⇒ سقط فرع الـleg.
     float lastLPx = array.get(curSubPx, nSub - 1)
@@ -984,7 +1030,27 @@ if barstate.islast
             jwd.DegreeLaws md = jwd.newDegreeLaws()
             jwd.DegreeLaws me = jwd.newDegreeLaws()
             jwd.BreakProc  mb = jwd.newBreakProc()
-            jwd.buildWave(sd, md, me, mb, segL, segR, useValid, minCorr)
+            // [م2-2] نقل حرفيّ لجسم buildWave — نفس النمط الكتليّ المُبرهَن.
+            float hHiP = na
+            float hLoP = na
+            int   hHiB = na
+            int   hLoB = na
+            for j = segL to segR
+                int o = bar_index - j
+                if o >= 0
+                    if na(hHiP) or high[o] > hHiP
+                        hHiP := high[o]
+                        hHiB := j
+                    if na(hLoP) or low[o] < hLoP
+                        hLoP := low[o]
+                        hLoB := j
+            int hWdir = hHiB <= hLoB ? -1 : 1
+            jwd.SmallScan hScan = jwd.newSmallScan()
+            for j = segL to segR
+                int o = bar_index - j
+                if o >= 0
+                    hScan.feedBar(sd, md, me, mb, high[o], low[o], open[o], close[o], j, time[o], hWdir, useValid, minCorr)
+            jwd.syncPending(md, mb, hWdir)
             if array.size(md.effectiveBars) > 0 and not na(array.get(segLeftPx, s))   // إرساء البداية على طرف الـleg
                 int loSa = bar_index - segL
                 if loSa >= 0
