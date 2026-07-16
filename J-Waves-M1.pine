@@ -472,16 +472,49 @@ f_degVis(array<int> aBar, array<bool> aTop, array<bool> aEff, int fromB, int pen
                 hB := true
     hT and hB ? 1 : 0
 
-f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
+// 🔴 [نوع التداول · حسم المستخدم 2026-07-15] سيقان **المتوسطة الدافعة** داخل مدًى `[fromB..toB]` باتّجاه `wdir` ⇒ [العدد، وسيط المدد بالأيّام].
+//   مُعمَّمة على **المدى** عمدًا: تُستدعى للموجة **الجارية** ثمّ — إن لم تكفِ البيانات — للموجة **التاريخيّة**. دالّة واحدة، لا مسار مزدوج.
+//   تقرأ **السلسلة المرسومة** (`mcBar/mcTop/mcTm` — `f_pushChain` يفرض التناوب) لا الخام، وتستبعد الطرف **المعلَّق** (قاعدة الانتظار د06).
+//   الوسيط يحتاج **عيّنتين** فأكثر (median على عيّنة = العيّنة نفسها ⇒ لا معنى إحصائيّ) ⇒ وإلّا `na`.
+f_impulseIn(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, int fromB, int toB, int wdir, int pendBar) =>
+    array<bool> tps = array.new<bool>()
+    array<int>  tms = array.new<int>()
+    array<int>  brs = array.new<int>()
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and array.get(aBar, i) >= fromB and array.get(aBar, i) <= toB and not (not na(pendBar) and array.get(aBar, i) == pendBar)
+            array.push(tps, array.get(aTop, i))
+            array.push(tms, array.get(aTm, i))
+            array.push(brs, array.get(aBar, i))
+    int m   = array.size(tps)
+    int cnt = 0
+    array<float> durs = array.new<float>()
+    if m > 1
+        for i = 1 to m - 1
+            bool pT = array.get(tps, i - 1)
+            bool cT = array.get(tps, i)
+            if (wdir == 1 and (not pT) and cT) or (wdir == -1 and pT and (not cT))   // ساق باتجاه الموجة = دافعة
+                if array.get(brs, i) - array.get(brs, i - 1) >= 2                    // [S1] تجاهُل الساق < بارين (نويز/ازدواج)
+                    cnt := cnt + 1
+                    array.push(durs, (array.get(tms, i) - array.get(tms, i - 1)) / 86400000.0)
+    [cnt, array.size(durs) >= 2 ? array.median(durs) : na]
+
+f_drawWavePanel(int degShown, int impulse, float medImpDays, bool impFromHist) =>
     table.set_position(fht, f_pos(fhPos))
     // 🔴 [ف0-5 · المحاذاة الدلاليّة] زمن **الموجة الجارية** = `segLefts[0]` (منذ آخر انقلاب) لا `wL0` (مرساة البحث = عدّة موجات).
     //   وإلّا قِيس زمن 500 شمعة فأُنتِج «استثمار / انزل فريمًا ↓» **زائفة**، وتنافر مع نافذة العدّ (`wlB`) والمرجع (`curWdir`).
     int   wL   = array.size(segLefts) > 0 ? array.get(segLefts, 0) : math.max(wL0, 0)
     float days = jwf.rangeDays(wL, bar_index)                                  // زمن الموجة الجارية (عرض فقط · **مصادقة لا قرار** — الزمن خرج من قرار الحدّ)
-    // 🔴 نوع التداول من **وسيط زمن السيقان الدافعة** (medImpDays) لا الموجة كاملةً (القديم: التصحيحيّة تُضلِّل)
-    // [إصلاح الحقول الفارغة] احتياطيّ: إن لم توجد سيقان دافعة متوسطة (موجة كبيرة/متوسطة قليلة النقاط) ⇒ استعمل **زمن الموجة الكاملة** بدل الفراغ
-    float  refDays = (na(medImpDays) or medImpDays <= 0) ? days : medImpDays
-    bool   usingWv = na(medImpDays) or medImpDays <= 0
+    // 🔴 [حسم المستخدم 2026-07-15] «نوع التداول» يعتمد على **زمن الموجات الدافعة المتوسطة** — حصرًا.
+    //   القاعدة: **قِس داخل الموجة الجارية؛ فإن لم تتوفّر بيانات ارجع للموجة التاريخيّة** (المقطع المكتمل قبلها).
+    //   🔴 **أُسقِط الفولباك القديم** (`= days` = زمن الموجة كاملةً): كان **تلفيقًا يُحرّمه الدرس نصًّا**:
+    //     «فيه **خطأ شهير جدًّا**… بنجرّب الموجة كلّها. **لأ، ده غلط. مليش دعوة بمدّة الموجة كاملة على بعض**» (L03:72).
+    //   والقياس أدانه: «استثمار» في **19/20** و«صفقات أسابيع–شهور» **19/20** = **قيمة لا تتنوّع** — لأنّها كانت تُحسَب من زمن الموجة لا الدافعة.
+    //   ⚠️ والفولباك الجديد **ليس تلفيقًا**: هو **نفس القياس** (وسيط سيقان دافعة متوسطة) على **عيّنة أقدم** — لا قياسٌ آخر.
+    //     ومبرَّر بالبيانات: الموجة الجارية **دائمًا الأحدث والأقلّ نضجًا** ⇒ اختبارها وحدها = اختبار المقطع المضمون رسوبه.
+    //   ⇒ لا دافعة في الجارية ولا في التاريخيّة ⇒ **«—» صادقة**، لا رقم مخترَع (الفرعان موجودان أصلًا للحالة `na`).
+    float  refDays = medImpDays
+    bool   usingWv = impFromHist                                               // ⇒ لاحقة «(التاريخيّة)» — إفصاحٌ عن مصدر القياس لا إخفاء
     string waveType    = na(refDays) or refDays <= 0 ? "—" : refDays < swingMinDays ? f_t("مضاربة", "Scalp") : refDays <= swingMaxDays ? f_t("سوينغ", "Swing") : f_t("استثمار", "Invest")
     color  wtBg        = na(refDays) or refDays <= 0 ? color.new(#787B86, 0) : refDays < swingMinDays ? color.new(#FF9800, 0) : refDays <= swingMaxDays ? color.new(#089981, 0) : color.new(#2962FF, 0)
     string tradeNature = na(refDays) or refDays <= 0 ? f_t("بيانات غير كافية", "Insufficient data") : refDays < swingMinDays ? f_t("صفقات دقائق–يوم", "minutes–day") : refDays <= swingMaxDays ? f_t("صفقات يومين–10 أيام", "2–10 days") : f_t("صفقات أسابيع–شهور", "weeks–months")
@@ -496,7 +529,7 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays) =>
     //   (الأكبر من الزرقاء). مكتوبٌ الآن **عمدًا** ليعمل لحظة وجودها بلا لمس هذه الكتلة — لا صمت: اللوحة تُظهر «3 / 3» فيُرى السبب.
     string frameFit = degShown == 3 ? f_t("مناسب ✓", "Suitable ✓") : degShown > 3 ? f_t("اصعد فريمًا ↑", "Go higher TF ↑") : f_t("انزل فريمًا ↓", "Go lower TF ↓")
     color  frameBg  = degShown == 3 ? color.new(#089981, 0) : color.new(#FF9800, 0)
-    string avgMedTxt = f_durTxt(refDays) + (usingWv ? f_t(" (الموجة)", " (wave)") : "")
+    string avgMedTxt = na(refDays) ? "—" : f_durTxt(refDays) + (usingWv ? f_t(" (التاريخيّة)", " (hist. wave)") : "")
     color tvBg   = fhBg
     color tvHdr  = color.new(color.rgb(color.r(fhBg) * 0.72, color.g(fhBg) * 0.72, color.b(fhBg) * 0.72), color.t(fhBg))
     color tvMain = #D1D4DC
@@ -2206,28 +2239,19 @@ if showFrameHelper and barstate.islast
     //   `wlB` يبقى لـ«موجات دافعة» و«زمن الموجة» (يخصّان **الموجة الجارية** بحقّ).
     int   cntB   = math.max(bar_index - VIEW_WIN + 1, 0)
     int   wpDeg  = f_degVis(scBar, scTop, scEff, cntB, na) + f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + f_degVis(lgBar, lgTop, lgEff, cntB, lgPendBg)
-    array<bool> wTop = array.new<bool>()                                      // أطراف المتوسطة الفعّالة داخل الموجة (مرسومة، متناوبة)
-    array<int>  wTm  = array.new<int>()
-    array<int>  wBr  = array.new<int>()
-    int nmc = array.size(mcBar)
-    for i = 0 to (nmc > 0 ? nmc - 1 : 0)
-        if nmc > 0 and array.get(mcEff, i) and array.get(mcBar, i) >= wlB and not (mediumDegree.pendingType != 0 and array.get(mcBar, i) == mediumDegree.pendingBar)   // 🔴 لا الطرف الحيّ المعلّق
-            array.push(wTop, array.get(mcTop, i))
-            array.push(wTm, array.get(mcTm, i))
-            array.push(wBr, array.get(mcBar, i))
-    int   wpMn   = array.size(wTop)
-    int   wpImp  = 0                                                          // عدد سيقان المتوسطة باتجاه الموجة (دافعة)
-    array<float> impDur = array.new<float>()                                  // مدد السيقان الدافعة (للوسيط)
-    if wpMn > 1
-        for i = 1 to wpMn - 1
-            bool pT = array.get(wTop, i - 1)
-            bool cT = array.get(wTop, i)
-            // 🔴 [ف0-5] `curWdir` (اتجاه **الموجة الجارية** = `buildWave(lastL, wRb)`) — مُحاذٍ لنافذة `wlB = segLefts[0]` أعلاه.
-            //   لا `curWdir0` (اتجاه السلسلة كلّها = عدّة موجات متناوبة ⇒ لا معنى لاتجاه واحد لها هنا).
-            if (curWdir == 1 and (not pT) and cT) or (curWdir == -1 and pT and (not cT))   // ساق باتجاه الموجة الجارية = دافعة
-                if array.get(wBr, i) - array.get(wBr, i - 1) >= 2                          // [S1] تجاهُل الساق < بارين (نويز/ازدواج)
-                    wpImp := wpImp + 1
-                    array.push(impDur, (array.get(wTm, i) - array.get(wTm, i - 1)) / 86400000.0)
-    f_drawWavePanel(wpDeg, wpImp, array.size(impDur) >= 2 ? array.median(impDur) : na)     // [S1] الوسيط يحتاج **عيّنتين** فأكثر (median على عيّنة = العيّنة نفسها) وإلّا فولباك «(الموجة)»
+    // 🔴 [حسم المستخدم] قِس الدافعة داخل **الموجة الجارية**؛ فإن لم تتوفّر بيانات ⇒ ارجع إلى **الموجة التاريخيّة** (المقطع المكتمل قبلها).
+    //   المرجع لكلّ مقطع = **اتجاهه هو**: الجارية `curWdir` (= `buildWave(lastL, wRb)`) · التاريخيّة من نوع حدّها (`segLeftTop[1]`: قمّة ⇒ هابطة).
+    //   ⚠️ الثابتة: **النافذة والمرجع على المدى نفسه** — وإلّا قِيس مدًى وعُدّ في آخر (عطب ف0-2 في موضع آخر).
+    [cImpC, cImpM] = f_impulseIn(mcBar, mcTop, mcEff, mcTm, wlB, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
+    int   wpImp    = cImpC
+    float impMed   = cImpM
+    bool  impHist  = false
+    if na(impMed) and array.size(segLefts) > 1                                 // الجارية لم تنضج بعد ⇒ **نفس القياس** على الموجة السابقة المكتملة
+        [hImpC, hImpM] = f_impulseIn(mcBar, mcTop, mcEff, mcTm, array.get(segLefts, 1), array.get(segRights, 1), array.get(segLeftTop, 1) ? -1 : 1, na)
+        if not na(hImpM)
+            wpImp   := hImpC
+            impMed  := hImpM
+            impHist := true                                                    // ⇒ اللوحة تُفصِح: «(التاريخيّة)»
+    f_drawWavePanel(wpDeg, wpImp, impMed, impHist)
 
 // ── نهاية النواة (صغيرة + متوسطة + كبيرة + لوحة الموجة). التالي: الخطوط/التجدّد (دروس 08-09) أو طريقة الكسر للكبيرة. ──
