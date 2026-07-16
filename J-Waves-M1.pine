@@ -9,7 +9,12 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.42.0 — [🔴🔴 ط0/ف0-5 · التمريرة 1: الموجة التاريخية صارت **بنيويّة** (تطرّف→تطرّف) لا زمنيّة] ═══
+// ═══ الإصدار: v2.43.0 — [🔬 م2-0 · كناري المُصرِّف: feedBar من المؤشّر — مؤقّت يُحذف بعد القبول] ═══
+//   v2.43.0 [م2-0 · spec_نقلة2_محرك_أمامي §2]: **إضافة تشخيصيّة بحتة، صفر تغيير سلوكيّ.** قبل بناء النقلة 2 على `jwd.feedBar`
+//     نقيس ترجمتها من المؤشّر (عيب `/2` كان نمط «كائن محلّيّ + method» في **المكتبات** — والمؤشّر غير مقيس):
+//     • الساق B (محلّيّ): إعادة بناء المقطع الجاري [lastL..wRb] بـ`SmallScan` محلّيّ + `feedBar` ⇒ يجب ≡ A (`buildWave` inline).
+//     • الساقان C/C′ (متدفّق): `var SmallScan` يُغذَّى عند كلّ isconfirmed منذ [آخر−2000] ⇒ يجب ≡ إعادة تشغيل محلّيّة C′ على نفس المدى.
+//     القراءة: لوحة صفراء 🔬 أسفل الوسط. **B✗ ⇒ النمط المحلّيّ معطوب في المؤشّر أيضًا · C✗ (مع B✓) ⇒ نمط var معطوب** ⇒ قف وأعد التصميم.
 //   v2.42.0 [ف0-5 · التمريرة 1 · يلزم نشر **JW_Foundation/3**]: 🔴 **إدانة موثَّقة**: `waveScaleDays=21` + tooltip «[درس03: الموجة ~3 أسابيع]»
 //     = **نسبة كاذبة**: «21 يوم/3 أسابيع» **صفر تطابُق** في الأربعة عشر تفريغًا وفي كامل docs/. والدرس يقول النقيض: «فيه **خطأ شهير جدًّا**…
 //     بنجرّب الموجة كلّها. **لأ، ده غلط. مليش دعوة بمدّة الموجة كاملة على بعض**» (L03:72 خامّ) · «**ما تقدرش تحكمها بمدّة زمنيّة**» (مصعب2:112).
@@ -607,6 +612,19 @@ var array<int>     curSubL     = na    // [تجدّد متكرّر] حدود ا�
 var array<float>   curSubPx    = na    // أسعار الحدود: [0]=تطرّف التمريرة 1، [k]=تطرّف الانقلاب k
 var array<bool>    curSubTop   = na    // [ت2-1] نوع كلّ حدّ: true=قمّة (المقطع بعده هابط) · false=قاع (صاعد)
 
+// ═══ 🔬 [م2-0 · كناري المُصرِّف — مؤقّت، يُحذف بعد القبول] الساق C: النمط المتدفّق (المعتمَد للنقلة 2) ═══
+//   كائنات var تُغذَّى بارًا بارًا عند isconfirmed بقيم البار مباشرةً (wdir=1 ثابت اصطناعيّ — الغرض قياس الترجمة لا المنطق).
+//   لا قارئ لها سوى لوحة الكناري. المرساة مُثبَّتة مرّةً واحدة (var) كي لا تنزلق مع أشرطة الوقت الحيّ.
+var jwd.SmallScan  cvScan = jwd.newSmallScan()
+var jwd.DegreeLaws cvSd   = jwd.newDegreeLaws()
+var jwd.DegreeLaws cvMd   = jwd.newDegreeLaws()
+var jwd.DegreeLaws cvMe   = jwd.newDegreeLaws()
+var jwd.BreakProc  cvMb   = jwd.newBreakProc()
+var int            cvL    = math.max(last_bar_index - 2000, 0)
+var table          cnTbl  = table.new(position.bottom_center, 1, 1, bgcolor = color.new(color.yellow, 75))
+if barstate.isconfirmed and bar_index >= cvL
+    cvScan.feedBar(cvSd, cvMd, cvMe, cvMb, high, low, open, close, bar_index, time, 1, useValid, minCorr)
+
 // [درس09 · تجدّد متكرّر] انقلابُ مستوى الدرجة = **كسر مستوى الاتجاه (على الأجسام) بشمعتين** — هو المُنهي المنصوص للموجة
 //   («أوّل ما يكسر **مستوى تحديد الاتجاه** ده، باعتبر الموجة خلص» د09 [02:18] · عتبة شمعتين [01:04] · حسم المستخدم 2026-07-15:
 //    المُنهي = **مستوى المتوسط الأفقيّ** لا خطّ السيولة المائل). na إن لا انقلاب.
@@ -781,6 +799,55 @@ if barstate.islast
             array.set(mediumDegree.effectiveTimes, 0, time[lo0])
             if array.size(mediumEff.effectiveBars) > 0
                 array.set(mediumEff.effectiveBars, 0, lastL)   // مزامنة فحص الفعاليّة مع الإرساء
+    // ═══ 🔬 [م2-0 · كناري المُصرِّف — مؤقّت، يُحذف بعد القبول] الساق B (محلّيّ) + C′ (إعادة تشغيل) + لوحة المقارنة ═══
+    //   B: نفس نمط «كائن محلّيّ + method» الذي عطبت ترجمتُه في المكتبات (/2) — هنا نقيسه في **المؤشّر**.
+    //   يعيد بناء [lastL..wRb] بـfeedBar (wdir محسوب كرأس buildWave حرفيًّا: أسبقيّة تطرّف المدى) ⇒ يجب ≡ A.
+    //   ⚠️ تُقارَن الأحجام لا العناصر عند [0]: مزامنة الإرساء أعلاه عدّلت mediumDegree/mediumEff[0] عمدًا.
+    jwd.SmallScan  cnScan = jwd.newSmallScan()
+    jwd.DegreeLaws cnSd   = jwd.newDegreeLaws()
+    jwd.DegreeLaws cnMd   = jwd.newDegreeLaws()
+    jwd.DegreeLaws cnMe   = jwd.newDegreeLaws()
+    jwd.BreakProc  cnMb   = jwd.newBreakProc()
+    float cnHiP = na
+    float cnLoP = na
+    int   cnHiB = na
+    int   cnLoB = na
+    for j = lastL to wRb
+        int o = bar_index - j
+        if o >= 0
+            if na(cnHiP) or high[o] > cnHiP
+                cnHiP := high[o]
+                cnHiB := j
+            if na(cnLoP) or low[o] < cnLoP
+                cnLoP := low[o]
+                cnLoB := j
+    int cnWdir = cnHiB <= cnLoB ? -1 : 1
+    for j = lastL to wRb
+        int o = bar_index - j
+        if o >= 0
+            cnScan.feedBar(cnSd, cnMd, cnMe, cnMb, high[o], low[o], open[o], close[o], j, time[o], cnWdir, useValid, minCorr)
+    jwd.syncPending(cnMd, cnMb, cnWdir)
+    int cnScN = array.size(cnSd.effectiveBars)
+    int aScN  = array.size(smallDegree.effectiveBars)
+    bool cnBok = cnScN == aScN and array.size(cnMd.effectiveBars) == array.size(mediumDegree.effectiveBars) and array.size(cnMe.effectiveBars) == array.size(mediumEff.effectiveBars) and cnWdir == curWdir and cnMd.pendingType == mediumDegree.pendingType and (cnScN == 0 or array.get(cnSd.effectivePrices, cnScN - 1) == array.get(smallDegree.effectivePrices, aScN - 1))
+    //   C′: إعادة تشغيل محلّيّة لنفس مدى الساق C [cvL..آخر مؤكَّد] بنفس wdir=1 ⇒ إن اختلفا (وB سليمة) فنمط var معطوب.
+    jwd.SmallScan  cwScan = jwd.newSmallScan()
+    jwd.DegreeLaws cwSd   = jwd.newDegreeLaws()
+    jwd.DegreeLaws cwMd   = jwd.newDegreeLaws()
+    jwd.DegreeLaws cwMe   = jwd.newDegreeLaws()
+    jwd.BreakProc  cwMb   = jwd.newBreakProc()
+    int cvEnd = barstate.isconfirmed ? bar_index : bar_index - 1
+    for j = cvL to cvEnd
+        int o = bar_index - j
+        if o >= 0
+            cwScan.feedBar(cwSd, cwMd, cwMe, cwMb, high[o], low[o], open[o], close[o], j, time[o], 1, useValid, minCorr)
+    int cvScN = array.size(cvSd.effectiveBars)
+    int cwScN = array.size(cwSd.effectiveBars)
+    int cvMeN = array.size(cvMe.effectiveBars)
+    int cwMeN = array.size(cwMe.effectiveBars)
+    bool cnCok = cvScN == cwScN and array.size(cvMd.effectiveBars) == array.size(cwMd.effectiveBars) and cvMeN == cwMeN and (cvScN == 0 or array.get(cvSd.effectiveBars, cvScN - 1) == array.get(cwSd.effectiveBars, cwScN - 1)) and (cvMeN == 0 or array.get(cvMe.effectivePrices, cvMeN - 1) == array.get(cwMe.effectivePrices, cwMeN - 1))
+    string cnTx = "🔬 م2-0 كناري المُصرِّف (مؤقّت)\nمحلّيّ B≡A: " + (cnBok ? "✓" : "✗") + " (sc " + str.tostring(cnScN) + "/" + str.tostring(aScN) + " · me " + str.tostring(array.size(cnMe.effectiveBars)) + "/" + str.tostring(array.size(mediumEff.effectiveBars)) + " · wdir " + str.tostring(cnWdir) + "/" + str.tostring(curWdir) + ")\nمتدفّق C≡C′: " + (cnCok ? "✓" : "✗") + " (sc " + str.tostring(cvScN) + "/" + str.tostring(cwScN) + " · me " + str.tostring(cvMeN) + "/" + str.tostring(cwMeN) + ")"
+    table.cell(cnTbl, 0, 0, cnTx, text_color = color.black, text_halign = text.align_right, text_size = size.small)
     // ═══ [ف0-5] صندوق «الموجة التاريخية» = **الموجة الجارية** `[segLefts[0] .. now]` = **آخر صعود/هبوط قويّ** (حسم المستخدم 2026-07-15) ═══
     //   يحوي بداخله المتوسطة والصغيرة، وينتهي بكسر **مستوى المتوسط الأصفر** فتُبدَأ قوانين الموجة **المعاكسة** (د09).
     //   🔴 كان يُرسَم على `wL0` (مرساة البحث = **عدّة** موجات، 500 شمعة) ⇒ ابتلع مستطيلات التاريخ داخله = **تعشيش مقلوب**
