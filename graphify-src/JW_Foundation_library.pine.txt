@@ -1,0 +1,175 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Foundation — ط0: leg + الموجة التاريخيّة (النواة النقيّة)
+//   مُستخرَجة من J-Waves M2 (فرع rebuild-from-scratch) وفق docs/build/spec_lib_JW_Foundation.md
+//   المبدأ: كور نقيّ بلا input/رسم؛ الرسم واللوحة والمدخلات تبقى في المؤشّر المستهلِك.
+//   الحالة كلّها في LegEngine (مصدر واحد، لا var داخل دوالّ مُصدَّرة). OHLC/time بالإزاحة تعمل داخل المكتبة (v6).
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Foundation", overlay = true)
+
+// نافذة التاريخ المضمونة (< max_bars_back=5000 في المستهلِك) — مصدر حقيقة واحد لحارس الـbuffer عبر كلّ الدوالّ.
+//   🔴 يتطلّب المستهلِك: max_bars_back ≥ MAX_HIST+1.
+int MAX_HIST = 4900
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1) دوالّ نقيّة
+// ─────────────────────────────────────────────────────────────────────────────
+
+// طول الموجة اليدويّ مقيَّدًا ضمن المدى الصالح.
+export waveLen(int nBars) =>
+    math.min(math.max(nBars, 1), bar_index + 1)
+
+// أعلى/أدنى سعر ضمن نطاق بارات [leftB..rightB]. حارس buffer: يُقيَّد الطرف الأيسر بنافذة
+// التاريخ المضمونة (bar_index-4900 < max_bars_back)؛ نطاق أقدم كليًّا ⇒ na (يُتخطّى، لا crash).
+export rangeHiLo(int leftB, int rightB) =>
+    float hi = na
+    float lo = na
+    int safeLeft = na(leftB) ? na : math.max(leftB, bar_index - MAX_HIST)
+    if not na(safeLeft) and not na(rightB) and rightB >= safeLeft
+        for j = safeLeft to rightB
+            int off = bar_index - j
+            if off >= 0
+                hi := na(hi) or high[off] > hi ? high[off] : hi
+                lo := na(lo) or low[off] < lo ? low[off] : lo
+    [hi, lo]
+
+// زمن نطاق بارات [leftB..rightB] بالأيّام. حارس buffer (مطابق rangeHiLo): طرف أقدم من نافذة MAX_HIST
+//   أو مدخلات مقلوبة/na ⇒ na (المستهلك يعرض «—»)، لا وصول بإزاحة تتجاوز max_bars_back ⇒ لا crash.
+export rangeDays(int leftB, int rightB) =>
+    float r = na
+    if not na(leftB) and not na(rightB) and rightB >= leftB and rightB <= bar_index and (bar_index - leftB) <= MAX_HIST
+        r := (time[bar_index - rightB] - time[bar_index - leftB]) / 86400000.0
+    r
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2) محرّك الـleg (كلّ الحالة في UDT — كنمط DegreeLaws/BreakProc)
+// ─────────────────────────────────────────────────────────────────────────────
+export type LegEngine
+    int   dir0                                        // اتجاه الساق الجارية (0=غير مبذور)
+    int   swC                                         // عدّاد شموع الساق (يكبح السيقان الصغيرة)
+    float extHi                                        // تطرّف القمّة الجاري
+    int   extHiBar
+    float extLo                                        // تطرّف القاع الجاري
+    int   extLoBar
+    array<int>   bars                                  // حدود الموجات (مواضع التطرّفات المؤكَّدة)
+    array<float> ps                                    // أسعار الحدود
+    array<bool>  tops                                  // نوع الحدّ: قمّة(true)/قاع(false)
+    int   bigDir                                       // اتجاه الموجة العامّ (هيستيريسيس) — يستهلكه المؤشّر لكلّ الطبقات
+
+// باني: حالة صفريّة + مصفوفات فارغة (يُنادى مرّةً بـ var في المؤشّر).
+export newLegEngine() =>
+    LegEngine.new(0, 0, na, na, na, na, array.new<int>(), array.new<float>(), array.new<bool>(), 0)
+
+// مدخلات المحرّك (ta.* + هيستيريسيس bigDir) — ⚠️ تُستدعى كلّ بار **بلا شرط** (ta.* تفسد تاريخها
+//   لو نُودِيت داخل شرط). تُحدِّث self.bigDir وتُرجِع [legTh (عتبة الـleg), bigDir]. السعة زمنيّة (جلسة الأداة).
+export legInputs(LegEngine self, float waveScaleDays, float legMinRatio) =>
+    int   lookB      = math.min(bar_index, 200)                                   // نافذة تقدير شموع-اليوم
+    float spanMs     = lookB > 0 ? (time - time[lookB]) : na                      // المدّة التقويميّة الفعليّة
+    float barsPerDay = (not na(spanMs) and spanMs > 0) ? (lookB * 86400000.0 / spanMs) : (86400.0 / timeframe.in_seconds())
+    int   ampBars    = math.min(MAX_HIST, math.max(50, int(math.round(waveScaleDays * barsPerDay))))   // الموجة ~waveScaleDays يومًا
+    float ampHist    = ta.highest(high, ampBars) - ta.lowest(low, ampBars)        // سعة مرجعيّة (مقياس العتبة فقط)
+    float legTh      = legMinRatio * ampHist
+    int   hbW        = ta.highestbars(high, ampBars)
+    int   lbW        = ta.lowestbars(low, ampBars)
+    int   rawDir     = hbW > lbW ? 1 : -1
+    if self.bigDir == 0                                                           // هيستيريسيس: لا ينقلب إلّا بفصلٍ معتبَر
+        self.bigDir := rawDir
+    else if rawDir != self.bigDir and math.abs(hbW - lbW) > ampBars * 0.1
+        self.bigDir := rawDir
+    [legTh, self.bigDir]
+
+// خطوة المحرّك — ⚠️ تُستدعى داخل `if barstate.isconfirmed` فقط. تُمرَّر مخرجات legInputs + الثوابت.
+//   المنطق: بذر الاتجاه ⇒ تتبّع التطرّف ⇒ تثبيت حدّ موجة عند تجاوز legTh + أدنى شموع ⇒ قصّ legCap.
+export legStep(LegEngine self, float legTh, int bigDir, int bigMinSwings, int legCap) =>
+    if self.dir0 == 0 and bigDir != 0
+        self.dir0     := bigDir
+        self.extHi    := high
+        self.extHiBar := bar_index
+        self.extLo    := low
+        self.extLoBar := bar_index
+        self.swC      := 0
+    if self.dir0 == 1
+        self.swC := self.swC + 1
+        if na(self.extHi) or high > self.extHi
+            self.extHi    := high
+            self.extHiBar := bar_index
+        if not na(legTh) and legTh > 0 and not na(self.extHi) and low < self.extHi - legTh and self.swC >= bigMinSwings
+            array.push(self.bars, self.extHiBar)      // ثبِّت القمّة كحدّ موجة، اقلب لهابط
+            array.push(self.ps, self.extHi)
+            array.push(self.tops, true)
+            self.dir0     := -1
+            self.extLo    := low
+            self.extLoBar := bar_index
+            self.swC      := 0
+    else if self.dir0 == -1
+        self.swC := self.swC + 1
+        if na(self.extLo) or low < self.extLo
+            self.extLo    := low
+            self.extLoBar := bar_index
+        if not na(legTh) and legTh > 0 and not na(self.extLo) and high > self.extLo + legTh and self.swC >= bigMinSwings
+            array.push(self.bars, self.extLoBar)      // ثبِّت القاع كحدّ موجة، اقلب لصاعد
+            array.push(self.ps, self.extLo)
+            array.push(self.tops, false)
+            self.dir0     := 1
+            self.extHi    := high
+            self.extHiBar := bar_index
+            self.swC      := 0
+    while array.size(self.bars) > legCap              // احفظ آخر ~legCap حدًّا (أداء)
+        array.shift(self.bars)
+        array.shift(self.ps)
+        array.shift(self.tops)
+    self.dir0
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3) يسار الموجة + بناء مقاطع التحليل (نقيّة، من الحالة — بلا رسم)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [ف0-5 · التمريرة 1 · v3] حدّ الموجة **بنيويّ**: تطرّف → تطرّف داخل **نافذة الرؤية**
+// ═════════════════════════════════════════════════════════════════════════════
+//   🔴 يَنسخ `waveLeft` القديمة (= آخر حدّ leg) — كانت **بلا سند** وأنتجت «الموجة = ساق واحدة»
+//      (1.4 يوم على 1H · 89 يومًا على D · مُتحقَّق حيًّا) ⇒ نقطة متوسطة واحدة داخل الموجة
+//      ⇒ «موجات دافعة ≡ 0» و«وسيط الدافعة» ميّت في 4/4 قراءات.
+//   السند النصّيّ (لا رقم بلا مرجع):
+//     • مصعب:170 — «هرسم خطّ رأسيّ على أوّلها، وخطّ رأسيّ على **أعلى نقطة فيها**… طب **بداية الموجة أقلّ سعر فيها**»
+//     • مصعب:150-152 — «الشاشة بتجيب… حوالي شهر… **تقريبًا 500 شمعة**. **هجيب آخر 500 شمعة**» ⇒ نافذة الرؤية
+//     • L03:72 — «**مليش دعوة بمدّة الموجة كاملة على بعض**» · مصعب2:112 — «**ما تقدرش تحكمها بمدّة زمنيّة**»
+//   🔴 **بلا عتبة وبلا رقم سحريّ:** التطرّف **خام** على **الذيول** (حسم المستخدم 2026-07-15 — الموجة
+//      **سابقة للدرجات** [تُحدَّد في د03/د04 والقمم تبدأ في د05] فلا مفهوم للجسم بعد). `legTh`/محرّك leg
+//      **مُلغى من حدّ الموجة** (كان مشتقًّا من `waveScaleDays=21` الملفّق: صفر تطابُق في 14 تفريغًا).
+//   النافذة **بالشموع لا بالأيّام** ⇒ ذاتيّة المعايرة عبر الأدوات/الفريمات (لا تقيس عطلًا ولا جلسات)
+//      ⇒ يسقط قصّ `ampBars` الصامت (ف0-3) من جذره.
+//   يُرجِع [wL, wLpx, wLtop]: البداية = **التطرّف الأقدم** من الاثنين ⇒ صعودًا القاع (`wLtop=false`) · هبوطًا القمّة.
+//   ⚠️ تمريرة **تقدير** فقط؛ التمريرة 2 (كسر مستوى الاتجاه المتوسط بشمعتين — د09) تُصحّح السلسلة.
+export waveLeftStruct(string waveMode, int histBars, int winBars) =>
+    int win = winBars
+    if waveMode == "Manual (candles) / يدويّ (شموع)"
+        win := waveLen(histBars)
+    else if waveMode == "Combine / دمج (متوسّط)"
+        win := int((winBars + waveLen(histBars)) / 2)
+    // حارس buffer فقط (لا معايرة): النافذة ضمن MAX_HIST وبارَين على الأقلّ. الافتراض 500 ≪ 4900 ⇒ لا يُبلَغ تلقائيًّا.
+    int   lb  = math.max(bar_index - math.min(math.max(win, 2), MAX_HIST) + 1, 0)
+    float hi  = na
+    float lo  = na
+    int   hiB = lb
+    int   loB = lb
+    for j = lb to bar_index
+        int o = bar_index - j
+        if o >= 0
+            if na(hi) or high[o] > hi                    // الذيول (خام) — لا الأجسام
+                hi  := high[o]
+                hiB := j
+            if na(lo) or low[o] < lo
+                lo  := low[o]
+                loB := j
+    bool top = hiB < loB                                  // الأقدم قمّة ⇒ الموجة هابطة (قمّة→قاع) · الأقدم قاع ⇒ صاعدة
+    int  wL  = math.min(hiB, loB)
+    [wL, top ? hi : lo, top]
+
+// 🔴 [ت2-1 · ف0-5 · v3] `buildSegments` **حُذِفت**. كانت تبني السلسلة (التاريخ) من **سيقان leg** (`self.bars`) —
+//   أي بعتبة `legTh` المشتقّة من `waveScaleDays=21` **الملفّق** (صفر تطابُق في 14 تفريغًا) — بينما الموجة الجارية
+//   تُقطَّع بـ**الانقلاب** (كسر مستوى الاتجاه المتوسط بشمعتين، د09). ⇒ **مسار مزدوج لنفس الوظيفة** (خطّ أحمر)
+//   و**سلسلة مكسورة في منتصفها**: أوّلها بقانون وبقيّتها بقانون آخر.
+//   البديل: المؤشّر يبني السلسلة **كلّها** من `curSubL` (تقطيع الانقلابات) — الموجة الجارية = آخر مقطع، وما قبله
+//   التاريخ فتاريخ التاريخ. ⇒ `legTh`/`waveScaleDays` خرجا من **حدود الموجات كلّها** (يبقيان في `bigDir` — ف0-3).
+//   ⇒ لم يبقَ لـ`LegEngine` مستهلِك في هذا الملفّ سوى `legInputs`/`legStep`/`bigDir`.

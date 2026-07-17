@@ -1,0 +1,94 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Elliott — مكتبة عدّ إليوت الوصفيّة لـM-Waves (طبقة مستقلّة، لا تمسّ النواة)
+//   مستخرَجة من J-Waves-M1.pine (v2.4.0) لإثبات نمط المكتبات (تحمّل الأسطر ×10).
+//   القاعدة (فروست/بريكتر): نافذة 6 نقاط فعّالة ⇒ ترقيم (1)-(5) إن حقّقت القواعد الثلاث + a-b-c داو + الموجة الجارية.
+//   كلّ التبعيّات (المدخلات · arrScale · اللغة) تُمرَّر كوسائط — لا input داخل المكتبة.
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Elliott", overlay = true)
+
+// ─── [خاصّ] الترقيم على نقاط جاهزة (مبنيّة بالتناوب): (1)-(5) + a-b-c + (n?) الجارية. يُرجِع عدد الدفعات المكتشَفة. ───
+//   p1 أصل (بلا وسم) · p2..p6 ⇒ (1)-(5). القواعد (صاعد، والمرآة للهابط): ق1 p3>p1 · ق2 م3 ليست الأقصر · ق3 p5>p2 (تخفَّف بـewStrict مطفأ ⇒ قطريّة).
+drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int maxSets, int degLvl, array<label> lbls, bool ewStrict, float ewOffset, bool showEWForm, float arrScale, bool isAr) =>
+    int n = array.size(pP)
+    int found = 0
+    if n >= 6
+        array<int> ends = array.new<int>()
+        int lastEnd = -1
+        for e = 5 to n - 1
+            if e - 5 >= lastEnd
+                bool t6 = array.get(pTop, e)                    // قمّة ⇒ دفعة صاعدة · قاع ⇒ هابطة
+                bool alt = array.get(pTop, e-4) == t6 and array.get(pTop, e-2) == t6 and array.get(pTop, e-5) != t6 and array.get(pTop, e-3) != t6 and array.get(pTop, e-1) != t6
+                if alt
+                    float p1 = array.get(pP, e-5)
+                    float p2 = array.get(pP, e-4)
+                    float p3 = array.get(pP, e-3)
+                    float p4 = array.get(pP, e-2)
+                    float p5 = array.get(pP, e-1)
+                    float p6 = array.get(pP, e)
+                    bool ok = false
+                    if t6                                       // صاعدة — ق1 p3>p1 · ق2 م3 ليست الأقصر · ق3 p5>p2 (يخفَّف)
+                        float mn = math.min(p2 - p1, math.min(p4 - p3, p6 - p5))
+                        ok := p3 > p1 and (p4 - p3) != mn and (not ewStrict or p5 > p2)
+                    else                                        // هابطة: المرآة
+                        float mn = math.min(p1 - p2, math.min(p3 - p4, p5 - p6))
+                        ok := p3 < p1 and (p3 - p4) != mn and (not ewStrict or p5 < p2)
+                    if ok
+                        array.push(ends, e)
+                        lastEnd := e + 3                        // احجز خانات a·b·c
+        int total = array.size(ends)
+        found := total
+        int fromI = (maxSets > 0 and total > maxSets) ? total - maxSets : 0
+        if total > 0
+            float off = ewOffset * nz(arrScale)                // إزاحة سعريّة (× النطاق)
+            for s = fromI to total - 1
+                int e = array.get(ends, s)
+                for k = 1 to 5                                  // (1)-(5) على p2..p6؛ p1 أصل بلا وسم
+                    int   idx = e - 5 + k
+                    bool  tp  = array.get(pTop, idx)
+                    float ly  = tp ? array.get(pP, idx) + (1 + degLvl) * off : array.get(pP, idx) - (1 + degLvl) * off   // فوق القمّة/تحت القاع؛ كلّ درجة خطوة أبعد
+                    array.push(lbls, label.new(array.get(pTm, idx), ly, "(" + str.tostring(k) + ")", xloc = xloc.bar_time, yloc = yloc.price, style = tp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small))
+                // a-b-c داو: a=ذعر · b=تصحيح · c=يأس (أعمق من الذعر). c مؤكَّد إن أعمق، وإلّا (c?) تنبّؤيّ.
+                bool   t6d    = array.get(pTop, e)
+                bool   cDeep  = (e + 3 < n) and (t6d ? (array.get(pP, e + 3) < array.get(pP, e + 1)) : (array.get(pP, e + 3) > array.get(pP, e + 1)))
+                string abcTip = isAr ? "تصحيح داو: a=ذعر · b=تصحيح · c=يأس (أعمق)" : "Dow correction: a=Panic · b=Correction · c=Despair (deeper)"
+                for j = 1 to 3                                  // a·b·c على التصحيح إن وُجد
+                    int aidx = e + j
+                    if aidx < n
+                        bool   atp  = array.get(pTop, aidx)
+                        string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : (cDeep ? "(c)" : "(c?)")
+                        float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
+                        array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small, tooltip = abcTip))
+            // [⑥-ب الموجة الجارية] بعد آخر دفعة+تصحيح، رقّم الأرجل الجارية (1?)-(5?) تنبّؤيًّا بلون أفتح
+            if showEWForm
+                int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)
+                int formCnt = math.min(n - 1 - lastLbl, 5)
+                if formCnt >= 1
+                    for fk = 1 to formCnt
+                        int   fidx = lastLbl + fk
+                        bool  ftp  = array.get(pTop, fidx)
+                        float fly  = ftp ? array.get(pP, fidx) + (1 + degLvl) * off : array.get(pP, fidx) - (1 + degLvl) * off
+                        array.push(lbls, label.new(array.get(pTm, fidx), fly, "(" + str.tostring(fk) + "?)", xloc = xloc.bar_time, yloc = yloc.price, style = ftp ? label.style_label_down : label.style_label_up, color = color.new(col, 45), textcolor = color.white, size = size.small))
+    found
+
+// ─── [مُصدَّر] يبني نقاط الدرجة بالتناوب الصارم (قمّة/قاع كالـzigzag) ثمّ يستدعي الترقيم. يُرجِع عدد الدفعات. ───
+export ewRun(array<int> pBar, array<float> pPrc, array<bool> pTop, array<int> pTm, color col, int maxSets, int degLvl, array<label> lbls, bool ewStrict, float ewOffset, bool showEWForm, float arrScale, bool isAr) =>
+    array<float> eP  = array.new<float>()
+    array<int>   eTm = array.new<int>()
+    array<bool>  eTp = array.new<bool>()
+    int nn = array.size(pBar)
+    for i = 0 to (nn > 0 ? nn - 1 : 0)                         // ضمان التناوب: تتالي نوعين متماثلين ⇒ أبقِ الأشدّ تطرّفًا
+        if nn > 0
+            bool tp = array.get(pTop, i)
+            int  sz = array.size(eTp)
+            if sz > 0 and array.get(eTp, sz - 1) == tp
+                float lp = array.get(eP, sz - 1)
+                float cp = array.get(pPrc, i)
+                if tp ? cp > lp : cp < lp
+                    array.set(eP,  sz - 1, cp)
+                    array.set(eTm, sz - 1, array.get(pTm, i))
+            else
+                array.push(eP,  array.get(pPrc, i))
+                array.push(eTm, array.get(pTm, i))
+                array.push(eTp, tp)
+    drawElliott(eP, eTm, eTp, col, maxSets, degLvl, lbls, ewStrict, ewOffset, showEWForm, arrScale, isAr)

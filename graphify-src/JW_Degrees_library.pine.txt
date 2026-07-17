@@ -1,0 +1,564 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Degrees — ط1: القمم/القيعان للدرجات الثلاث (المحرّك المعمّم) · دروس 05·06·07
+//   مُستخرَجة من J-Waves M2 وفق docs/build/spec_lib_JW_Degrees.md
+//   النواة معمّمة على الدرجة (نفس القوانين للصغيرة/المتوسطة/الكبيرة). الاقتران الوحيد بالعالم (useValid/minCorr) وسيطان.
+//   [v2 · المحرّك الأماميّ · spec_ط0_reset §0-ب] استُخرِج كاشف الصغيرة من حلقة buildWave إلى **SmallScan + feedBar**
+//   (خطوة بار-واحد، OHLC قيمًا صريحة) + **syncPending** ⇒ يدعم التدفّق بار بار (الرسم اللحظيّ بمجرّد تحقّق الشروط —
+//   متطلّب المستخدم). `buildWave` بقيت **غلافًا دفعيًّا رقيقًا** فوقهما (مطابقة بايتيّة، توافق خلفيّ) — المحرّك الأماميّ يتجاوزها.
+//   OHLC/time بالإزاحة مسموحة في مكتبات v6.
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Degrees", overlay = true)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 1) DegreeLaws — قوانين الدرجة (تتابُع·فعاليّة·تفعيل) · مواصفة §6: حلقة لا تعاوُد
+// ═════════════════════════════════════════════════════════════════════════════
+export type DegreeLaws
+    int          trendDir           = 0    // اتجاه الموجة = اتجاه الموجة التاريخية (bigDir)؛ لا انقلاب محلّيّ
+    int          pendingType        = 0    // المعلَّق: 1 قمّة · -1 قاع · 0 لا شيء
+    float        pendingPrice       = na
+    int          pendingBar         = na
+    int          pendingTime        = na   // زمن المعلّق (للرسم بـxloc.bar_time)
+    float        lastEffTopPrice    = na   // آخر قمّة فعّالة (مرجع ق6/ق7)
+    float        lastEffBottomPrice = na   // آخر قاع فعّال
+    array<int>   effectiveBars      = na   // مخرَج الدرجة: النقاط الفعّالة المتناوبة
+    array<float> effectivePrices    = na
+    array<bool>  effectiveIsTop     = na
+    array<int>   effectiveTimes     = na   // زمن كل نقطة فعّالة (للرسم بالزمن)
+    bool         justActivated      = false // إشارة: فُعِّلت نقطة في هذا النداء (لتغذية الدرجة الأعلى)
+    bool         justActTop         = false
+    float        justActPrice       = na
+    int          justActBar         = na
+    int          justActTime        = na
+
+export newDegreeLaws() =>
+    DegreeLaws.new(effectiveBars = array.new<int>(), effectivePrices = array.new<float>(), effectiveIsTop = array.new<bool>(), effectiveTimes = array.new<int>())
+
+// ق4/ق5 التتابُع: المعلَّق من نفس النوع يُستبدَل بالأكثر تطرّفًا (قمّة أعلى صعودًا/قاع أدنى هبوطًا).
+export method sequenceLaw(DegreeLaws self, bool isTop, float price, int bar, int tm) =>
+    bool moreExtreme = (isTop and price > self.pendingPrice) or ((not isTop) and price < self.pendingPrice)
+    if moreExtreme
+        self.pendingPrice := price
+        self.pendingBar   := bar
+        self.pendingTime  := tm
+
+// ق6/ق7 الفعاليّة (التغطية): يُفحَص للتصحيحيّة عند مجيء الدافعة المعاكسة.
+//   صعودًا: القاع المعلّق فعّال إن صنعت القمّةُ الواردةُ سعرًا أعلى من آخر قمّة مرسومة (ق6).
+//   هبوطًا: القمّة المعلّقة فعّالة إن صنع القاعُ الواردُ سعرًا أدنى من آخر قاع مرسوم (ق7).
+export method isPendingConfirmed(DegreeLaws self, float incomingPrice) =>
+    bool confirmed = true
+    if self.trendDir == 1 and self.pendingType == -1        // قاع تصحيحيّ (صعود) — ق6
+        confirmed := na(self.lastEffTopPrice) or incomingPrice > self.lastEffTopPrice
+    else if self.trendDir == -1 and self.pendingType == 1   // قمّة تصحيحيّة (هبوط) — ق7
+        confirmed := na(self.lastEffBottomPrice) or incomingPrice < self.lastEffBottomPrice
+    confirmed
+
+// التفعيل: المعلَّق المؤكَّد يُرسَم (يُدفَع للنقاط الفعّالة) ويصير مرجعَ التغطية الجديد.
+export method activateLaw(DegreeLaws self) =>
+    array.push(self.effectiveBars,   self.pendingBar)
+    array.push(self.effectivePrices, self.pendingPrice)
+    array.push(self.effectiveIsTop,  self.pendingType == 1)
+    array.push(self.effectiveTimes,  self.pendingTime)
+    if self.pendingType == 1
+        self.lastEffTopPrice := self.pendingPrice
+    else
+        self.lastEffBottomPrice := self.pendingPrice
+
+// خطّ الأنابيب: يستدعي القوانين بترتيب (معمّم لكل درجة).
+export method feedPivot(DegreeLaws self, bool isTop, float price, int bar, int tm, int waveDir) =>
+    // [تتابُع05] اتجاه الدرجة = اتجاه الموجة التاريخية (bigDir) طوال الموجة — مصدر واحد.
+    //   الانقلاب فقط حين تنعكس الموجة التاريخية (تغيّر waveDir) ⇒ تُصفَّر مراجع التغطية.
+    self.justActivated := false
+    if waveDir != self.trendDir
+        self.lastEffTopPrice    := na
+        self.lastEffBottomPrice := na
+        self.trendDir := waveDir
+    // [درس05] إعادة عدّ الموجة (كسر المستوى المحدِّد) — قبل منطق المعلّق، بالمراجع كما هي.
+    //   تجاوز صارم بالذيل (price) ولو بنقطة، بلا انعكاس اتجاه.
+    bool brokeLevel = (self.trendDir == -1 and isTop and not na(self.lastEffTopPrice) and price > self.lastEffTopPrice) or (self.trendDir == 1 and (not isTop) and not na(self.lastEffBottomPrice) and price < self.lastEffBottomPrice)
+    int currentType = isTop ? 1 : -1
+    if self.pendingType == 0
+        self.pendingType  := currentType                      // أوّل نقطة ⇒ معلّقة
+        self.pendingPrice := price
+        self.pendingBar   := bar
+        self.pendingTime  := tm
+    else if currentType == self.pendingType
+        self.sequenceLaw(isTop, price, bar, tm)               // نفس النوع ⇒ التتابُع
+    else if self.isPendingConfirmed(price)                    // نوع معاكس + فعّال ⇒ ارسم المعلّق
+        self.justActivated := true                            // التقط المُفعَّل قبل تفعيله
+        self.justActTop    := self.pendingType == 1
+        self.justActPrice  := self.pendingPrice
+        self.justActBar    := self.pendingBar
+        self.justActTime   := self.pendingTime
+        self.activateLaw()
+        self.pendingType  := currentType                      // ثمّ اجعل الوارد معلّقًا
+        self.pendingPrice := price
+        self.pendingBar   := bar
+        self.pendingTime  := tm
+    // غير فعّال ⇒ يُسقَط الوارد ويبقى المعلَّق (التغطية)
+    // [درس05] التصفير بعد تفعيل المعلّق القديم (تُرسم النقطة الكاسرة ثمّ تُصفَّر المراجع).
+    if brokeLevel
+        // [#3 · درس06] صفِّر المرجع المكسور فقط، وأبقِ الحارس المعاكس حتّى الاستئناف ⇒ ق6/ق7 يكبتان محاور التصحيح.
+        if self.trendDir == 1
+            self.lastEffBottomPrice := na
+        else if self.trendDir == -1
+            self.lastEffTopPrice := na
+
+// [درس06] إلحاق نقطة متوسطة خام (كلّ أزواج قاعدة ب). الفرز فعّال/غير فعّال بنسخة medEff (feedPivot) موازيةً.
+export method appendEff(DegreeLaws self, bool isTop, float price, int bar, int tm) =>
+    array.push(self.effectiveBars,   bar)
+    array.push(self.effectivePrices, price)
+    array.push(self.effectiveIsTop,  isTop)
+    array.push(self.effectiveTimes,  tm)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2) BreakProc — مُولِّد الكسر [درس06 قاعدة(ب)] — آلة حالة بطورين
+//   الدافعة تراكم الطرف المتوافق ⇒ عند كسر التطرّف الصغير المرجع يُصدِره ويدخل التصحيح ⇒ يراكم
+//   أدنى/أعلى بعد الكسر ⇒ يُصدِره عند الاستئناف ⇒ فعاليّة المتوسطة ضمنيّة. نقطة واحدة لكلّ حدث (n≤1).
+// ═════════════════════════════════════════════════════════════════════════════
+export type BreakProc
+    bool  started      = false // هل غُذِّي أوّل طرف متوسط (بداية الموجة)؟
+    float refTopPrice  = na    // هبوطًا: آخر قمّة صغيرة (مرجع الكسر)
+    float refBotPrice  = na    // صعودًا: آخر قاع صغير (مرجع الكسر)
+    float minSincePrice = na   // أدنى قاع متراكم (الدافعة هبوطًا / التصحيح صعودًا)
+    int   minSinceBar  = na
+    int   minSinceTime = na
+    float maxSincePrice = na   // أعلى قمّة متراكمة (الدافعة صعودًا / التصحيح هبوطًا)
+    int   maxSinceBar  = na
+    int   maxSinceTime = na
+    bool  inCorr       = false // طور التصحيح (بعد الكسر): نتتبّع الطرف المعاكس حتّى الاستئناف
+    float breakPivotP  = na    // الطرف المتوافق المُصدَر عند الكسر (بوّابة الاستئناف)
+
+export newBreakProc() =>
+    BreakProc.new()
+
+// هبوط (طوران): الدافعة تراكم أدنى قاع. كسر قمّة ⇒ أصدِر القاع + ادخل التصحيح ⇒ راكِم أعلى قمّة ⇒ أصدِرها عند استئناف الهبوط.
+export method feedBreakDown(BreakProc self, bool isTop, float price, int bar, int tm) =>
+    int   n   = 0
+    bool  t1  = false
+    float p1  = na
+    int   b1  = na
+    int   tm1 = na
+    bool  t2  = false
+    float p2  = na
+    int   b2  = na
+    int   tm2 = na
+    if not self.started
+        if isTop                                                  // بداية الموجة هبوطًا = قمّة
+            self.started := true
+            n   := 1
+            t1  := true
+            p1  := price
+            b1  := bar
+            tm1 := tm
+            self.refTopPrice := price
+    else if not self.inCorr                                       // طور الدافعة (هبوط): راكِم أدنى قاع = القاع المتوسط
+        if not isTop
+            if na(self.minSincePrice) or price <= self.minSincePrice
+                self.minSincePrice := price
+                self.minSinceBar   := bar
+                self.minSinceTime  := tm
+        else if not na(self.refTopPrice) and price > self.refTopPrice  // كسر قمّة صغيرة ⇒ أصدِر القاع المتوسط، ادخل التصحيح
+            n   := 1
+            t1  := false
+            p1  := self.minSincePrice
+            b1  := self.minSinceBar
+            tm1 := self.minSinceTime
+            self.breakPivotP   := self.minSincePrice
+            self.inCorr        := true
+            self.maxSincePrice := price
+            self.maxSinceBar   := bar
+            self.maxSinceTime  := tm
+            self.refTopPrice   := na
+            self.minSincePrice := na
+            self.minSinceBar   := na
+            self.minSinceTime  := na
+        else
+            self.refTopPrice := price                             // لا كسر ⇒ المرجع = آخر قمّة
+    else                                                          // طور التصحيح (ارتداد صعوديّ): راكِم أعلى قمّة = القمّة المتوسطة
+        if isTop
+            if na(self.maxSincePrice) or price >= self.maxSincePrice
+                self.maxSincePrice := price
+                self.maxSinceBar   := bar
+                self.maxSinceTime  := tm
+        else if not na(self.breakPivotP) and price < self.breakPivotP  // استئناف الهبوط ⇒ أصدِر القمّة المتوسطة
+            n   := 1
+            t1  := true
+            p1  := self.maxSincePrice
+            b1  := self.maxSinceBar
+            tm1 := self.maxSinceTime
+            self.inCorr        := false
+            self.refTopPrice   := na
+            self.minSincePrice := price
+            self.minSinceBar   := bar
+            self.minSinceTime  := tm
+            self.maxSincePrice := na
+            self.maxSinceBar   := na
+            self.maxSinceTime  := na
+            self.breakPivotP   := na
+        // else: قاع ارتداد فوق القاع المتوسط ⇒ ما زلنا في التصحيح، تجاهل
+    [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
+
+// صعود (مرآة، طوران): الدافعة تراكم أعلى قمّة. كسر قاع ⇒ أصدِر القمّة + ادخل التصحيح ⇒ راكِم أدنى قاع ⇒ أصدِره عند استئناف الصعود.
+export method feedBreakUp(BreakProc self, bool isTop, float price, int bar, int tm) =>
+    int   n   = 0
+    bool  t1  = false
+    float p1  = na
+    int   b1  = na
+    int   tm1 = na
+    bool  t2  = false
+    float p2  = na
+    int   b2  = na
+    int   tm2 = na
+    if not self.started
+        if not isTop                                              // بداية الموجة صعودًا = قاع
+            self.started := true
+            n   := 1
+            t1  := false
+            p1  := price
+            b1  := bar
+            tm1 := tm
+            self.refBotPrice := price
+    else if not self.inCorr                                       // طور الدافعة (صعود): راكِم أعلى قمّة = القمّة المتوسطة
+        if isTop
+            if na(self.maxSincePrice) or price >= self.maxSincePrice
+                self.maxSincePrice := price
+                self.maxSinceBar   := bar
+                self.maxSinceTime  := tm
+        else if not na(self.refBotPrice) and price < self.refBotPrice  // كسر قاع صغير ⇒ أصدِر القمّة المتوسطة، ادخل التصحيح
+            n   := 1
+            t1  := true
+            p1  := self.maxSincePrice
+            b1  := self.maxSinceBar
+            tm1 := self.maxSinceTime
+            self.breakPivotP   := self.maxSincePrice
+            self.inCorr        := true
+            self.minSincePrice := price
+            self.minSinceBar   := bar
+            self.minSinceTime  := tm
+            self.refBotPrice   := na
+            self.maxSincePrice := na
+            self.maxSinceBar   := na
+            self.maxSinceTime  := na
+        else
+            self.refBotPrice := price                             // لا كسر ⇒ المرجع = آخر قاع
+    else                                                          // طور التصحيح (هبوط): راكِم أدنى قاع = القاع المتوسط
+        if not isTop
+            if na(self.minSincePrice) or price <= self.minSincePrice
+                self.minSincePrice := price
+                self.minSinceBar   := bar
+                self.minSinceTime  := tm
+        else if not na(self.breakPivotP) and price > self.breakPivotP   // استئناف الصعود ⇒ أصدِر القاع المتوسط
+            n   := 1
+            t1  := false
+            p1  := self.minSincePrice
+            b1  := self.minSinceBar
+            tm1 := self.minSinceTime
+            self.inCorr        := false
+            self.refBotPrice   := na
+            self.maxSincePrice := price
+            self.maxSinceBar   := bar
+            self.maxSinceTime  := tm
+            self.minSincePrice := na
+            self.minSinceBar   := na
+            self.minSinceTime  := na
+            self.breakPivotP   := na
+        // else: قمّة ارتداد تحت القمّة المتوسطة ⇒ ما زلنا في التصحيح، تجاهل
+    [n, t1, p1, b1, tm1, t2, p2, b2, tm2]
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3) المحرّك: تغذية المتوسطة + بناء الموجة
+// ═════════════════════════════════════════════════════════════════════════════
+
+// تغذية المتوسطة من نقطة صغيرة فعّالة — تختار منطق الاتجاه وتُلحِق المخرَجات خامًا (appendEff) + الفعّال (medEff.feedPivot).
+export feedMedium(DegreeLaws small, BreakProc bp, DegreeLaws med, DegreeLaws medEff, int wdir) =>
+    if small.justActivated
+        if wdir == -1
+            [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreakDown(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
+            if n >= 1
+                med.appendEff(t1, p1, b1, tm1)
+                medEff.feedPivot(t1, p1, b1, tm1, wdir)
+            if n >= 2
+                med.appendEff(t2, p2, b2, tm2)
+                medEff.feedPivot(t2, p2, b2, tm2, wdir)
+        else
+            [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = bp.feedBreakUp(small.justActTop, small.justActPrice, small.justActBar, small.justActTime)
+            if n >= 1
+                med.appendEff(t1, p1, b1, tm1)
+                medEff.feedPivot(t1, p1, b1, tm1, wdir)
+            if n >= 2
+                med.appendEff(t2, p2, b2, tm2)
+                medEff.feedPivot(t2, p2, b2, tm2, wdir)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 4) SmallScan + feedBar — كاشف الصغيرة (قوانين د05 على السعر الخام) · قابل للتدفّق بار بار
+// ═════════════════════════════════════════════════════════════════════════════
+//   [v2 · المحرّك الأماميّ · spec_ط0_reset §0-ب] كانت هذه الحالة **محلّيّةً داخل حلقة buildWave** فلا يمكن
+//   تشغيل الكاشف بار بار (متطلّب المستخدم: «الرسم اللحظيّ للقمم/القيعان بمجرّد تحقّق الشروط»).
+//   استُخرِجت نوعًا مُصدَّرًا + دالّة خطوة: تُنشأ بـ`var` للتدفّق، أو محليًّا للدفعة (`buildWave` صار غلافًا رقيقًا فوقها).
+//   🔴 **نقل حرفيّ** لجسم الحلقة القديمة (مطابقة بايتيّة للسلوك) — لا منطق جديد.
+export type SmallScan
+    int   scD  = 0    // اتجاه الساق الصغير الجاري (0 = لم يُبذَر بعد)
+    float rHiP = na   // أقصى قمّة جارية (سعر/بار/زمن)
+    int   rHiB = na
+    int   rHiT = na
+    float rLoP = na   // أدنى قاع جارٍ
+    int   rLoB = na
+    int   rLoT = na
+    int   ccD  = 0    // عدّاد شموع التصحيح المتتالية (قانون الشمعتين)
+    float cpHi = na   // قفل جسم شمعة التصحيح الأخيرة (ق4)
+    float cpLo = na
+
+export newSmallScan() =>
+    SmallScan.new()
+
+// خطوة الكاشف على **بار واحد**. OHLC/الزمن **قيمًا صريحة** (لا إزاحات) ⇒ تصلح للتدفّق (قيم البار الحاليّ عند
+//   isconfirmed) وللدفعة (بالإزاحة من buildWave). قوانين د05: الشمعة الصحيحة (useValid: جسم ≥ كلّ ذيل) ·
+//   قانون الشمعتين (minCorr، القفل تحت/فوق قفل السابقة — ق4) · الاستئناف الفوريّ (ق6/ق7 عبر lastEff*).
+export method feedBar(SmallScan self, DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, float hiV, float loV, float opV, float clV, int j, int tmV, int wdir, bool useValid, int minCorr) =>
+    float bs   = math.abs(clV - opV)
+    float uw   = hiV - math.max(clV, opV)
+    float lw   = math.min(clV, opV) - loV
+    bool  vc   = (not useValid) or (bs > 0 and bs >= uw and bs >= lw)
+    bool  bear = clV < opV
+    bool  bull = clV > opV
+    float bHi  = math.max(opV, clV)
+    float bLo  = math.min(opV, clV)
+    if self.scD == 0
+        self.scD  := wdir != 0 ? -wdir : 1
+        self.rHiP := hiV
+        self.rHiB := j
+        self.rHiT := tmV
+        self.rLoP := loV
+        self.rLoB := j
+        self.rLoT := tmV
+    else if self.scD == 1
+        if wdir == -1 and loV < nz(sd.lastEffBottomPrice, self.rLoP)  // [ق7+ق5 · استئناف] موجة هابطة: نزل تحت آخر قاع فعّال ⇒ أصدِر القمّة فورًا
+            sd.feedPivot(true, self.rHiP, self.rHiB, self.rHiT, wdir)
+            feedMedium(sd, mb, md, me, wdir)
+            self.scD  := -1
+            self.rLoP := loV
+            self.rLoB := j
+            self.rLoT := tmV
+            self.ccD  := 0
+            self.cpHi := na
+            self.cpLo := na
+        else if hiV > self.rHiP
+            self.rHiP := hiV
+            self.rHiB := j
+            self.rHiT := tmV
+            self.ccD  := 0
+            self.cpHi := na
+            self.cpLo := na
+        else if vc and bear
+            if self.ccD == 0
+                self.ccD  := 1
+                self.cpHi := bHi
+                self.cpLo := bLo
+            else if bLo < self.cpLo                          // [ق4] القفل تحت قفل الشمعة السابقة (الأحمر: القفل=bLo) — لا الجسم كاملًا (ق5)
+                self.ccD  := self.ccD + 1
+                self.cpHi := bHi
+                self.cpLo := bLo
+            if self.ccD >= minCorr
+                sd.feedPivot(true, self.rHiP, self.rHiB, self.rHiT, wdir)
+                feedMedium(sd, mb, md, me, wdir)
+                self.scD  := -1
+                self.rLoP := loV
+                self.rLoB := j
+                self.rLoT := tmV
+                self.ccD  := 0
+                self.cpHi := na
+                self.cpLo := na
+    else
+        if wdir == 1 and hiV > nz(sd.lastEffTopPrice, self.rHiP)   // [ق6+ق4 · استئناف] موجة صاعدة: تجاوز آخر قمّة فعّالة ⇒ أصدِر القاع فورًا
+            sd.feedPivot(false, self.rLoP, self.rLoB, self.rLoT, wdir)
+            feedMedium(sd, mb, md, me, wdir)
+            self.scD  := 1
+            self.rHiP := hiV
+            self.rHiB := j
+            self.rHiT := tmV
+            self.ccD  := 0
+            self.cpHi := na
+            self.cpLo := na
+        else if loV < self.rLoP
+            self.rLoP := loV
+            self.rLoB := j
+            self.rLoT := tmV
+            self.ccD  := 0
+            self.cpHi := na
+            self.cpLo := na
+        else if vc and bull
+            if self.ccD == 0
+                self.ccD  := 1
+                self.cpHi := bHi
+                self.cpLo := bLo
+            else if bHi > self.cpHi                          // [ق4] القفل فوق قفل الشمعة السابقة (الأخضر: القفل=bHi) — لا الجسم كاملًا (ق5)
+                self.ccD  := self.ccD + 1
+                self.cpHi := bHi
+                self.cpLo := bLo
+            if self.ccD >= minCorr
+                sd.feedPivot(false, self.rLoP, self.rLoB, self.rLoT, wdir)
+                feedMedium(sd, mb, md, me, wdir)
+                self.scD  := 1
+                self.rHiP := hiV
+                self.rHiB := j
+                self.rHiT := tmV
+                self.ccD  := 0
+                self.cpHi := na
+                self.cpLo := na
+
+// [#2] مزامنة المعلَّق (الطرف الحيّ) حسب الطور — دفعةً: مرّة بعد الحلقة · تدفّقًا: كلّ بار بعد feedBar.
+//   نقلٌ حرفيّ لكتلة المعلَّق القديمة في buildWave.
+export syncPending(DegreeLaws md, BreakProc mb, int wdir) =>
+    if wdir == 1
+        if mb.inCorr and not na(mb.minSincePrice)                 // تصحيح صعود ⇒ معلّق قاع
+            md.pendingType  := -1
+            md.pendingPrice := mb.minSincePrice
+            md.pendingBar   := mb.minSinceBar
+            md.pendingTime  := mb.minSinceTime
+        else if not na(mb.maxSincePrice)                          // دافعة صعود ⇒ معلّق قمّة
+            md.pendingType  := 1
+            md.pendingPrice := mb.maxSincePrice
+            md.pendingBar   := mb.maxSinceBar
+            md.pendingTime  := mb.maxSinceTime
+    else if wdir == -1
+        if mb.inCorr and not na(mb.maxSincePrice)                 // تصحيح هبوط ⇒ معلّق قمّة
+            md.pendingType  := 1
+            md.pendingPrice := mb.maxSincePrice
+            md.pendingBar   := mb.maxSinceBar
+            md.pendingTime  := mb.maxSinceTime
+        else if not na(mb.minSincePrice)                          // دافعة هبوط ⇒ معلّق قاع
+            md.pendingType  := -1
+            md.pendingPrice := mb.minSincePrice
+            md.pendingBar   := mb.minSinceBar
+            md.pendingTime  := mb.minSinceTime
+
+// [درس03] بناء موجة واحدة [segL→segR]: اتجاهها من تطرّفاتها ثمّ الصغيرة (شمعتان) → قاعدة(ب) → المتوسطة. يُرجع الاتجاه.
+//   useValid/minCorr وسيطان (كانا عالميَّين في المؤشّر). OHLC/time بالإزاحة داخل المكتبة.
+// 🔴 [v3 · رجوع مقيس عن غلاف SmallScan] النسخة /2 جعلت هذا غلافًا فوق `scan.feedBar(...)` (كائن محلّيّ + نداء method)
+//   — **دلاليًّا مطابق، وسلوكيًّا منهار**: A/B على نفس الشارت واللحظة أثبت أنّ /2 تُفسد الكشف جذريًّا
+//   («درجات ظاهرة 0/3» · الموجة = النافذة كاملةً) بينما /1 (هذا الجسم نفسه) سليمة — والمصدر المنشور /2 مُتحقَّق أنّه
+//   الكود الصحيح ⇒ **عيب ترجمة في مُصرِّف TradingView لنمط «كائن محلّيّ + method يُطفِر وسائط هاربة»** (نفس جذر CE10237؛
+//   إسكات الرسالة لا يُصلح الترجمة). ⇒ أُعيد الجسم الأصليّ **حرفيًّا** (النمط الذي يعمل يقينًا).
+//   ⚠️ الازدواج مع feedBar **مؤقّت ومُعلَن**: النقلة 2 تستعمل feedBar بسياق مختلف (حالة `var` في المؤشّر، لا كائن محلّيّ)
+//   وتُختبر A/B هناك، ثمّ تُحذف buildWave كلّها. 🔴 لا تُعِد الغلاف مهما بدا أنظف — القياس حاكم.
+export buildWave(DegreeLaws sd, DegreeLaws md, DegreeLaws me, BreakProc mb, int segL, int segR, bool useValid, int minCorr) =>
+    float wHiP = na
+    float wLoP = na
+    int   wHiB = na
+    int   wLoB = na
+    for j = segL to segR
+        int o = bar_index - j
+        if o >= 0
+            if na(wHiP) or high[o] > wHiP
+                wHiP := high[o]
+                wHiB := j
+            if na(wLoP) or low[o] < wLoP
+                wLoP := low[o]
+                wLoB := j
+    int wdir = wHiB <= wLoB ? -1 : 1
+    int   scD  = 0
+    float rHiP = na
+    int   rHiB = na
+    int   rHiT = na
+    float rLoP = na
+    int   rLoB = na
+    int   rLoT = na
+    int   ccD  = 0
+    float cpHi = na
+    float cpLo = na
+    for j = segL to segR
+        int o = bar_index - j
+        if o >= 0
+            float bs   = math.abs(close[o] - open[o])
+            float uw   = high[o] - math.max(close[o], open[o])
+            float lw   = math.min(close[o], open[o]) - low[o]
+            bool  vc   = (not useValid) or (bs > 0 and bs >= uw and bs >= lw)
+            bool  bear = close[o] < open[o]
+            bool  bull = close[o] > open[o]
+            float bHi  = math.max(open[o], close[o])
+            float bLo  = math.min(open[o], close[o])
+            if scD == 0
+                scD  := wdir != 0 ? -wdir : 1
+                rHiP := high[o]
+                rHiB := j
+                rHiT := time[o]
+                rLoP := low[o]
+                rLoB := j
+                rLoT := time[o]
+            else if scD == 1
+                if wdir == -1 and low[o] < nz(sd.lastEffBottomPrice, rLoP)  // [ق7+ق5 · استئناف] موجة هابطة: نزل تحت آخر قاع فعّال ⇒ أصدِر القمّة فورًا
+                    sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
+                    feedMedium(sd, mb, md, me, wdir)
+                    scD  := -1
+                    rLoP := low[o]
+                    rLoB := j
+                    rLoT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if high[o] > rHiP
+                    rHiP := high[o]
+                    rHiB := j
+                    rHiT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if vc and bear
+                    if ccD == 0
+                        ccD  := 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    else if bLo < cpLo                          // [ق4] القفل تحت قفل الشمعة السابقة (الأحمر: القفل=bLo) — لا الجسم كاملًا (ق5)
+                        ccD  := ccD + 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    if ccD >= minCorr
+                        sd.feedPivot(true, rHiP, rHiB, rHiT, wdir)
+                        feedMedium(sd, mb, md, me, wdir)
+                        scD  := -1
+                        rLoP := low[o]
+                        rLoB := j
+                        rLoT := time[o]
+                        ccD  := 0
+                        cpHi := na
+                        cpLo := na
+            else
+                if wdir == 1 and high[o] > nz(sd.lastEffTopPrice, rHiP)   // [ق6+ق4 · استئناف] موجة صاعدة: تجاوز آخر قمّة فعّالة ⇒ أصدِر القاع فورًا
+                    sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
+                    feedMedium(sd, mb, md, me, wdir)
+                    scD  := 1
+                    rHiP := high[o]
+                    rHiB := j
+                    rHiT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if low[o] < rLoP
+                    rLoP := low[o]
+                    rLoB := j
+                    rLoT := time[o]
+                    ccD  := 0
+                    cpHi := na
+                    cpLo := na
+                else if vc and bull
+                    if ccD == 0
+                        ccD  := 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    else if bHi > cpHi                          // [ق4] القفل فوق قفل الشمعة السابقة (الأخضر: القفل=bHi) — لا الجسم كاملًا (ق5)
+                        ccD  := ccD + 1
+                        cpHi := bHi
+                        cpLo := bLo
+                    if ccD >= minCorr
+                        sd.feedPivot(false, rLoP, rLoB, rLoT, wdir)
+                        feedMedium(sd, mb, md, me, wdir)
+                        scD  := 1
+                        rHiP := high[o]
+                        rHiB := j
+                        rHiT := time[o]
+                        ccD  := 0
+                        cpHi := na
+                        cpLo := na
+    syncPending(md, mb, wdir)
+    wdir

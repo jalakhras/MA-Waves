@@ -1,0 +1,47 @@
+{
+  "J-Waves-M1_indicator.pine.txt": {
+    "mtime": 1784205005.4525163,
+    "ast_hash": "6a490f540bca4553507a234390090d04",
+    "semantic_hash": "6a490f540bca4553507a234390090d04"
+  },
+  "JW_Conclusions_library.pine.txt": {
+    "mtime": 1784205005.5011728,
+    "ast_hash": "12709186fd927c275e4292223344d9be",
+    "semantic_hash": "12709186fd927c275e4292223344d9be"
+  },
+  "JW_Degrees_library.pine.txt": {
+    "mtime": 1784205005.5477328,
+    "ast_hash": "06b876bb4be31c6173b45d2d2e90d044",
+    "semantic_hash": "06b876bb4be31c6173b45d2d2e90d044"
+  },
+  "JW_Elliott_library.pine.txt": {
+    "mtime": 1784205005.594345,
+    "ast_hash": "fa010af4cddd6b1e0ff78fb0c7a93600",
+    "semantic_hash": "fa010af4cddd6b1e0ff78fb0c7a93600"
+  },
+  "JW_Foundation_library.pine.txt": {
+    "mtime": 1784205005.6465127,
+    "ast_hash": "5f4c1896f0b71c3ccc25ee814f32fb29",
+    "semantic_hash": "5f4c1896f0b71c3ccc25ee814f32fb29"
+  },
+  "JW_Lines_library.pine.txt": {
+    "mtime": 1784205005.6945877,
+    "ast_hash": "c8b0b67a894ad8663bdc426b31bbfe58",
+    "semantic_hash": "c8b0b67a894ad8663bdc426b31bbfe58"
+  },
+  "JW_Zones_library.pine.txt": {
+    "mtime": 1784205005.743075,
+    "ast_hash": "b8bf6c3f7974a2dce90062554a7b3d6c",
+    "semantic_hash": "b8bf6c3f7974a2dce90062554a7b3d6c"
+  },
+  "MWaves_layer_map.md": {
+    "mtime": 1784205005.8000267,
+    "ast_hash": "8d3945e434fccb1ea69b003433a7f3f6",
+    "semantic_hash": "8d3945e434fccb1ea69b003433a7f3f6"
+  },
+  "spec_\u06370_reset.md": {
+    "mtime": 1784205005.7732713,
+    "ast_hash": "bf6eb21e66981deac968cf0f0bac61c2",
+    "semantic_hash": "bf6eb21e66981deac968cf0f0bac61c2"
+  }
+}
