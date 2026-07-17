@@ -341,7 +341,7 @@ int    liqWidthB = input.int(3, "Large liquidity width / عرض سيولة ال�
 int    liqWidthM = input.int(2, "Medium liquidity width / عرض سيولة المتوسط", minval = 1, maxval = 8, group = grpLines)
 int    liqWidthS = input.int(1, "Small liquidity width / عرض سيولة الصغير", minval = 1, maxval = 8, group = grpLines)
 int    levelExtend = input.int(24, "Level extension (candles) / مدى امتداد المستوى (شموع)", minval = 0, maxval = 500, group = grpLines)
-int    liqExtend = input.int(24, "Liquidity extension (candles) / مدى امتداد السيولة (شموع)", minval = 0, maxval = 500, group = grpLines)
+// [أ12] حُذف input «liqExtend»: خطّ السيولة صار شعاعًا (extend.right) لا يحتاج مدًى ⇒ تحكّم عفا عليه.
 
 // ══════════════════════════ ط3 · 📊 المراحل / Phases ══════════════════════════
 string grpPhase  = "ط3 · 📊 المراحل / Phases"
@@ -1618,11 +1618,11 @@ if barstate.islast
         // [تعديل] تُرسَم السيولة **دائمًا** على جانب الاتجاه الفعّال (تُظهر ميلها — حتى لو خالف المستوى = تباعد مفيد). المكسورة تبقى متقطّعة أدناه.
         int bActL = bActVg
         int mActL = mActVg
-        bigLiqLine := showLiqB ? jwl.f_liqLine(lgBar, lgTop, lgEffLive, lgTm, cLiqB, liqWidthB, bActL, liqExtend) : na   // الكبيرة
-        medLiqLine := showLiqM ? jwl.f_liqLine(mcBar, mcTop, mcEffLive, mcTm, cLiqM, liqWidthM, mActL, liqExtend) : na   // المتوسطة (الموجة الجارية)
+        bigLiqLine := showLiqB ? jwl.f_liqLine(lgBar, lgTop, lgEffLive, lgTm, cLiqB, liqWidthB, bActL) : na   // الكبيرة
+        medLiqLine := showLiqM ? jwl.f_liqLine(mcBar, mcTop, mcEffLive, mcTm, cLiqM, liqWidthM, mActL) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar)
         int sActL = sActVg
-        smallLiqLine := showLiqS ? jwl.f_liqLine(scBar, scTop, scEffLive, scTm, cLiqS, liqWidthS, sActL, liqExtend) : na   // الصغيرة
+        smallLiqLine := showLiqS ? jwl.f_liqLine(scBar, scTop, scEffLive, scTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
         if f_liqBroken(lgBar, lgTop, lgEffLive, bActL) and not na(bigLiqLine)
             if showBroken

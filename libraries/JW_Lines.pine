@@ -4,7 +4,7 @@
 //   مُستخرَجة من J-Waves M2 (فرع m3/gaps-and-scale) وفق docs/build/spec_lib_JW_Lines.md
 //   حسم المستخدم (2026-07-12): **مستوى الاتجاه (أفقيّ) على الأجسام · خطّ السيولة (مائل) على الذيول**.
 //   معمّم لكلّ درجة: صاعد ⇒ أساس القيعان (دعم) · هابط ⇒ أساس القمم (مقاومة).
-//   levelExtend/liqExtend وسيطان (كانا عالميَّين في المؤشّر). OHLC/time بالإزاحة تعمل داخل المكتبة (v6).
+//   levelExtend وسيط (كان عالميًّا في المؤشّر). خطّ السيولة يمتدّ بشعاع extend.right (بلا وسيط مدًى، أ12). OHLC/time بالإزاحة تعمل داخل المكتبة (v6).
 //   يبقى في المؤشّر (لا يُنقَل): f_activeDir (الاتجاه الفعّال، د09) · رصد الكسر (د09) · المراحل (ط3) · التنسيق.
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Lines", overlay = true)
@@ -100,8 +100,8 @@ export f_liqPairPhaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int
 //   متجاورتين بارًا/متباعدتين سعرًا يهوي projP لسعر سالب (BTC·60: −15157) يقرؤه data_get_pine_lines.
 //   الآن الإحداثيّان المخزَّنان = (aTm[i1],wp1) و(aTm[i2],wp2)، كلاهما سعر حقيقيّ موجب؛ الامتداد يمينًا
 //   شعاع بصريّ يتكفّل به المحرّك بلا تجسيد إحداثيّ سالب. الميل نفسه لم يتغيّر ⇒ f_liqDir/f_liqBroken حرفيًّا.
-//   liqExtend: غير مستعمَل بعد أ11 (يبقى في التوقيع تجنّبًا للمس مواقع النداء الثلاثة — يُنظَّف لاحقًا).
-export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir, int liqExtend) =>
+//   liqExtend: حُذف من التوقيع (أ12) — extend.right لا يحتاجه؛ إبقاؤه وسيطًا ميّتًا يرفضه المصرّف (CE10237).
+export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir) =>
     line ln = na
     bool wantTop = wdir == -1
     [i1, i2] = f_liqPair(aBar, aTop, aEff, wdir)
