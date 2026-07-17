@@ -2262,12 +2262,6 @@ if showFrameHelper and barstate.islast
     //   `wlB` يبقى لـ«موجات دافعة» و«زمن الموجة» (يخصّان **الموجة الجارية** بحقّ).
     int   cntB   = math.max(bar_index - VIEW_WIN + 1, 0)
     int   wpDeg  = f_degVis(scBar, scTop, scEff, cntB, na) + f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + f_degVis(lgBar, lgTop, lgEff, cntB, lgPendBg) + f_degVis(xlBar, xlTop, xlEff, cntB, xlPendBg)   // [رابعة السلّم] الحدّ الرابع ⇒ degShown يبلغ 4 ⇒ «اصعد ↑»
-    // 🔬 [تشخيص أ15 مؤقّت — يُحذَف بعد ت12] عدد النقاط/قيمة f_degVis لكلّ درجة (size/vis) — يحسم «xl نادرة أم خاملة»
-    int dvSc = f_degVis(scBar, scTop, scEff, cntB, na)
-    int dvMc = f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar)
-    int dvLg = f_degVis(lgBar, lgTop, lgEff, cntB, lgPendBg)
-    int dvXl = f_degVis(xlBar, xlTop, xlEff, cntB, xlPendBg)
-    label.new(bar_index, high, "DBG sc=" + str.tostring(array.size(scBar)) + "/" + str.tostring(dvSc) + " mc=" + str.tostring(array.size(mcBar)) + "/" + str.tostring(dvMc) + " lg=" + str.tostring(array.size(lgBar)) + "/" + str.tostring(dvLg) + " xl=" + str.tostring(array.size(xlBar)) + "/" + str.tostring(dvXl) + " deg=" + str.tostring(wpDeg), xloc = xloc.bar_index, style = label.style_label_down, color = color.new(color.purple, 0), textcolor = color.white, size = size.normal)
     // 🔴 [حسم المستخدم] قِس الدافعة داخل **الموجة الجارية**؛ فإن لم تتوفّر بيانات ⇒ ارجع إلى **الموجة التاريخيّة** (المقطع المكتمل قبلها).
     //   المرجع لكلّ مقطع = **اتجاهه هو**: الجارية `curWdir` (= `buildWave(lastL, wRb)`) · التاريخيّة من نوع حدّها (`segLeftTop[1]`: قمّة ⇒ هابطة).
     //   ⚠️ الثابتة: **النافذة والمرجع على المدى نفسه** — وإلّا قِيس مدًى وعُدّ في آخر (عطب ف0-2 في موضع آخر).
