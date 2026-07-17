@@ -9,7 +9,14 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.49.0 — [🔴 النقلة 3 · إلغاء leg نهائيًّا: الكبيرة بالكسر وحدها + موت الرقم الملفّق (waveScaleDays⇒bigDir)] ═══
+// ═══ الإصدار: v2.50.0 — [أ7 · «المؤكَّد فقط» عرضًا وحسابًا (قرارا المالك) + تنظيف تدقيق الكبيرة + تحصين المتوسطة] ═══
+//   v2.50.0 [أ7 مُوسَّع · قرارا المالك 2026-07-17 · بعد بوّابة أ8 (ت3)]: (1) **الحساب**: الطرف الكبير الحيّ يُدفَع
+//     `lgEff=false` + معلَّق largeEffD لم يعد يمنح الفعاليّة ⇒ قرارات المستويات/السيولة/المراحل/الدخول على **الفعّالة
+//     المؤكَّدة فقط** (المستهلكون السبعة يرشّحون aEff تلقائيًّا). (2) **العرض**: طرف الصغيرة الحيّ الباهت لا يُرسَم (سهمًا
+//     وضلعًا) — المؤكَّد فقط على الشارت، صفر وميض (المتوسطة مخفيّة أصلًا ع1، والكبيرة الحيّة تختفي تلقائيًّا بـeff=false).
+//     (3) **تنظيف**: فرعا n>=2 الميّتان (feedBreak* تُصدِر ≤1) + فرع liveTip المتوسطة الميّت وتعليقه المناقض لع1.
+//     (4) **تحصين**: `md.pendingType` صريح من نوع الحدّ عند إرساء نهاية التاريخ. (5) فجوات مسجَّلة في GAPS_TODO.
+//     ⚠️ A/B متوقَّع: تغيّر مشروع في قيم «الكبيرة» باللوحة على الشارتات ذات طرف حيّ مؤثّر — يُفسَّر فرادى.
 //   v2.49.0 [نقلة3 · spec_نقلة3_إلغاء_leg · اعتماد المستخدم 2026-07-17 (نقض v2.16.1 معلَن — حجّته استُنفدت)]: مسار الكبيرة
 //     **واحد موحّد** = الكسر من المتوسطة الفعّالة باتجاه كلّ موجة من حدّها (كان فرع legLiveBreak الافتراضيّ — يحمل أمانة
 //     التناوب وهو الكسر د07 معًا). حُذف: فرع useBigBreak (اتجاه عالميّ — ينحرف تاريخيًّا) · فرع leg النقيّ + largeDeg ·
@@ -982,6 +989,7 @@ if barstate.islast
                     md.pendingBar   := segR
                     md.pendingPrice := array.get(segLeftPx, s - 1)
                     md.pendingTime  := time[loRa]
+                    md.pendingType  := array.get(segLeftTop, s - 1) ? 1 : -1   // [أ7-4 · تحصين] النوع صريح من نوع الحدّ (كان صحيحًا بهشاشة محظوظة — 5 ثوابت في 3 كائنات، 127 ألف فحص fuzz)
             int mch = array.size(md.effectiveBars)
             for i = 0 to (mch > 0 ? mch - 1 : 0)
                 if mch > 0
@@ -1043,10 +1051,11 @@ if barstate.islast
             float p   = array.get(mcPrc, i)
             int   t   = array.get(mcTm, i)
             bool  eff = array.get(mcEff, i)
-            bool  liveTip = mediumDegree.pendingType != 0 and b == mediumDegree.pendingBar and i == mcN - 1
+            // [أ7-3 · تنظيف] فرع `liveTip` **حُذف** (كان ميّتًا): قاعدة الانتظار (ع1) تمنع دفع معلَّق الموجة الجارية إلى `mcBar`
+            //   أصلًا، ومعلَّقات التواريخ لا تطابق `mediumDegree.pendingBar` ⇒ الشرط لا يصدق أبدًا، وتعليقه كان يناقض ع1.
             // [التغطية على الدوائر] مغطّى = فعّال + قانون طبقته مفعّل + لا استثناء (داخل نطاق الموجة) + وُجد لاحقًا أكثر تطرّفًا — نفس منطق f_coveredAt حرفيًّا
             bool covd = false
-            if eff and not liveTip
+            if eff
                 bool covOnC = b >= hL1c ? covCur : b >= hL2c ? covHist : covHoH
                 if covOnC and not (not na(wHiC) and not na(wLoC) and (p > wHiC or p < wLoC))
                     bool tiC = array.get(mcTop, i)
@@ -1055,9 +1064,7 @@ if barstate.islast
                             if tiC ? (array.get(mcPrc, k) > p) : (array.get(mcPrc, k) < p)
                                 covd := true
             if showMedium
-                if liveTip
-                    f_drawMedCircle(medCircles, t, p, cMed, cMedBorder, medCircleSize)   // [ط1·#2] الطرف الجاري (أعمق/أعلى نقطة في التصحيح الحاليّ) يُرسَم كنقطة متوسطة عاديّة — لا رماديّ (feedPivot يؤكّده عند مجيء المعاكس؛ الأعمق مضمون بالمُراكِم)
-                else if eff and not covd
+                if eff and not covd
                     f_drawMedCircle(medCircles, t, p, cMed, cMedBorder, medCircleSize)
                 else if eff and covd
                     if showCovered
@@ -1087,11 +1094,12 @@ if barstate.islast
             float price   = array.get(scPrc, i)
             int   bar     = array.get(scBar, i)
             bool  liveTip = smallDegree.pendingType != 0 and bar == smallDegree.pendingBar and i == scN - 1
-            color ac      = liveTip ? color.new(isTop ? cTop : cBot, 45) : (isTop ? cTop : cBot)
-            if showSmall
-                array.push(smallArrows, f_drawArrow(isTop, price, bar, ac))
-            if linkSmall and not na(prevBs)
-                array.push(smallLinks, line.new(prevBs, prevPs, bar, price, xloc = xloc.bar_index, color = liveTip ? color.new(cLineS, 45) : cLineS, width = 1))
+            // [أ7-2 · «المؤكَّد فقط» — حسم المالك ح16] الطرف الصغير الحيّ (الباهت سابقًا) **لا يُعرَض**: لا سهم ولا ضلع وصلٍ إليه —
+            //   الشارت يُظهر المؤكَّد فقط (صفر وميض). الحساب لم يتغيّر (السلسلة كما هي).
+            if showSmall and not liveTip
+                array.push(smallArrows, f_drawArrow(isTop, price, bar, isTop ? cTop : cBot))
+            if linkSmall and not na(prevBs) and not liveTip
+                array.push(smallLinks, line.new(prevBs, prevPs, bar, price, xloc = xloc.bar_index, color = cLineS, width = 1))
             prevBs := bar
             prevPs := price
 
@@ -1157,22 +1165,17 @@ if barstate.islast
                 largeBreak.inCorr := false                 // [v2.12.0] لا تسرّب طور التصحيح عبر حدّ الموجة (حقلا الطورين مستقلّان عن الاتّجاه)
                 largeBreak.breakPivotP := na
                 prevSegDir := segDir
+            // [أ7-3 · تنظيف] فرعا `n >= 2` **حُذفا**: تدقيق المدير أثبت أنّ feedBreakDown/Up تُصدِر نقطةً واحدةً كحدّ أقصى (n ≤ 1) ⇒ كانا كودًا ميّتًا.
             if segDir == -1
                 [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
                 if n >= 1
                     largeRaw.appendEff(t1, p1, b1, tm1)
                     largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
-                if n >= 2
-                    largeRaw.appendEff(t2, p2, b2, tm2)
-                    largeEffD.feedPivot(t2, p2, b2, tm2, segDir)
             else
                 [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakUp(it, pp, bb, tt)
                 if n >= 1
                     largeRaw.appendEff(t1, p1, b1, tm1)
                     largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
-                if n >= 2
-                    largeRaw.appendEff(t2, p2, b2, tm2)
-                    largeEffD.feedPivot(t2, p2, b2, tm2, segDir)
     int nrL = array.size(largeRaw.effectiveBars)
     for i = 0 to (nrL > 0 ? nrL - 1 : 0)
         if nrL > 0
@@ -1181,7 +1184,7 @@ if barstate.islast
             array.push(lgPrc, array.get(largeRaw.effectivePrices, i))
             array.push(lgTop, array.get(largeRaw.effectiveIsTop, i))
             array.push(lgTm,  array.get(largeRaw.effectiveTimes, i))
-            array.push(lgEff, array.includes(largeEffD.effectiveBars, b) or (largeEffD.pendingType != 0 and b == largeEffD.pendingBar))
+            array.push(lgEff, array.includes(largeEffD.effectiveBars, b))   // [أ7-1 · «المؤكَّد فقط» — حسم المالك] معلَّق largeEffD لم يعد يمنح الفعاليّة: القرارات على الفعّالة المؤكَّدة حصرًا
     // [#1 · إكمال الكبيرة] تفريغ الطرف الكبير **الجاري** (الموجة الجارية) كنقطة كبيرة حيّة — مكافئ معلّق المتوسطة (س~938). لولاه يبقى الطرف محبوسًا في largeBreak.max/minSince حتّى الاستئناف فلا تُرسَم الزرقاء الجارية (تعشيش ناقص: صغيرة+صفراء بلا زرقاء).
     float lgPendP   = na
     int   lgPendB   = na
@@ -1218,7 +1221,10 @@ if barstate.islast
         array.push(lgPrc, lgPendP)
         array.push(lgTop, lgPendTop)
         array.push(lgTm,  lgPendT)
-        array.push(lgEff, true)
+        // [أ7-1 · «المؤكَّد فقط» — حسم المالك 2026-07-17] الطرف الكبير الحيّ يُدفَع **غير فعّال** (كان true) ⇒ يخرج تلقائيًّا من
+        //   المستهلكين القراريّين السبعة (f_activeDir · المستويات · السيولة · lqB · stB · phB · الإشارات — كلّها ترشّح aEff)
+        //   ومن العرض (فرع eff فقط يُرسَم افتراضًا). الثمن المقبول: «غير محدّد» أصدق من قرار على نقطة تتحرّك.
+        array.push(lgEff, false)
     // ===== الرسم الموحّد: دوائر (🔵 فعّال · 🔴 غير فعّال) + وصل الفعّالة =====
     for lb in bigCircles
         label.delete(lb)
