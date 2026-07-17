@@ -437,6 +437,8 @@ int VIEW_WIN = 500
 // [الحَكَم] بار الطرف الكبير **المعلَّق** — يُرفَع عالميًّا (نمط `bActVg`) ليقرأه `f_degVis` في اللوحة: المصدر `lgPendB` محلّيّ في كتلة الكبيرة.
 //   يُستبعَد من العدّ (قاعدة الانتظار د06): طرف حيّ لم يتأكّد ⇒ ليس «بنيةً ظاهرة»، ويتحرّك كلّ بار ⇒ عدّه = repaint.
 var int lgPendBg = na
+// [رابعة السلّم] بار معلَّق الرابعة (نمط lgPendBg) — يُسنَد عند نداء f_deriveDegree للرابعة، تقرؤه اللوحة (wpDeg تستبعده).
+var int xlPendBg = na
 
 // ─── الدوال (مسؤولية واحدة لكلّ دالّة) ───
 // موضع اللوحة من اختيار نصّيّ.
@@ -560,8 +562,8 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays, bool impFromHist) =
     //   **العطب المُقاس (20/20):** كان يُقرَّر بـ`refDays` ⇒ «انزل فريمًا ↓» في **19/20** و«**مناسب ✓» = 0/20** — رغم بلوغ «3/3» ثلاث مرّات
     //   ⇒ اللوحة تناقض نفسها مرئيًّا («3/3» = مناسب بنصّ الدرس، مع «انزل ↓»). وكان يخالف **تعليق الكود نفسه** (س480: «الزمن مصادقة لا قرار»).
     //   ⚠️ `waveType`/`tradeNature` **تبقى على الزمن** — تصفان **أفق الصفقة** (مضاربة/سوينغ/استثمار) لا صلاحيّة الفريم. لا تخلطهما.
-    //   ⚠️ **`degShown > 3` غير قابل للبلوغ اليوم** (السقف 3 بنيويًّا: ثلاثة حدود جمع في `wpDeg`) ⇒ «اصعد ↑» **فرع نائم حتّى تُبنى الدرجة الرابعة**
-    //   (الأكبر من الزرقاء). مكتوبٌ الآن **عمدًا** ليعمل لحظة وجودها بلا لمس هذه الكتلة — لا صمت: اللوحة تُظهر «3 / 3» فيُرى السبب.
+    //   ✅ **`degShown > 3` صار قابل البلوغ (رابعة السلّم منفَّذة، spec_رابعة_السلم v3):** `wpDeg` صار **أربعة** حدود جمع (الرابعة `xl` من f_deriveDegree)
+    //   ⇒ «اصعد ↑» يُبلَغ حين تُظهر الرابعة قمّةً وقاعًا فعّالَين داخل VIEW_WIN (فريمات كبيرة/موجات عميقة — §6). المقام «/ 3» يبقى (= المثاليّ «مناسب»).
     string frameFit = degShown == 3 ? f_t("مناسب ✓", "Suitable ✓") : degShown > 3 ? f_t("اصعد فريمًا ↑", "Go higher TF ↑") : f_t("انزل فريمًا ↓", "Go lower TF ↓")
     color  frameBg  = degShown == 3 ? color.new(#089981, 0) : color.new(#FF9800, 0)
     string avgMedTxt = na(refDays) ? "—" : f_durTxt(refDays) + (usingWv ? f_t(" (التاريخيّة)", " (hist. wave)") : "")
@@ -1115,13 +1117,121 @@ if barstate.islast
             prevBs := bar
             prevPs := price
 
+// ═══ [رابعة السلّم · spec_رابعة_السلم v3 · معتمَدة أ14] الدرجة المعمّمة على الفهرس ═══
+//   بنية سلسلة درجة (9 حقول): 5 مصفوفات مخرَجات + 3 كائنات حالة متحوّلة (rawD/effD/brk) + بار المعلَّق.
+//   [§1-أ] الكائنات الثلاثة تُنشأ طازجةً لكلّ درجة داخل f_deriveDegree ⇒ الحلقة المفهرسة ممكنة (لا كائنات مثبَّتة الاسم = لا نسخ).
+type DegreeSeries
+    array<int>     bar
+    array<bool>    top
+    array<float>   prc
+    array<int>     tm
+    array<bool>    eff
+    jwd.DegreeLaws rawD
+    jwd.DegreeLaws effD
+    jwd.BreakProc  brk
+    int            pendBar
+
+// اشتقاق درجة N+1 من درجة N: كسر بنيويّ (feedBreak) على نقاط `pEff` الفعّالة، باتّجاه التقسيم المشترَك (sLefts/sTop/wdir0 — §3).
+//   [§1-ب] `pEff` قناع المستدعي: الكبيرة تُنادى بـ`mcEff` الخام (تطابق §7-1) · الرابعة بـ`lgEffLive` (§9). لا إسناد عالميّ داخلها (§1-هـ).
+//   الجسم = منطق كتلة الكبيرة القديمة حرفيًّا (إعادة تعمير، لا نسخ) — يخدم الكبيرة والرابعة والخامسة بمسار واحد.
+f_deriveDegree(array<int> pBar, array<bool> pTop, array<float> pPrc, array<int> pTm, array<bool> pEff, array<int> sLefts, array<bool> sTop, int wdir0) =>
+    jwd.DegreeLaws rawD = jwd.newDegreeLaws()
+    jwd.DegreeLaws effD = jwd.newDegreeLaws()
+    jwd.BreakProc  brk  = jwd.newBreakProc()
+    array<int>   oBar = array.new<int>()
+    array<float> oPrc = array.new<float>()
+    array<bool>  oTop = array.new<bool>()
+    array<int>   oTm  = array.new<int>()
+    array<bool>  oEff = array.new<bool>()
+    int nSegB = array.size(sLefts)
+    int nmcL  = array.size(pBar)
+    int prevSegDir = 0
+    for i = 0 to (nmcL > 0 ? nmcL - 1 : 0)
+        if nmcL > 0 and array.get(pEff, i)
+            bool  it = array.get(pTop, i)
+            float pp = array.get(pPrc, i)
+            int   bb = array.get(pBar, i)
+            int   tt = array.get(pTm, i)
+            int   segDir = wdir0
+            if nSegB > 0
+                for s = 0 to nSegB - 1
+                    if bb >= array.get(sLefts, s)
+                        segDir := array.get(sTop, s) ? -1 : 1
+                        break
+            if segDir != prevSegDir
+                if segDir == -1
+                    brk.refTopPrice   := na
+                    brk.minSincePrice := na
+                    brk.minSinceBar   := na
+                    brk.minSinceTime  := na
+                else
+                    brk.refBotPrice   := na
+                    brk.maxSincePrice := na
+                    brk.maxSinceBar   := na
+                    brk.maxSinceTime  := na
+                brk.started := false
+                brk.inCorr := false
+                brk.breakPivotP := na
+                prevSegDir := segDir
+            if segDir == -1
+                [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = brk.feedBreakDown(it, pp, bb, tt)
+                if n >= 1
+                    rawD.appendEff(t1, p1, b1, tm1)
+                    effD.feedPivot(t1, p1, b1, tm1, segDir)
+            else
+                [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = brk.feedBreakUp(it, pp, bb, tt)
+                if n >= 1
+                    rawD.appendEff(t1, p1, b1, tm1)
+                    effD.feedPivot(t1, p1, b1, tm1, segDir)
+    int nrL = array.size(rawD.effectiveBars)
+    for i = 0 to (nrL > 0 ? nrL - 1 : 0)
+        if nrL > 0
+            int b = array.get(rawD.effectiveBars, i)
+            array.push(oBar, b)
+            array.push(oPrc, array.get(rawD.effectivePrices, i))
+            array.push(oTop, array.get(rawD.effectiveIsTop, i))
+            array.push(oTm,  array.get(rawD.effectiveTimes, i))
+            array.push(oEff, array.includes(effD.effectiveBars, b))
+    float pendP   = na
+    int   pendB   = na
+    int   pendT   = na
+    bool  pendTop = false
+    int   curWaveDir = array.size(sTop) > 0 ? (array.get(sTop, 0) ? -1 : 1) : wdir0
+    if curWaveDir == 1
+        if brk.inCorr and not na(brk.minSincePrice)
+            pendP := brk.minSincePrice
+            pendB := brk.minSinceBar
+            pendT := brk.minSinceTime
+            pendTop := false
+        else if not na(brk.maxSincePrice)
+            pendP := brk.maxSincePrice
+            pendB := brk.maxSinceBar
+            pendT := brk.maxSinceTime
+            pendTop := true
+    else if curWaveDir == -1
+        if brk.inCorr and not na(brk.maxSincePrice)
+            pendP := brk.maxSincePrice
+            pendB := brk.maxSinceBar
+            pendT := brk.maxSinceTime
+            pendTop := true
+        else if not na(brk.minSincePrice)
+            pendP := brk.minSincePrice
+            pendB := brk.minSinceBar
+            pendT := brk.minSinceTime
+            pendTop := false
+    int wL0 = array.size(sLefts) > 0 ? array.get(sLefts, 0) : 0
+    if not na(pendP) and pendB >= wL0
+        array.push(oBar, pendB)
+        array.push(oPrc, pendP)
+        array.push(oTop, pendTop)
+        array.push(oTm,  pendT)
+        array.push(oEff, false)
+    DegreeSeries.new(oBar, oTop, oPrc, oTm, oEff, rawD, effD, brk, pendB)
+
 // ─── الكبيرة [درس07]: طريقتان خلف useBigBreak — (leg) حدود الموجات · (break) كسر المتوسطة الفعّالة (قاعدة ب) ───
 //   كلتاهما تحفظان التعشيش (كبيرة ⊂ متوسطة): leg عبر الإرساء، break بانتقاء قمّة متوسطة فعليّة. رسم موحّد من lgBar.
 // [نقلة3] largeDeg حُذف — كان لمسار leg النقيّ الملغى.
-var jwd.DegreeLaws   largeRaw   = jwd.newDegreeLaws()   // (break) الخام: مواضع أزواج الكسر (appendEff)
-var jwd.DegreeLaws   largeEffD  = jwd.newDegreeLaws()   // (break) الفعّالة: قانونا الدرجة (feedPivot)
-var jwd.BreakProc    largeBreak = jwd.newBreakProc()
-var array<int>   lgBar = array.new<int>()        // الكبيرة الموحّدة (الطريقتان) — مواضع الرسم
+var array<int>   lgBar = array.new<int>()        // الكبيرة الموحّدة — مواضع الرسم (تُسنَد من f_deriveDegree)
 var array<float> lgPrc = array.new<float>()
 var array<bool>  lgTop = array.new<bool>()
 var array<int>   lgTm  = array.new<int>()
@@ -1130,113 +1240,14 @@ var array<label> bigCircles = array.new<label>()
 var array<line>  bigLinks   = array.new<line>()
 var array<label> ewLabels   = array.new<label>()        // [⑥] وسوم عدّ إليوت (تُنظَّف كلّ islast)
 if barstate.islast
-    largeRaw   := jwd.newDegreeLaws()
-    largeEffD  := jwd.newDegreeLaws()
-    largeBreak := jwd.newBreakProc()
-    array.clear(lgBar)
-    array.clear(lgPrc)
-    array.clear(lgTop)
-    array.clear(lgTm)
-    array.clear(lgEff)
-    // ═══ [نقلة3 · حسم المستخدم 2026-07-17] المسار الموحّد الوحيد: الكبيرة **بالكسر من المتوسطة الفعّالة باتجاه كلّ موجة من حدّها** ═══
-    //   (د07: الاشتقاق بالكسر + أمانة التناوب معًا — كان فرع legLiveBreak الافتراضيّ حرفيًّا). حُذف فرعا useBigBreak (اتجاه
-    //   عالميّ واحد — ينحرف تاريخيًّا) وleg النقيّ (نقاط نادرة). فولباك الاتجاه صار curWdir0 (بنيويّ) بدل bigDir (هيستيريسيس ملفّق).
-    int nSegB = array.size(segLefts)
-    // [مُعمَّم · تعشيش+كثافة] السلسلة المتوسطة الكاملة (mcEff، كلّ التواريخ) عبر مُولِّد كسر **واحد متّصل** (كـuseBigBreak) لكن باتّجاه كلّ موجة من حدّ الـleg (segLeftTop) بدل تجزئة per-segment (كانت تُنتج ~نقطة واحدة لكلّ موجة أحاديّة الاتّجاه). عند كلّ حدّ موجة: تصفير حقول الاتّجاه الداخل + started=false ⇒ يُصدِر **بداية الموجة** (قمّة/قاع كبير مُعشَّش — قانون «بداية كلّ موجة قمّة/قاع كبير») ثمّ نقاط الكسر الداخليّة. حدود الـleg = مرجع الاتّجاه فقط.
-    int nmcL = array.size(mcBar)
-    int prevSegDir = 0
-    for i = 0 to (nmcL > 0 ? nmcL - 1 : 0)
-        if nmcL > 0 and array.get(mcEff, i)
-            bool  it = array.get(mcTop, i)
-            float pp = array.get(mcPrc, i)
-            int   bb = array.get(mcBar, i)
-            int   tt = array.get(mcTm, i)
-            int   segDir = curWdir0                        // [نقلة3] فولباك حين لا مقاطع = اتجاه السلسلة البنيويّ (كان bigDir الملفّق)
-            if nSegB > 0
-                for s = 0 to nSegB - 1                     // segLefts تنازليّ (0=الأحدث) ⇒ أوّل حدّ ≤ bb = الموجة الحاوية؛ الحدّ نفسه ⇒ بداية الموجة الأحدث
-                    if bb >= array.get(segLefts, s)
-                        // 🔴 [ف0-5 يَنسخ ف0-2] حارس `na(segLeftPx[s]) ? curWdir0 : …` **حُذِف**: كان يقي من `segLeftTop` **المفترَض**
-                        //   (`buildSegments` كانت تضبط `wLpx=na` و`wLtop=true` معًا حين لا يطابق `wL` حدَّ leg). تلك الدالّة **حُذِفت** (ت2-1)،
-                        //   و`segLeftTop` صار **حقيقةً مشتقّة** من `curSubTop` (المقطع الصاعد ينتهي بقمّة — من نفس حساب التقطيع).
-                        //   و`segLeftPx` (من `curSubPx`) **لا يحوي na قطّ** ⇒ الحارس كان **دائم الكذب** = فرع لا يُبلَغ. ⇒ **الجذر زال فزال الرقعة.**
-                        //   (`curWdir0` يبقى حيًّا — تستعمله لوحة الفريم مرجعًا لاتجاه السلسلة.)
-                        segDir := array.get(segLeftTop, s) ? -1 : 1
-                        break
-            if segDir != prevSegDir                        // حدّ موجة جديد ⇒ صفِّر حقول الاتّجاه الداخل + started=false (يُصدِر بداية الموجة، بلا تسرّب من موجة سابقة)
-                if segDir == -1
-                    largeBreak.refTopPrice   := na
-                    largeBreak.minSincePrice := na
-                    largeBreak.minSinceBar   := na
-                    largeBreak.minSinceTime  := na
-                else
-                    largeBreak.refBotPrice   := na
-                    largeBreak.maxSincePrice := na
-                    largeBreak.maxSinceBar   := na
-                    largeBreak.maxSinceTime  := na
-                largeBreak.started := false
-                largeBreak.inCorr := false                 // [v2.12.0] لا تسرّب طور التصحيح عبر حدّ الموجة (حقلا الطورين مستقلّان عن الاتّجاه)
-                largeBreak.breakPivotP := na
-                prevSegDir := segDir
-            // [أ7-3 · تنظيف] فرعا `n >= 2` **حُذفا**: تدقيق المدير أثبت أنّ feedBreakDown/Up تُصدِر نقطةً واحدةً كحدّ أقصى (n ≤ 1) ⇒ كانا كودًا ميّتًا.
-            if segDir == -1
-                [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
-                if n >= 1
-                    largeRaw.appendEff(t1, p1, b1, tm1)
-                    largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
-            else
-                [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakUp(it, pp, bb, tt)
-                if n >= 1
-                    largeRaw.appendEff(t1, p1, b1, tm1)
-                    largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
-    int nrL = array.size(largeRaw.effectiveBars)
-    for i = 0 to (nrL > 0 ? nrL - 1 : 0)
-        if nrL > 0
-            int b = array.get(largeRaw.effectiveBars, i)
-            array.push(lgBar, b)
-            array.push(lgPrc, array.get(largeRaw.effectivePrices, i))
-            array.push(lgTop, array.get(largeRaw.effectiveIsTop, i))
-            array.push(lgTm,  array.get(largeRaw.effectiveTimes, i))
-            array.push(lgEff, array.includes(largeEffD.effectiveBars, b))   // [أ7-1 · «المؤكَّد فقط» — حسم المالك] معلَّق largeEffD لم يعد يمنح الفعاليّة: القرارات على الفعّالة المؤكَّدة حصرًا
-    // [#1 · إكمال الكبيرة] تفريغ الطرف الكبير **الجاري** (الموجة الجارية) كنقطة كبيرة حيّة — مكافئ معلّق المتوسطة (س~938). لولاه يبقى الطرف محبوسًا في largeBreak.max/minSince حتّى الاستئناف فلا تُرسَم الزرقاء الجارية (تعشيش ناقص: صغيرة+صفراء بلا زرقاء).
-    float lgPendP   = na
-    int   lgPendB   = na
-    int   lgPendT   = na
-    bool  lgPendTop = false
-    // 🔴 [ف0-5] نفس تبسيط س~1025 **حرفيًّا** — 🔴 ثابتة: التعبيران يجب أن يبقيا **متطابقَين** (اتّجاه التفريغ = اتّجاه التغذية؛ وإلّا فُرِّغ المعلَّق باتجاه غير الذي غُذِّي به) ⇒ يُغيَّران **معًا** دائمًا.
-    int   curWaveDir = array.size(segLeftTop) > 0 ? (array.get(segLeftTop, 0) ? -1 : 1) : curWdir0   // [نقلة3] اتّجاه التفريغ = اتّجاه التغذية (segDir[0]) — الثابتة محفوظة، والفولباك curWdir0 (كان bigDir)
-    if curWaveDir == 1                                             // صعود: تصحيح ⇒ قاع كبير جارٍ (minSince) · دافعة ⇒ قمّة كبيرة جارية (maxSince)
-        if largeBreak.inCorr and not na(largeBreak.minSincePrice)
-            lgPendP := largeBreak.minSincePrice
-            lgPendB := largeBreak.minSinceBar
-            lgPendT := largeBreak.minSinceTime
-            lgPendTop := false
-        else if not na(largeBreak.maxSincePrice)
-            lgPendP := largeBreak.maxSincePrice
-            lgPendB := largeBreak.maxSinceBar
-            lgPendT := largeBreak.maxSinceTime
-            lgPendTop := true
-    else if curWaveDir == -1                                      // هبوط: تصحيح ⇒ قمّة كبيرة جارية (maxSince) · دافعة ⇒ قاع كبير جارٍ (minSince)
-        if largeBreak.inCorr and not na(largeBreak.maxSincePrice)
-            lgPendP := largeBreak.maxSincePrice
-            lgPendB := largeBreak.maxSinceBar
-            lgPendT := largeBreak.maxSinceTime
-            lgPendTop := true
-        else if not na(largeBreak.minSincePrice)
-            lgPendP := largeBreak.minSincePrice
-            lgPendB := largeBreak.minSinceBar
-            lgPendT := largeBreak.minSinceTime
-            lgPendTop := false
-    int lgWL0 = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
-    lgPendBg := lgPendB                                            // [الحَكَم] ارفعه عالميًّا لتقرأه اللوحة (`f_degVis` تستبعده) — المصدر محلّيّ هنا
-    if not na(lgPendP) and lgPendB >= lgWL0                        // الموجة الجارية فقط (bar ≥ wL) — تفاديًا لتكرار إرساء التاريخ
-        array.push(lgBar, lgPendB)
-        array.push(lgPrc, lgPendP)
-        array.push(lgTop, lgPendTop)
-        array.push(lgTm,  lgPendT)
-        // [أ7-1 · «المؤكَّد فقط» — حسم المالك 2026-07-17] الطرف الكبير الحيّ يُدفَع **غير فعّال** (كان true) ⇒ يخرج تلقائيًّا من
-        //   المستهلكين القراريّين السبعة (f_activeDir · المستويات · السيولة · lqB · stB · phB · الإشارات — كلّها ترشّح aEff)
-        //   ومن العرض (فرع eff فقط يُرسَم افتراضًا). الثمن المقبول: «غير محدّد» أصدق من قرار على نقطة تتحرّك.
-        array.push(lgEff, false)
+    // [رابعة السلّم] الكبيرة = f_deriveDegree(المتوسطة، mcEff **الخام** ⇒ تطابق §7-1). [§1-هـ] lgPendBg يُسنَد عند النداء لا داخل الدالّة.
+    DegreeSeries lgSeries = f_deriveDegree(mcBar, mcTop, mcPrc, mcTm, mcEff, segLefts, segLeftTop, curWdir0)
+    lgBar := lgSeries.bar
+    lgPrc := lgSeries.prc
+    lgTop := lgSeries.top
+    lgTm  := lgSeries.tm
+    lgEff := lgSeries.eff
+    lgPendBg := lgSeries.pendBar
     // ===== الرسم الموحّد: دوائر (🔵 فعّال · 🔴 غير فعّال) + وصل الفعّالة =====
     for lb in bigCircles
         label.delete(lb)
@@ -1560,6 +1571,10 @@ var array<bool> lgCovLg = array.new<bool>()
 var array<bool> scEffLive = array.new<bool>()
 var array<bool> mcEffLive = array.new<bool>()
 var array<bool> lgEffLive = array.new<bool>()
+// [رابعة السلّم] مصفوفات الدرجة الرابعة التي تقرؤها اللوحة (wpDeg) حصرًا = bar/top/eff. (prc/tm في xlSeries، تُستخرَج حين يحتاجها مستهلك لاحق — لا تُخزَّن الآن تفاديًا لـCE10237.)
+var array<int>   xlBar = array.new<int>()
+var array<bool>  xlTop = array.new<bool>()
+var array<bool>  xlEff = array.new<bool>()
 if barstate.islast
     scCovLg := f_covLater(scBar, scTop, scPrc)
     mcCovLg := f_covLater(mcBar, mcTop, mcPrc)
@@ -1567,6 +1582,14 @@ if barstate.islast
     scEffLive := f_effLive(scEff, scCovLg)
     mcEffLive := f_effLive(mcEff, mcCovLg)
     lgEffLive := f_effLive(lgEff, lgCovLg)
+    // ═══ [رابعة السلّم · ladderDepth=4] الدرجة الرابعة (الأكبر) = f_deriveDegree(الكبيرة، lgEffLive — §9 القناع الحيّ لا الخام) ═══
+    //   نفس الدالّة المعمّمة كالكبيرة، الفرق: الدخل (الكبيرة) والقناع (effLive). [§1-هـ] الإسناد العالميّ xlPendBg عند النداء.
+    //   المستهلك الوحيد = عدّ اللوحة wpDeg (§5) ⇒ يُحيي فرع «اصعد ↑» النائم. لا خطوط/مناطق (طبقة عدّ صرفة).
+    DegreeSeries xlSeries = f_deriveDegree(lgBar, lgTop, lgPrc, lgTm, lgEffLive, segLefts, segLeftTop, curWdir0)
+    xlBar := xlSeries.bar
+    xlTop := xlSeries.top
+    xlEff := xlSeries.eff
+    xlPendBg := xlSeries.pendBar
 
 // [أداء P3] cache اتجاه المستوى لكلّ درجة: f_activeDir حلقة على كامل الشارت، كانت تُستدعى ~11× بنفس الوسائط (السلاسل نهائيّة بعد س1255) ⇒ تُحسَب مرّة عند islast وتُقرأ في كلّ الكتل
 var int bActVg = 0
@@ -2238,7 +2261,7 @@ if showFrameHelper and barstate.islast
     //   الموجة استحال أن يحكم عليها. ⇒ النافذة = **ما يُرى على الشاشة** («الدرجات **الظاهرة**» — حسم المستخدم)، مستقلّةً عن أيّ درجة.
     //   `wlB` يبقى لـ«موجات دافعة» و«زمن الموجة» (يخصّان **الموجة الجارية** بحقّ).
     int   cntB   = math.max(bar_index - VIEW_WIN + 1, 0)
-    int   wpDeg  = f_degVis(scBar, scTop, scEff, cntB, na) + f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + f_degVis(lgBar, lgTop, lgEff, cntB, lgPendBg)
+    int   wpDeg  = f_degVis(scBar, scTop, scEff, cntB, na) + f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + f_degVis(lgBar, lgTop, lgEff, cntB, lgPendBg) + f_degVis(xlBar, xlTop, xlEff, cntB, xlPendBg)   // [رابعة السلّم] الحدّ الرابع ⇒ degShown يبلغ 4 ⇒ «اصعد ↑»
     // 🔴 [حسم المستخدم] قِس الدافعة داخل **الموجة الجارية**؛ فإن لم تتوفّر بيانات ⇒ ارجع إلى **الموجة التاريخيّة** (المقطع المكتمل قبلها).
     //   المرجع لكلّ مقطع = **اتجاهه هو**: الجارية `curWdir` (= `buildWave(lastL, wRb)`) · التاريخيّة من نوع حدّها (`segLeftTop[1]`: قمّة ⇒ هابطة).
     //   ⚠️ الثابتة: **النافذة والمرجع على المدى نفسه** — وإلّا قِيس مدًى وعُدّ في آخر (عطب ف0-2 في موضع آخر).
