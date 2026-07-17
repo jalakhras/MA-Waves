@@ -9,7 +9,13 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.48.0 — [م2-5 · التنظيف: حذف الكناري 🔬 ومدخلات النافذة الخاملة — المؤشّر على المحرّك الأماميّ صافيًا] ═══
+// ═══ الإصدار: v2.49.0 — [🔴 النقلة 3 · إلغاء leg نهائيًّا: الكبيرة بالكسر وحدها + موت الرقم الملفّق (waveScaleDays⇒bigDir)] ═══
+//   v2.49.0 [نقلة3 · spec_نقلة3_إلغاء_leg · اعتماد المستخدم 2026-07-17 (نقض v2.16.1 معلَن — حجّته استُنفدت)]: مسار الكبيرة
+//     **واحد موحّد** = الكسر من المتوسطة الفعّالة باتجاه كلّ موجة من حدّها (كان فرع legLiveBreak الافتراضيّ — يحمل أمانة
+//     التناوب وهو الكسر د07 معًا). حُذف: فرع useBigBreak (اتجاه عالميّ — ينحرف تاريخيًّا) · فرع leg النقيّ + largeDeg ·
+//     مدخلا useBigBreak/legLiveBreak · محرّك leg كلّه (var leg + jwf.legInputs) · **waveScaleDays=21 + LEG_MIN_RATIO**
+//     (آخر موطن للرقم الملفّق). bigDir (هيستيريسيس) استُبدل بـ**curWdir0** (اتجاه السلسلة البنيويّ) في مواضعه الستّة
+//     المحصورة (فولباك segDir · curWaveDir · بذرات f_activeDir ×3 · حارس entry). يتزامن مع JW_Foundation/4 (مكتبة نطاقات نقيّة).
 //   v2.48.0 [م2-5 · spec_نقلة2_محرك_أمامي §2]: أدّى الكناري (م2-0) غرضه (برهن النمطين ثمّ حرس النقلات) ⇒ حُذف كاملًا
 //     (كائنات var + التلقيم + ساقا B/C′ + اللوحة الصفراء). وحُذفت مدخلات نافذة التمريرة 1 الخاملة (WAVE_WIN/waveMode/histBars —
 //     البذرة من كلّ التاريخ والعرض يقصّه histDepth). `subCapHit` باقٍ (أُحيي في م2-4 إنذارَ قصّ buffer). التالي: حذف
@@ -236,8 +242,7 @@ f_t(string ar, string en) => uiLang == "AR / عربيّة" ? ar : en   // مبد
 // ══════════════════════════ ط0 · 🌊 الموجة والإطار / Wave & Frame ══════════════════════════
 string grpWave = "ط0 · 🌊 الموجة والإطار / Wave & Frame"
 // [م2-5] waveMode/histBars حُذفا: كانا يضبطان نافذة بحث التمريرة 1 التي أزالها المحرّك الأماميّ (البذرة من كلّ التاريخ).
-float  waveScaleDays = input.float(21.0, "Leg threshold scale (days) / مقياس عتبة الساق (أيّام)", minval = 1.0, step = 1.0, group = grpWave, tooltip = "⚠️ [ف0-5] **لا يحدّد الموجة** (كان يفعل — أُلغي). يقيس **عتبة محرّك leg (`legTh`) و`bigDir`** فقط، وهما يغذّيان حدود الموجات **التاريخيّة**.\n🔴 **لا سند نصّيّ للـ21**: «21 يوم/3 أسابيع» = **صفر تطابُق** في كلّ التفريغات، والدرس يقول النقيض: «مليش دعوة بمدّة الموجة كاملة على بعض» [L03] · «ما تقدرش تحكمها بمدّة زمنيّة» [مصعب2]. مُجدوَل للإزالة (التمريرة 2 + ف0-3).\n⚠️ خامل على D فأعلى (`max(50, 21×~1) ≡ 50`).")
-float  LEG_MIN_RATIO = 0.45      // [ثابت داخليّ] عتبة انعكاس الساق = هذه النسبة × السعة. مدموجة في waveScaleDays (مقبض واحد). السعة دائمًا زمنيّة (تقيس الجلسة).
+// [نقلة3] waveScaleDays/LEG_MIN_RATIO حُذفا — آخر موطن للرقم الملفّق (21 يومًا) زال مع محرّك leg.
 // 🔴 [ت2-1] `bigMinSwings` **حُذِف**: مستهلِكه الوحيد كان `legStep` (حُذِف مع `buildSegments`) ⇒ صار **مدخلًا يتنوّع بلا أثر على المخرَج** = انحطاط مرئيّ للمستخدم. كبح السيقان الصغيرة تتولّاه الآن **قوانين الدرجات** (الشمعتان/النويز/الفعاليّة) على المقاطع.
 int    histDepth = input.int(7, "History depth (legs) / عمق التواريخ (سيقان)", minval = 1, maxval = 12, group = grpWave, tooltip = "كم ساق leg سابقة تُرسَم وتُحلَّل خلف الموجة (تاريخ التاريخ). كلّ ساق = موجة واحدة.")
 bool   useHohN  = input.bool(false, "Prior-history by candle count / تاريخ التاريخ بعدد الشموع", group = grpWave, tooltip = "مفعّل: N شمعة. مطفأ: بطول الموجة التاريخية قبله.")
@@ -278,8 +283,7 @@ string nonEffCircleSize = input.string("Fine", "Non-effective medium size / حج
 
 // ══════════════════════════ ط1 · 🔵 الكبيرة / Large ══════════════════════════
 string grpLarge = "ط1 · 🔵 الكبيرة / Large"
-bool   useBigBreak = input.bool(false, "Large by break-from-medium (else leg) / استخراج الكبيرة بالكسر من المتوسطة (وإلّا leg)", group = grpLarge, tooltip = "[قرار المستخدم 2026-07-12 · تحقّق فيديويّ] الافتراض الآن **مطفأ (leg)**: الكبيرة = حدود الموجات (أطراف الـleg) باتّجاه لكلّ موجة (segDir) + بداية مضمونة + الموجة الجارية بالكسر (legLiveBreak) ⇒ أمين للتناوب التاريخيّ والطريقة اليدويّة (مصعب2). مفعّل: كسر المتوسطة باتّجاه واحد (bigDir) — أنعم للموجة الجارية لكن ينحرف تاريخيًّا على الموجات المعاكسة.")
-bool   legLiveBreak = input.bool(true, "leg mode: live wave by break / في وضع leg: الموجة الجارية بالكسر", group = grpLarge, tooltip = "يعمل فقط في وضع leg (useBigBreak مطفأ). مشغَّل: الكبيرة التاريخيّة من حدود الـleg (ثابتة)، والموجة الجارية (بعد آخر حدّ leg) تُستخرَج كبيرتها بالكسر من المتوسطة للأمام. مطفأ: leg نقيّ (الموجة الجارية = حدّها فقط).")
+// [نقلة3] useBigBreak/legLiveBreak حُذفا — مسار واحد موحّد: الكبيرة بالكسر من المتوسطة باتجاه كلّ موجة (د07 + حسم 2026-07-17).
 bool   showLarge  = input.bool(true, "Large pivots / الكبيرة", group = grpLarge)
 bool   showNonEffBig = input.bool(false, "Non-effective large pivots / الكبيرة غير الفعّالة", group = grpLarge, tooltip = "غير الفعّالة — مطفأة افتراضيًّا (لا تُرسم أصلًا). فعّلها لرؤيتها.")
 bool   linkLarge  = input.bool(true, "Link large pivots / وصل الكبيرة", group = grpLarge)
@@ -429,12 +433,11 @@ f_dark(color c) =>
 
 // ═════════ [درس04] محرّك الـleg — النواة في مكتبة JW_Foundation (حدود الموجة من السعر، عتبة نسبيّة زمنيّة لا ATR) ═════════
 //   [ت2-1] لم يبقَ من المحرّك إلّا `legInputs` ⇒ **`bigDir`** (كلّ بار بلا شرط: ta.* + هيستيريسيس). حدود الموجة صارت من الانقلابات لا من السيقان.
-var jwf.LegEngine leg = jwf.newLegEngine()
 // 🔴 [ت2-1] `legStep` **حُذِف**: كان يبني `leg.bars/ps/tops` (حدود السيقان) — ومستهلِكها **الوحيد** كان `buildSegments` التي حُذِفت
 //   (السلسلة صارت كلّها من الانقلابات). ⇒ صار يبني حالةً **لا تُقرأ** (دفع + `array.shift` كلّ بار) = كود ميّت.
 //   ⇒ سقط معه `legTh` و`LEG_MIN_RATIO` و`bigMinSwings` (كان **مدخل مستخدِم بلا أيّ أثر على المخرَج** بعد الحذف = انحطاط مرئيّ).
 // ⚠️ **يبقى `legInputs`**: مستهلِكه الحقيقيّ = **`bigDir`** (يقرؤه `segDir`/`curWaveDir`/الاستنتاجات). ⇒ هنا **وحده** بقي `waveScaleDays` حيًّا (فجوة ف0-3، تُعالَج مستقلّةً).
-[legTh, bigDir] = jwf.legInputs(leg, waveScaleDays, LEG_MIN_RATIO)
+// [نقلة3] jwf.legInputs/bigDir حُذفا — الاتجاه البنيويّ curWdir0 حلّ محلّ الهيستيريسيس، والرقم الملفّق waveScaleDays مات نهائيًّا.
 
 // [ط0 · ف0-5] f_waveLeft ⇒ **نُسِخت**. البديل `jwf.waveLeftStruct(waveMode, histBars, WAVE_WIN)` ⇒ [wL, wLpx, wLtop] — يُستدعى مرّةً (س~392) ويُخزَّن في wL0/wL0px/wL0top.
 
@@ -1094,7 +1097,7 @@ if barstate.islast
 
 // ─── الكبيرة [درس07]: طريقتان خلف useBigBreak — (leg) حدود الموجات · (break) كسر المتوسطة الفعّالة (قاعدة ب) ───
 //   كلتاهما تحفظان التعشيش (كبيرة ⊂ متوسطة): leg عبر الإرساء، break بانتقاء قمّة متوسطة فعليّة. رسم موحّد من lgBar.
-var jwd.DegreeLaws   largeDeg   = jwd.newDegreeLaws()   // (leg) feedPivot على حدود الموجات
+// [نقلة3] largeDeg حُذف — كان لمسار leg النقيّ الملغى.
 var jwd.DegreeLaws   largeRaw   = jwd.newDegreeLaws()   // (break) الخام: مواضع أزواج الكسر (appendEff)
 var jwd.DegreeLaws   largeEffD  = jwd.newDegreeLaws()   // (break) الفعّالة: قانونا الدرجة (feedPivot)
 var jwd.BreakProc    largeBreak = jwd.newBreakProc()
@@ -1107,7 +1110,6 @@ var array<label> bigCircles = array.new<label>()
 var array<line>  bigLinks   = array.new<line>()
 var array<label> ewLabels   = array.new<label>()        // [⑥] وسوم عدّ إليوت (تُنظَّف كلّ islast)
 if barstate.islast
-    largeDeg   := jwd.newDegreeLaws()
     largeRaw   := jwd.newDegreeLaws()
     largeEffD  := jwd.newDegreeLaws()
     largeBreak := jwd.newBreakProc()
@@ -1116,132 +1118,77 @@ if barstate.islast
     array.clear(lgTop)
     array.clear(lgTm)
     array.clear(lgEff)
-    if useBigBreak
-        // ===== طريقة الكسر: المتوسطة الفعّالة (mcEff) → قاعدة(ب) → الكبيرة (نفس محرّك f_feedMedium مستوًى أعلى) =====
-        int nmc = array.size(mcBar)
-        for i = 0 to (nmc > 0 ? nmc - 1 : 0)
-            if nmc > 0 and array.get(mcEff, i)
-                bool  it = array.get(mcTop, i)
-                float pp = array.get(mcPrc, i)
-                int   bb = array.get(mcBar, i)
-                int   tt = array.get(mcTm, i)
-                if bigDir == -1
-                    [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
-                    if n >= 1
-                        largeRaw.appendEff(t1, p1, b1, tm1)
-                        largeEffD.feedPivot(t1, p1, b1, tm1, bigDir)
-                    if n >= 2
-                        largeRaw.appendEff(t2, p2, b2, tm2)
-                        largeEffD.feedPivot(t2, p2, b2, tm2, bigDir)
+    // ═══ [نقلة3 · حسم المستخدم 2026-07-17] المسار الموحّد الوحيد: الكبيرة **بالكسر من المتوسطة الفعّالة باتجاه كلّ موجة من حدّها** ═══
+    //   (د07: الاشتقاق بالكسر + أمانة التناوب معًا — كان فرع legLiveBreak الافتراضيّ حرفيًّا). حُذف فرعا useBigBreak (اتجاه
+    //   عالميّ واحد — ينحرف تاريخيًّا) وleg النقيّ (نقاط نادرة). فولباك الاتجاه صار curWdir0 (بنيويّ) بدل bigDir (هيستيريسيس ملفّق).
+    int nSegB = array.size(segLefts)
+    // [مُعمَّم · تعشيش+كثافة] السلسلة المتوسطة الكاملة (mcEff، كلّ التواريخ) عبر مُولِّد كسر **واحد متّصل** (كـuseBigBreak) لكن باتّجاه كلّ موجة من حدّ الـleg (segLeftTop) بدل تجزئة per-segment (كانت تُنتج ~نقطة واحدة لكلّ موجة أحاديّة الاتّجاه). عند كلّ حدّ موجة: تصفير حقول الاتّجاه الداخل + started=false ⇒ يُصدِر **بداية الموجة** (قمّة/قاع كبير مُعشَّش — قانون «بداية كلّ موجة قمّة/قاع كبير») ثمّ نقاط الكسر الداخليّة. حدود الـleg = مرجع الاتّجاه فقط.
+    int nmcL = array.size(mcBar)
+    int prevSegDir = 0
+    for i = 0 to (nmcL > 0 ? nmcL - 1 : 0)
+        if nmcL > 0 and array.get(mcEff, i)
+            bool  it = array.get(mcTop, i)
+            float pp = array.get(mcPrc, i)
+            int   bb = array.get(mcBar, i)
+            int   tt = array.get(mcTm, i)
+            int   segDir = curWdir0                        // [نقلة3] فولباك حين لا مقاطع = اتجاه السلسلة البنيويّ (كان bigDir الملفّق)
+            if nSegB > 0
+                for s = 0 to nSegB - 1                     // segLefts تنازليّ (0=الأحدث) ⇒ أوّل حدّ ≤ bb = الموجة الحاوية؛ الحدّ نفسه ⇒ بداية الموجة الأحدث
+                    if bb >= array.get(segLefts, s)
+                        // 🔴 [ف0-5 يَنسخ ف0-2] حارس `na(segLeftPx[s]) ? curWdir0 : …` **حُذِف**: كان يقي من `segLeftTop` **المفترَض**
+                        //   (`buildSegments` كانت تضبط `wLpx=na` و`wLtop=true` معًا حين لا يطابق `wL` حدَّ leg). تلك الدالّة **حُذِفت** (ت2-1)،
+                        //   و`segLeftTop` صار **حقيقةً مشتقّة** من `curSubTop` (المقطع الصاعد ينتهي بقمّة — من نفس حساب التقطيع).
+                        //   و`segLeftPx` (من `curSubPx`) **لا يحوي na قطّ** ⇒ الحارس كان **دائم الكذب** = فرع لا يُبلَغ. ⇒ **الجذر زال فزال الرقعة.**
+                        //   (`curWdir0` يبقى حيًّا — تستعمله لوحة الفريم مرجعًا لاتجاه السلسلة.)
+                        segDir := array.get(segLeftTop, s) ? -1 : 1
+                        break
+            if segDir != prevSegDir                        // حدّ موجة جديد ⇒ صفِّر حقول الاتّجاه الداخل + started=false (يُصدِر بداية الموجة، بلا تسرّب من موجة سابقة)
+                if segDir == -1
+                    largeBreak.refTopPrice   := na
+                    largeBreak.minSincePrice := na
+                    largeBreak.minSinceBar   := na
+                    largeBreak.minSinceTime  := na
                 else
-                    [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakUp(it, pp, bb, tt)
-                    if n >= 1
-                        largeRaw.appendEff(t1, p1, b1, tm1)
-                        largeEffD.feedPivot(t1, p1, b1, tm1, bigDir)
-                    if n >= 2
-                        largeRaw.appendEff(t2, p2, b2, tm2)
-                        largeEffD.feedPivot(t2, p2, b2, tm2, bigDir)
-        int nr = array.size(largeRaw.effectiveBars)
-        for i = 0 to (nr > 0 ? nr - 1 : 0)
-            if nr > 0
-                int b = array.get(largeRaw.effectiveBars, i)
-                array.push(lgBar, b)
-                array.push(lgPrc, array.get(largeRaw.effectivePrices, i))
-                array.push(lgTop, array.get(largeRaw.effectiveIsTop, i))
-                array.push(lgTm,  array.get(largeRaw.effectiveTimes, i))
-                array.push(lgEff, array.includes(largeEffD.effectiveBars, b) or (largeEffD.pendingType != 0 and b == largeEffD.pendingBar))
-    else
-        // ===== طريقة leg =====
-        int nSegB = array.size(segLefts)
-        if legLiveBreak
-            // [مُعمَّم · تعشيش+كثافة] السلسلة المتوسطة الكاملة (mcEff، كلّ التواريخ) عبر مُولِّد كسر **واحد متّصل** (كـuseBigBreak) لكن باتّجاه كلّ موجة من حدّ الـleg (segLeftTop) بدل تجزئة per-segment (كانت تُنتج ~نقطة واحدة لكلّ موجة أحاديّة الاتّجاه). عند كلّ حدّ موجة: تصفير حقول الاتّجاه الداخل + started=false ⇒ يُصدِر **بداية الموجة** (قمّة/قاع كبير مُعشَّش — قانون «بداية كلّ موجة قمّة/قاع كبير») ثمّ نقاط الكسر الداخليّة. حدود الـleg = مرجع الاتّجاه فقط.
-            int nmcL = array.size(mcBar)
-            int prevSegDir = 0
-            for i = 0 to (nmcL > 0 ? nmcL - 1 : 0)
-                if nmcL > 0 and array.get(mcEff, i)
-                    bool  it = array.get(mcTop, i)
-                    float pp = array.get(mcPrc, i)
-                    int   bb = array.get(mcBar, i)
-                    int   tt = array.get(mcTm, i)
-                    int   segDir = bigDir                          // فولباك حين لا مقاطع
-                    if nSegB > 0
-                        for s = 0 to nSegB - 1                     // segLefts تنازليّ (0=الأحدث) ⇒ أوّل حدّ ≤ bb = الموجة الحاوية؛ الحدّ نفسه ⇒ بداية الموجة الأحدث
-                            if bb >= array.get(segLefts, s)
-                                // 🔴 [ف0-5 يَنسخ ف0-2] حارس `na(segLeftPx[s]) ? curWdir0 : …` **حُذِف**: كان يقي من `segLeftTop` **المفترَض**
-                                //   (`buildSegments` كانت تضبط `wLpx=na` و`wLtop=true` معًا حين لا يطابق `wL` حدَّ leg). تلك الدالّة **حُذِفت** (ت2-1)،
-                                //   و`segLeftTop` صار **حقيقةً مشتقّة** من `curSubTop` (المقطع الصاعد ينتهي بقمّة — من نفس حساب التقطيع).
-                                //   و`segLeftPx` (من `curSubPx`) **لا يحوي na قطّ** ⇒ الحارس كان **دائم الكذب** = فرع لا يُبلَغ. ⇒ **الجذر زال فزال الرقعة.**
-                                //   (`curWdir0` يبقى حيًّا — تستعمله لوحة الفريم مرجعًا لاتجاه السلسلة.)
-                                segDir := array.get(segLeftTop, s) ? -1 : 1
-                                break
-                    if segDir != prevSegDir                        // حدّ موجة جديد ⇒ صفِّر حقول الاتّجاه الداخل + started=false (يُصدِر بداية الموجة، بلا تسرّب من موجة سابقة)
-                        if segDir == -1
-                            largeBreak.refTopPrice   := na
-                            largeBreak.minSincePrice := na
-                            largeBreak.minSinceBar   := na
-                            largeBreak.minSinceTime  := na
-                        else
-                            largeBreak.refBotPrice   := na
-                            largeBreak.maxSincePrice := na
-                            largeBreak.maxSinceBar   := na
-                            largeBreak.maxSinceTime  := na
-                        largeBreak.started := false
-                        largeBreak.inCorr := false                 // [v2.12.0] لا تسرّب طور التصحيح عبر حدّ الموجة (حقلا الطورين مستقلّان عن الاتّجاه)
-                        largeBreak.breakPivotP := na
-                        prevSegDir := segDir
-                    if segDir == -1
-                        [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
-                        if n >= 1
-                            largeRaw.appendEff(t1, p1, b1, tm1)
-                            largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
-                        if n >= 2
-                            largeRaw.appendEff(t2, p2, b2, tm2)
-                            largeEffD.feedPivot(t2, p2, b2, tm2, segDir)
-                    else
-                        [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakUp(it, pp, bb, tt)
-                        if n >= 1
-                            largeRaw.appendEff(t1, p1, b1, tm1)
-                            largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
-                        if n >= 2
-                            largeRaw.appendEff(t2, p2, b2, tm2)
-                            largeEffD.feedPivot(t2, p2, b2, tm2, segDir)
-            int nrL = array.size(largeRaw.effectiveBars)
-            for i = 0 to (nrL > 0 ? nrL - 1 : 0)
-                if nrL > 0
-                    int b = array.get(largeRaw.effectiveBars, i)
-                    array.push(lgBar, b)
-                    array.push(lgPrc, array.get(largeRaw.effectivePrices, i))
-                    array.push(lgTop, array.get(largeRaw.effectiveIsTop, i))
-                    array.push(lgTm,  array.get(largeRaw.effectiveTimes, i))
-                    array.push(lgEff, array.includes(largeEffD.effectiveBars, b) or (largeEffD.pendingType != 0 and b == largeEffD.pendingBar))
-        else
-            // [leg نقيّ · احتياط] حدود الموجات فقط (نقاط قليلة على أطراف الأرجل، بلا اشتقاق من المتوسطة)
-            if nSegB > 0
-                for ci = 0 to nSegB - 1
-                    int s  = nSegB - 1 - ci                       // الأقدم→الأحدث
-                    int b  = array.get(segLefts, s)
-                    int lo = bar_index - b
-                    if lo >= 0 and not na(array.get(segLeftPx, s))
-                        largeDeg.feedPivot(array.get(segLeftTop, s), array.get(segLeftPx, s), b, time[lo], bigDir)
-            if nSegB > 0
-                for ci = 0 to nSegB - 1
-                    int s  = nSegB - 1 - ci
-                    int b  = array.get(segLefts, s)
-                    float p = array.get(segLeftPx, s)
-                    int lo = bar_index - b
-                    if lo >= 0 and not na(p)
-                        array.push(lgBar, b)
-                        array.push(lgPrc, p)
-                        array.push(lgTop, array.get(segLeftTop, s))
-                        array.push(lgTm,  time[lo])
-                        array.push(lgEff, array.includes(largeDeg.effectiveBars, b) or (largeDeg.pendingType != 0 and b == largeDeg.pendingBar))
+                    largeBreak.refBotPrice   := na
+                    largeBreak.maxSincePrice := na
+                    largeBreak.maxSinceBar   := na
+                    largeBreak.maxSinceTime  := na
+                largeBreak.started := false
+                largeBreak.inCorr := false                 // [v2.12.0] لا تسرّب طور التصحيح عبر حدّ الموجة (حقلا الطورين مستقلّان عن الاتّجاه)
+                largeBreak.breakPivotP := na
+                prevSegDir := segDir
+            if segDir == -1
+                [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakDown(it, pp, bb, tt)
+                if n >= 1
+                    largeRaw.appendEff(t1, p1, b1, tm1)
+                    largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
+                if n >= 2
+                    largeRaw.appendEff(t2, p2, b2, tm2)
+                    largeEffD.feedPivot(t2, p2, b2, tm2, segDir)
+            else
+                [n, t1, p1, b1, tm1, t2, p2, b2, tm2] = largeBreak.feedBreakUp(it, pp, bb, tt)
+                if n >= 1
+                    largeRaw.appendEff(t1, p1, b1, tm1)
+                    largeEffD.feedPivot(t1, p1, b1, tm1, segDir)
+                if n >= 2
+                    largeRaw.appendEff(t2, p2, b2, tm2)
+                    largeEffD.feedPivot(t2, p2, b2, tm2, segDir)
+    int nrL = array.size(largeRaw.effectiveBars)
+    for i = 0 to (nrL > 0 ? nrL - 1 : 0)
+        if nrL > 0
+            int b = array.get(largeRaw.effectiveBars, i)
+            array.push(lgBar, b)
+            array.push(lgPrc, array.get(largeRaw.effectivePrices, i))
+            array.push(lgTop, array.get(largeRaw.effectiveIsTop, i))
+            array.push(lgTm,  array.get(largeRaw.effectiveTimes, i))
+            array.push(lgEff, array.includes(largeEffD.effectiveBars, b) or (largeEffD.pendingType != 0 and b == largeEffD.pendingBar))
     // [#1 · إكمال الكبيرة] تفريغ الطرف الكبير **الجاري** (الموجة الجارية) كنقطة كبيرة حيّة — مكافئ معلّق المتوسطة (س~938). لولاه يبقى الطرف محبوسًا في largeBreak.max/minSince حتّى الاستئناف فلا تُرسَم الزرقاء الجارية (تعشيش ناقص: صغيرة+صفراء بلا زرقاء).
     float lgPendP   = na
     int   lgPendB   = na
     int   lgPendT   = na
     bool  lgPendTop = false
     // 🔴 [ف0-5] نفس تبسيط س~1025 **حرفيًّا** — 🔴 ثابتة: التعبيران يجب أن يبقيا **متطابقَين** (اتّجاه التفريغ = اتّجاه التغذية؛ وإلّا فُرِّغ المعلَّق باتجاه غير الذي غُذِّي به) ⇒ يُغيَّران **معًا** دائمًا.
-    int   curWaveDir = (not useBigBreak and legLiveBreak and array.size(segLeftTop) > 0) ? (array.get(segLeftTop, 0) ? -1 : 1) : bigDir   // [مراجعة] اتّجاه التفريغ = اتّجاه تغذية largeBreak: legLiveBreak غُذِّي بـsegDir[0] (لا bigDir ذي الـhysteresis) · useBigBreak بـbigDir
+    int   curWaveDir = array.size(segLeftTop) > 0 ? (array.get(segLeftTop, 0) ? -1 : 1) : curWdir0   // [نقلة3] اتّجاه التفريغ = اتّجاه التغذية (segDir[0]) — الثابتة محفوظة، والفولباك curWdir0 (كان bigDir)
     if curWaveDir == 1                                             // صعود: تصحيح ⇒ قاع كبير جارٍ (minSince) · دافعة ⇒ قمّة كبيرة جارية (maxSince)
         if largeBreak.inCorr and not na(largeBreak.minSincePrice)
             lgPendP := largeBreak.minSincePrice
@@ -1550,9 +1497,9 @@ var int bActVg = 0
 var int mActVg = 0
 var int sActVg = 0
 if barstate.islast
-    bActVg := f_activeDir(lgBar, lgTop, lgEff, bigDir)
-    mActVg := f_activeDir(mcBar, mcTop, mcEff, bigDir)
-    sActVg := f_activeDir(scBar, scTop, scEff, bigDir)
+    bActVg := f_activeDir(lgBar, lgTop, lgEff, curWdir0)   // [نقلة3] بذرة الـlatch = اتجاه السلسلة البنيويّ (كان bigDir الملفّق)
+    mActVg := f_activeDir(mcBar, mcTop, mcEff, curWdir0)
+    sActVg := f_activeDir(scBar, scTop, scEff, curWdir0)
 
 var line bigLevelLine = na
 var line medLevelLine = na
@@ -1806,7 +1753,7 @@ if barstate.islast
     int    stB = jwc.f_liqStrength(lgBar, lgTop, lgEff, bigLvlDir)
     int    stM = jwc.f_liqStrength(mcBar, mcTop, mcEff, medLvlDir)
     int    stS = jwc.f_liqStrength(dB, dT, dE, smallLvlDir)
-    int    entry = bigDir == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير)
+    int    entry = curWdir0 == 0 ? 0 : (medLvlDir == 1 and bigLvlDir == 1) ? 1 : (medLvlDir == -1 and bigLvlDir == -1) ? -1 : 2   // الدخول من الاتجاه الفعّال للمستوى (متوسط+كبير) · [نقلة3] حارس ما-قبل-البذرة = curWdir0 (كان bigDir)
     if showConc
         table.cell(concTbl, 0, 3, f_t("قوة السيولة", "Liquidity strength"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
     if showConc
