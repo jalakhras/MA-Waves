@@ -9,7 +9,14 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.50.0 — [أ7 · «المؤكَّد فقط» عرضًا وحسابًا (قرارا المالك) + تنظيف تدقيق الكبيرة + تحصين المتوسطة] ═══
+// ═══ الإصدار: v2.51.0 — [أ10 · قناع effLive للسيولة: زوج السيولة يرى «الفعّالة المؤكَّدة غير المُغطّاة» فقط] ═══
+//   v2.51.0 [أ10 · اعتماد المدير لإصلاح أ9 (ت5) · مؤشّر فقط لا نشر مكتبة]: الجذر — `f_liqPairAt` كان يرشّح الزوج من
+//     `aEff` الخام بينما الرسم/العدّ/الإشارات تستبعد المُغطّى (د05) ⇒ يلتقط نقطة **فعّالة-مُغطّاة** (شبح بلا دائرة)
+//     فيرسم ميلًا انهياريًّا (BTC·60: −1257/شمعة ⇒ إسقاط سالب −14,936). الإصلاح: قناع `effLive = eff ∧ ¬covered`
+//     (من `f_coveredAt` + `scCovLg/mcCovLg/lgCovLg` الجاهزة O(n)) يُمرَّر بدل الخام لدوالّ **السيولة الثلاث حصرًا**
+//     (`f_liqLine`×3 · `f_liqDir`×3 · `f_liqBroken`×3). **صفر تعديل مكتبة، صفر نشر** (نتجنّب فئة /2). + إصلاح كامن:
+//     مرساة `effectiveIsTop[0]` من `segLeftTop[s]`. البند التبعيّ (المستويات+ط3) **مؤجَّل للصقة 2 مقيسة** (حكم المدير).
+//     ⚠️ A/B: خطّ BTC·60 يعود لميل الزوج المرئيّ + شواهد ضبط تعود حرفيًّا (عقيدة صفر أثر جانبيّ).
 //   v2.50.0 [أ7 مُوسَّع · قرارا المالك 2026-07-17 · بعد بوّابة أ8 (ت3)]: (1) **الحساب**: الطرف الكبير الحيّ يُدفَع
 //     `lgEff=false` + معلَّق largeEffD لم يعد يمنح الفعاليّة ⇒ قرارات المستويات/السيولة/المراحل/الدخول على **الفعّالة
 //     المؤكَّدة فقط** (المستهلكون السبعة يرشّحون aEff تلقائيًّا). (2) **العرض**: طرف الصغيرة الحيّ الباهت لا يُرسَم (سهمًا
@@ -981,6 +988,7 @@ if barstate.islast
                     array.set(md.effectiveBars, 0, segL)
                     array.set(md.effectivePrices, 0, array.get(segLeftPx, s))
                     array.set(md.effectiveTimes, 0, time[loSa])
+                    array.set(md.effectiveIsTop, 0, array.get(segLeftTop, s))   // [أ10 · إصلاح كامن] النوع من نوع الحدّ (كان يبقى من الـpivot الخام — عيب نوع يُمتَصّ عادةً بالدمج)
                     if array.size(me.effectiveBars) > 0
                         array.set(me.effectiveBars, 0, segL)
             if md.pendingType != 0 and not na(array.get(segLeftPx, s - 1))             // إرساء النهاية على طرف الـleg
@@ -1498,6 +1506,64 @@ bool   confValid    = enableConf and timeframe.in_seconds(confTfEff) > 0 and tim
 bool confUp = confValid and confUpRaw   // تأكيد شراء (كسر آخر قمّة على الفريم الأصغر)
 bool confDn = confValid and confDnRaw   // تأكيد بيع
 
+// [أداء P1] علم «مُغطّى بنقطة لاحقة أكثر تطرّفًا» لكلّ نقطة في تمريرة O(n) واحدة (من الأحدث للأقدم، بأقصى قمّة/أدنى قاع جارٍ) — بدل حلقة O(n) داخل كلّ استدعاء تغطية. السلاسل زمنيّة تصاعديّة ⇒ فهرس أعلى = بار لاحق.
+f_covLater(array<int> aBar, array<bool> aTop, array<float> aPrc) =>
+    int n = array.size(aBar)
+    array<bool> cl = array.new<bool>(n, false)
+    float mxT = na
+    float mnB = na
+    for j = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0
+            int   i  = n - 1 - j
+            bool  ti = array.get(aTop, i)
+            float pi = array.get(aPrc, i)
+            array.set(cl, i, ti ? (not na(mxT) and mxT > pi) : (not na(mnB) and mnB < pi))   // نقطة لاحقة (فُحِصت قبلها) أكثر تطرّفًا من نوعها
+            if ti
+                mxT := na(mxT) ? pi : math.max(mxT, pi)
+            else
+                mnB := na(mnB) ? pi : math.min(mnB, pi)
+    cl
+
+// [الدرس05 — التغطية] نقطة مُغطّاة إن وُجدت **بعدها** نقطة من نوعها **أكثر تطرّفًا** ⇒ غير فعّالة. عالميّة للأمام، لكلّ طبقة حسب مفتاحها (covCur/covHist/covHoH). الاستثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة. (covLater مُحسَب مسبقًا O(n) — P1)
+f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1, int hL2, float wHi, float wLo, array<bool> covLater) =>
+    bool cov = false
+    int  bi = array.get(aBar, i)
+    bool covOn = bi >= hL1 ? covCur : bi >= hL2 ? covHist : covHoH                  // طبقة النقطة ⇒ مفتاحها
+    if covOn
+        float pi = array.get(aPrc, i)
+        bool outside = not na(wHi) and not na(wLo) and (pi > wHi or pi < wLo)        // استثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة
+        if not outside
+            cov := array.get(covLater, i)
+    cov
+
+// [أداء P1] علم التغطية لكلّ درجة يُحسَب مرّة (O(n)) ويُقرأ في كلّ مستهلكي f_coveredAt (مستويات/أطراف المناطق/إشارات الدرجات) بدل إعادة الحلقة
+// [أ10 · قناع «المؤكَّد فقط» للسيولة] effLive = فعّال ∧ غير مُغطّى (نفس ما يعرضه الرسم/العدّ) — يُمرَّر بدل aEff الخام
+//   لدوالّ السيولة الثلاث (f_liqLine/f_liqDir/f_liqBroken) فقط. الجذر (ت5): زوج السيولة كان يرى نقطة **فعّالة-مُغطّاة**
+//   (شبح بلا دائرة) فيرسم ميلًا انهياريًّا (BTC·60: −1257/شمعة ⇒ إسقاط سالب). القناع يوحّده مع بقيّة الطبقات. مؤشّر فقط، لا نشر.
+f_effLive(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int hL1, int hL2, float wHi, float wLo, array<bool> covLater) =>
+    int n = array.size(aBar)
+    array<bool> el = array.new<bool>(n, false)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and not f_coveredAt(aBar, aTop, aPrc, i, hL1, hL2, wHi, wLo, covLater)
+            array.set(el, i, true)
+    el
+var array<bool> scCovLg = array.new<bool>()
+var array<bool> mcCovLg = array.new<bool>()
+var array<bool> lgCovLg = array.new<bool>()
+var array<bool> scEffLive = array.new<bool>()
+var array<bool> mcEffLive = array.new<bool>()
+var array<bool> lgEffLive = array.new<bool>()
+if barstate.islast
+    scCovLg := f_covLater(scBar, scTop, scPrc)
+    mcCovLg := f_covLater(mcBar, mcTop, mcPrc)
+    lgCovLg := f_covLater(lgBar, lgTop, lgPrc)
+    int   hL1e = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
+    int   hL2e = array.size(segLefts) > 1 ? array.get(segLefts, 1) : hL1e
+    [wHie, wLoe] = jwf.rangeHiLo(hL1e, bar_index)
+    scEffLive := f_effLive(scBar, scTop, scPrc, scEff, hL1e, hL2e, wHie, wLoe, scCovLg)
+    mcEffLive := f_effLive(mcBar, mcTop, mcPrc, mcEff, hL1e, hL2e, wHie, wLoe, mcCovLg)
+    lgEffLive := f_effLive(lgBar, lgTop, lgPrc, lgEff, hL1e, hL2e, wHie, wLoe, lgCovLg)
+
 // [أداء P3] cache اتجاه المستوى لكلّ درجة: f_activeDir حلقة على كامل الشارت، كانت تُستدعى ~11× بنفس الوسائط (السلاسل نهائيّة بعد س1255) ⇒ تُحسَب مرّة عند islast وتُقرأ في كلّ الكتل
 var int bActVg = 0
 var int mActVg = 0
@@ -1548,27 +1614,27 @@ if barstate.islast
         // [تعديل] تُرسَم السيولة **دائمًا** على جانب الاتجاه الفعّال (تُظهر ميلها — حتى لو خالف المستوى = تباعد مفيد). المكسورة تبقى متقطّعة أدناه.
         int bActL = bActVg
         int mActL = mActVg
-        bigLiqLine := showLiqB ? jwl.f_liqLine(lgBar, lgTop, lgEff, lgTm, cLiqB, liqWidthB, bActL, liqExtend) : na   // الكبيرة
-        medLiqLine := showLiqM ? jwl.f_liqLine(mcBar, mcTop, mcEff, mcTm, cLiqM, liqWidthM, mActL, liqExtend) : na   // المتوسطة (الموجة الجارية)
+        bigLiqLine := showLiqB ? jwl.f_liqLine(lgBar, lgTop, lgEffLive, lgTm, cLiqB, liqWidthB, bActL, liqExtend) : na   // الكبيرة
+        medLiqLine := showLiqM ? jwl.f_liqLine(mcBar, mcTop, mcEffLive, mcTm, cLiqM, liqWidthM, mActL, liqExtend) : na   // المتوسطة (الموجة الجارية)
         // الصغيرة: من **السلسلة الصغيرة عبر التاريخ** (scBar)
         int sActL = sActVg
-        smallLiqLine := showLiqS ? jwl.f_liqLine(scBar, scTop, scEff, scTm, cLiqS, liqWidthS, sActL, liqExtend) : na   // الصغيرة
+        smallLiqLine := showLiqS ? jwl.f_liqLine(scBar, scTop, scEffLive, scTm, cLiqS, liqWidthS, sActL, liqExtend) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
-        if f_liqBroken(lgBar, lgTop, lgEff, bActL) and not na(bigLiqLine)
+        if f_liqBroken(lgBar, lgTop, lgEffLive, bActL) and not na(bigLiqLine)
             if showBroken
                 line.set_style(bigLiqLine, line.style_dashed)
                 line.set_width(bigLiqLine, brkWidthB)
             else
                 line.delete(bigLiqLine)
                 bigLiqLine := na
-        if f_liqBroken(mcBar, mcTop, mcEff, mActL) and not na(medLiqLine)
+        if f_liqBroken(mcBar, mcTop, mcEffLive, mActL) and not na(medLiqLine)
             if showBroken
                 line.set_style(medLiqLine, line.style_dashed)
                 line.set_width(medLiqLine, brkWidthM)
             else
                 line.delete(medLiqLine)
                 medLiqLine := na
-        if f_liqBroken(scBar, scTop, scEff, sActL) and not na(smallLiqLine)
+        if f_liqBroken(scBar, scTop, scEffLive, sActL) and not na(smallLiqLine)
             if showBroken
                 line.set_style(smallLiqLine, line.style_dashed)
                 line.set_width(smallLiqLine, brkWidthS)
@@ -1576,44 +1642,6 @@ if barstate.islast
                 line.delete(smallLiqLine)
                 smallLiqLine := na
 
-// [أداء P1] علم «مُغطّى بنقطة لاحقة أكثر تطرّفًا» لكلّ نقطة في تمريرة O(n) واحدة (من الأحدث للأقدم، بأقصى قمّة/أدنى قاع جارٍ) — بدل حلقة O(n) داخل كلّ استدعاء تغطية. السلاسل زمنيّة تصاعديّة ⇒ فهرس أعلى = بار لاحق.
-f_covLater(array<int> aBar, array<bool> aTop, array<float> aPrc) =>
-    int n = array.size(aBar)
-    array<bool> cl = array.new<bool>(n, false)
-    float mxT = na
-    float mnB = na
-    for j = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0
-            int   i  = n - 1 - j
-            bool  ti = array.get(aTop, i)
-            float pi = array.get(aPrc, i)
-            array.set(cl, i, ti ? (not na(mxT) and mxT > pi) : (not na(mnB) and mnB < pi))   // نقطة لاحقة (فُحِصت قبلها) أكثر تطرّفًا من نوعها
-            if ti
-                mxT := na(mxT) ? pi : math.max(mxT, pi)
-            else
-                mnB := na(mnB) ? pi : math.min(mnB, pi)
-    cl
-
-// [الدرس05 — التغطية] نقطة مُغطّاة إن وُجدت **بعدها** نقطة من نوعها **أكثر تطرّفًا** ⇒ غير فعّالة. عالميّة للأمام، لكلّ طبقة حسب مفتاحها (covCur/covHist/covHoH). الاستثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة. (covLater مُحسَب مسبقًا O(n) — P1)
-f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1, int hL2, float wHi, float wLo, array<bool> covLater) =>
-    bool cov = false
-    int  bi = array.get(aBar, i)
-    bool covOn = bi >= hL1 ? covCur : bi >= hL2 ? covHist : covHoH                  // طبقة النقطة ⇒ مفتاحها
-    if covOn
-        float pi = array.get(aPrc, i)
-        bool outside = not na(wHi) and not na(wLo) and (pi > wHi or pi < wLo)        // استثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة
-        if not outside
-            cov := array.get(covLater, i)
-    cov
-
-// [أداء P1] علم التغطية لكلّ درجة يُحسَب مرّة (O(n)) ويُقرأ في كلّ مستهلكي f_coveredAt (مستويات/أطراف المناطق/إشارات الدرجات) بدل إعادة الحلقة
-var array<bool> scCovLg = array.new<bool>()
-var array<bool> mcCovLg = array.new<bool>()
-var array<bool> lgCovLg = array.new<bool>()
-if barstate.islast
-    scCovLg := f_covLater(scBar, scTop, scPrc)
-    mcCovLg := f_covLater(mcBar, mcTop, mcPrc)
-    lgCovLg := f_covLater(lgBar, lgTop, lgPrc)
 
 // ─── [ط4-أ / الدرس L2-02 · حسم 2026-07-14] مستويات م.A + المناطق — **بركة موحّدة** (كتلة واحدة أدناه) ───
 //   البركة = المتوسطة الفعّالة + تاريخ التاريخ (المُغطّاة) + الكبيرة. التزويج بأيّ نوع (إلّا قمّة+تصحيحها المباشر)، لا حدّ أدنى.
@@ -1722,9 +1750,9 @@ if barstate.islast
     int  bigLvlDir   = bActVg
     int  medLvlDir   = mActVg
     int  smallLvlDir = sActVg
-    int lqB = jwl.f_liqDir(lgBar, lgTop, lgEff, bigLvlDir)   // اتجاه السيولة = ميل آخر دعم/مقاومة متّسق (f_liqPair) ⇒ يطابق خطّ السيولة المرسوم
-    int lqM = jwl.f_liqDir(mcBar, mcTop, mcEff, medLvlDir)
-    int lqS = jwl.f_liqDir(dB, dT, dE, smallLvlDir)
+    int lqB = jwl.f_liqDir(lgBar, lgTop, lgEffLive, bigLvlDir)   // اتجاه السيولة = ميل آخر دعم/مقاومة متّسق (f_liqPair) ⇒ يطابق خطّ السيولة المرسوم
+    int lqM = jwl.f_liqDir(mcBar, mcTop, mcEffLive, medLvlDir)
+    int lqS = jwl.f_liqDir(dB, dT, scEffLive, smallLvlDir)
     // 🔴 [حسم المستخدم 2026-07-15 — **لا تُرخِّ هذه البوّابة**] «اتجاه السيولة يُحدَّد من **الكبيرة والمتوسطة**؛ إذا كان أحدهما **غير مرسوم** يكون الاتجاه **غير محدَّد**.»
     //   ⚠️ سيبدو هذا لاحقًا «حقلًا صامتًا يستحقّ الإصلاح» — **وليس كذلك**. القياس (2026-07-15): «غير محدّد» في 13/16 قراءة، والجذر مُبرهَن:
     //   `lqB = f_liqDir(lgBar…)` يشترط **قمّتَين من نفس النوع** (JW_Lines س48: `m >= 2`)؛ وكبيرةٌ بنقطتَين (قمّة+قاع) ⇒ `m=1` ⇒ `lqB=0`.
