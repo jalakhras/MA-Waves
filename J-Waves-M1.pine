@@ -9,7 +9,11 @@ import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ الإصدار: v2.51.0 — [أ10 · قناع effLive للسيولة: زوج السيولة يرى «الفعّالة المؤكَّدة غير المُغطّاة» فقط] ═══
+// ═══ الإصدار: v2.51.1 — [أ10 تصحيح · قناع effLive بـ`covLater` الخام (v2.51.0 استعمل f_coveredAt المُبوَّب ففشل)] ═══
+//   v2.51.1 [تصحيح تنفيذ · قياس ت6 كشف أنّ v2.51.0 لم يُصلِح الخطّ السالب]: انحرفتُ في v2.51.0 إلى `f_coveredAt`
+//     (ذي البوّابات الطبقيّة) بدل `covLater` الخام الذي نصّ عليه المدير ⇒ النقطة الشبح في الموجة الجارية (covCur=false)
+//     أفلتت من القناع. التصحيح: `effLive = eff ∧ ¬covLater` (بنيويّ محض) — يُقصي أيّ نقطة تجاوزها لاحقٌ أكثر تطرّفًا
+//     (ليست مرساة سيولة صالحة). يُبقي الشواهد السليمة (زوجها غير مُغطًّى ⇒ لا تغيّر). يُعاد قياس ت6 بعد اللصق.
 //   v2.51.0 [أ10 · اعتماد المدير لإصلاح أ9 (ت5) · مؤشّر فقط لا نشر مكتبة]: الجذر — `f_liqPairAt` كان يرشّح الزوج من
 //     `aEff` الخام بينما الرسم/العدّ/الإشارات تستبعد المُغطّى (د05) ⇒ يلتقط نقطة **فعّالة-مُغطّاة** (شبح بلا دائرة)
 //     فيرسم ميلًا انهياريًّا (BTC·60: −1257/شمعة ⇒ إسقاط سالب −14,936). الإصلاح: قناع `effLive = eff ∧ ¬covered`
@@ -1537,14 +1541,17 @@ f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1
     cov
 
 // [أداء P1] علم التغطية لكلّ درجة يُحسَب مرّة (O(n)) ويُقرأ في كلّ مستهلكي f_coveredAt (مستويات/أطراف المناطق/إشارات الدرجات) بدل إعادة الحلقة
-// [أ10 · قناع «المؤكَّد فقط» للسيولة] effLive = فعّال ∧ غير مُغطّى (نفس ما يعرضه الرسم/العدّ) — يُمرَّر بدل aEff الخام
-//   لدوالّ السيولة الثلاث (f_liqLine/f_liqDir/f_liqBroken) فقط. الجذر (ت5): زوج السيولة كان يرى نقطة **فعّالة-مُغطّاة**
-//   (شبح بلا دائرة) فيرسم ميلًا انهياريًّا (BTC·60: −1257/شمعة ⇒ إسقاط سالب). القناع يوحّده مع بقيّة الطبقات. مؤشّر فقط، لا نشر.
-f_effLive(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int hL1, int hL2, float wHi, float wLo, array<bool> covLater) =>
-    int n = array.size(aBar)
+// [أ10 · قناع «المؤكَّد فقط» للسيولة] effLive = فعّال ∧ **غير مُغطّى بنيويًّا** (`covLater` الخام: وُجدت بعده نقطة من نوعه أكثر تطرّفًا)
+//   يُمرَّر بدل aEff الخام لدوالّ السيولة الثلاث (f_liqLine/f_liqDir/f_liqBroken) فقط. الجذر (ت5): زوج السيولة كان يرى نقطة
+//   **فعّالة-مُغطّاة** (شبح بلا دائرة أحدث منها أكثر تطرّفًا) فيرسم ميلًا انهياريًّا (BTC·60: −1260/شمعة ⇒ إسقاط سالب −15157).
+//   🔴 [تصحيح v2.51.1] **`covLater` الخام لا `f_coveredAt`**: النقطة الشبح في الموجة **الجارية** (covCur=false افتراضًا) ⇒
+//   `f_coveredAt` يُرجِعها «غير مُغطّاة» فلا يُقصيها (فشلت v2.51.0). والزوج السيوليّ (Musab) = آخر تطرّفين **غير مُتجاوَزَين**:
+//   نقطة تجاوزها لاحق أكثر تطرّفًا ليست مرساة سيولة صالحة **بأيّ طبقة** ⇒ الإقصاء البنيويّ (covLater) هو الصحيح، وهو ما اعتمده المدير حرفيًّا (scCovLg/mcCovLg/lgCovLg).
+f_effLive(array<bool> aEff, array<bool> covLater) =>
+    int n = array.size(aEff)
     array<bool> el = array.new<bool>(n, false)
     for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and not f_coveredAt(aBar, aTop, aPrc, i, hL1, hL2, wHi, wLo, covLater)
+        if n > 0 and array.get(aEff, i) and not array.get(covLater, i)
             array.set(el, i, true)
     el
 var array<bool> scCovLg = array.new<bool>()
@@ -1557,12 +1564,9 @@ if barstate.islast
     scCovLg := f_covLater(scBar, scTop, scPrc)
     mcCovLg := f_covLater(mcBar, mcTop, mcPrc)
     lgCovLg := f_covLater(lgBar, lgTop, lgPrc)
-    int   hL1e = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
-    int   hL2e = array.size(segLefts) > 1 ? array.get(segLefts, 1) : hL1e
-    [wHie, wLoe] = jwf.rangeHiLo(hL1e, bar_index)
-    scEffLive := f_effLive(scBar, scTop, scPrc, scEff, hL1e, hL2e, wHie, wLoe, scCovLg)
-    mcEffLive := f_effLive(mcBar, mcTop, mcPrc, mcEff, hL1e, hL2e, wHie, wLoe, mcCovLg)
-    lgEffLive := f_effLive(lgBar, lgTop, lgPrc, lgEff, hL1e, hL2e, wHie, wLoe, lgCovLg)
+    scEffLive := f_effLive(scEff, scCovLg)
+    mcEffLive := f_effLive(mcEff, mcCovLg)
+    lgEffLive := f_effLive(lgEff, lgCovLg)
 
 // [أداء P3] cache اتجاه المستوى لكلّ درجة: f_activeDir حلقة على كامل الشارت، كانت تُستدعى ~11× بنفس الوسائط (السلاسل نهائيّة بعد س1255) ⇒ تُحسَب مرّة عند islast وتُقرأ في كلّ الكتل
 var int bActVg = 0
