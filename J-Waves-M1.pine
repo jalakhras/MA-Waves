@@ -509,6 +509,19 @@ f_degVis(array<int> aBar, array<bool> aTop, array<bool> aEff, int fromB, int pen
                 hB := true
     hT and hB ? 1 : 0
 
+// 🔬 [DBG أ19/§7 مؤقّت — يُحذَف بعد ت14] بار أحدث قمّة/قاع فعّالَين (مع استبعاد المعلَّق) — لحسم «نافذة أم فعاليّة»
+f_lastTB(array<int> aBar, array<bool> aTop, array<bool> aEff, int pendBar) =>
+    int lt = na
+    int lb = na
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and not (not na(pendBar) and array.get(aBar, i) == pendBar)
+            if array.get(aTop, i)
+                lt := na(lt) ? array.get(aBar, i) : math.max(lt, array.get(aBar, i))
+            else
+                lb := na(lb) ? array.get(aBar, i) : math.max(lb, array.get(aBar, i))
+    [lt, lb]
+
 // 🔴 [نوع التداول · حسم المستخدم 2026-07-15] سيقان **المتوسطة الدافعة** داخل مدًى `[fromB..toB]` باتّجاه `wdir` ⇒ [العدد، وسيط المدد بالأيّام].
 //   مُعمَّمة على **المدى** عمدًا: تُستدعى للموجة **الجارية** ثمّ — إن لم تكفِ البيانات — للموجة **التاريخيّة**. دالّة واحدة، لا مسار مزدوج.
 //   تقرأ **السلسلة المرسومة** (`mcBar/mcTop/mcTm` — `f_pushChain` يفرض التناوب) لا الخام، وتستبعد الطرف **المعلَّق** (قاعدة الانتظار د06).
@@ -2262,6 +2275,12 @@ if showFrameHelper and barstate.islast
     //   `wlB` يبقى لـ«موجات دافعة» و«زمن الموجة» (يخصّان **الموجة الجارية** بحقّ).
     int   cntB   = math.max(bar_index - VIEW_WIN + 1, 0)
     int   wpDeg  = f_degVis(scBar, scTop, scEff, cntB, na) + f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + f_degVis(lgBar, lgTop, lgEff, cntB, lgPendBg) + f_degVis(xlBar, xlTop, xlEff, cntB, xlPendBg)   // [رابعة السلّم] الحدّ الرابع ⇒ degShown يبلغ 4 ⇒ «اصعد ↑»
+    // 🔬 [DBG أ19/§7 مؤقّت — يُحذَف بعد ت14] هل lastTop وlastBot موجودان للخشِنة؟ والمسافة؟ ⇒ نافذة (كلاهما · dist>500) أم فعاليّة (أحدهما مفقود)
+    [lgLt, lgLb] = f_lastTB(lgBar, lgTop, lgEff, lgPendBg)
+    [xlLt, xlLb] = f_lastTB(xlBar, xlTop, xlEff, xlPendBg)
+    bool lgBoth = not na(lgLt) and not na(lgLb)
+    bool xlBoth = not na(xlLt) and not na(xlLb)
+    label.new(bar_index, high, "DBG9 bi=" + str.tostring(bar_index) + " cntB=" + str.tostring(cntB) + " | lg T=" + (na(lgLt) ? "–" : str.tostring(lgLt)) + " B=" + (na(lgLb) ? "–" : str.tostring(lgLb)) + " both=" + (lgBoth ? "Y" : "N") + " dist=" + (lgBoth ? str.tostring(math.abs(lgLt - lgLb)) : "–") + " onScr=" + (lgBoth and math.max(lgLt, lgLb) >= cntB ? "Y" : "N") + " | xl T=" + (na(xlLt) ? "–" : str.tostring(xlLt)) + " B=" + (na(xlLb) ? "–" : str.tostring(xlLb)) + " both=" + (xlBoth ? "Y" : "N") + " dist=" + (xlBoth ? str.tostring(math.abs(xlLt - xlLb)) : "–"), xloc = xloc.bar_index, style = label.style_label_down, color = color.new(color.teal, 0), textcolor = color.white, size = size.normal)
     // 🔴 [حسم المستخدم] قِس الدافعة داخل **الموجة الجارية**؛ فإن لم تتوفّر بيانات ⇒ ارجع إلى **الموجة التاريخيّة** (المقطع المكتمل قبلها).
     //   المرجع لكلّ مقطع = **اتجاهه هو**: الجارية `curWdir` (= `buildWave(lastL, wRb)`) · التاريخيّة من نوع حدّها (`segLeftTop[1]`: قمّة ⇒ هابطة).
     //   ⚠️ الثابتة: **النافذة والمرجع على المدى نفسه** — وإلّا قِيس مدًى وعُدّ في آخر (عطب ف0-2 في موضع آخر).
