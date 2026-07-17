@@ -94,7 +94,13 @@ export f_liqPairPhaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int
             r2 := array.get(px, m - 1)
     [r1, r2]
 
-// ─── خطّ السيولة — مائل على **الذيول** يمرّ بالطرفين تمامًا (بلا إزاحة) ثمّ يمتدّ liqExtend شمعة يمينًا ───
+// ─── خطّ السيولة — مائل على **الذيول** بين الطرفين الحقيقيّين ثمّ يمتدّ يمينًا بشعاع (extend.right) ───
+//   🔴 [أ11/spec_liq_pair_fix · v5] الرسم على الطرفين الحقيقيّين + extend.right — لا نقطة نهاية محسوبة.
+//   الإصلاح: كانت النقطة اليمنى تُحسَب بإسقاط الميل على bar_index+liqExtend بلا أرضيّة ⇒ على زوج قمّتين
+//   متجاورتين بارًا/متباعدتين سعرًا يهوي projP لسعر سالب (BTC·60: −15157) يقرؤه data_get_pine_lines.
+//   الآن الإحداثيّان المخزَّنان = (aTm[i1],wp1) و(aTm[i2],wp2)، كلاهما سعر حقيقيّ موجب؛ الامتداد يمينًا
+//   شعاع بصريّ يتكفّل به المحرّك بلا تجسيد إحداثيّ سالب. الميل نفسه لم يتغيّر ⇒ f_liqDir/f_liqBroken حرفيًّا.
+//   liqExtend: غير مستعمَل بعد أ11 (يبقى في التوقيع تجنّبًا للمس مواقع النداء الثلاثة — يُنظَّف لاحقًا).
 export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, color col, int w, int wdir, int liqExtend) =>
     line ln = na
     bool wantTop = wdir == -1
@@ -103,18 +109,9 @@ export f_liqLine(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int>
         int o1 = bar_index - array.get(aBar, i1)
         int o2 = bar_index - array.get(aBar, i2)
         if o1 >= 0 and o2 >= 0
-            float wp1 = wantTop ? high[o1] : low[o1]                      // ذيل الطرف
-            float wp2 = wantTop ? high[o2] : low[o2]
-            int   b1  = array.get(aBar, i1)
-            int   b2  = array.get(aBar, i2)
-            // 🔴 [رجوع عن #3 · v2.39.2] الميل **بالشموع** لا بالزمن: محور TradingView **بالبار** (البارات متساوية التباعد)،
-            //   فخطّ xloc.bar_time يُرسَم مستقيمًا في **فضاء البار** ⇒ الحساب الشمعيّ هو ما يجعله يمرّ بالطرف الثاني تمامًا.
-            //   (الميل الزمنيّ كان يكسر ذلك على الأدوات ذات الفجوات — فرضيّة خاطئة، رصدها صائد الانحدارات.)
-            float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0        // ميل الخطّ لكلّ شمعة (b2>b1 مضمون؛ حارس احترازيّ)
-            int   targetBar = bar_index + liqExtend
-            float projP = wp1 + slope * (targetBar - b1)                  // يمرّ بالطرفين تمامًا ثمّ يمتدّ يمينًا — بلا إزاحة
-            int   rightTm = time + liqExtend * timeframe.in_seconds() * 1000
-            ln := line.new(array.get(aTm, i1), wp1, rightTm, projP, xloc = xloc.bar_time, color = col, width = w)
+            float wp1 = wantTop ? high[o1] : low[o1]                      // ذيل الطرف الأقدم
+            float wp2 = wantTop ? high[o2] : low[o2]                      // ذيل الطرف الأحدث
+            ln := line.new(array.get(aTm, i1), wp1, array.get(aTm, i2), wp2, xloc = xloc.bar_time, extend = extend.right, color = col, width = w)
     ln
 
 // ─── [درس09/م1] اتجاه السيولة = ميل خطّها (عرض/تحقّق فقط، بلا ربط بالاستخراج) ───

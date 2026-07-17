@@ -2,7 +2,7 @@
 import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
 import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطاقات الموجة النقيّة (v4 = النقلة 3: محرّك leg حُذف كاملًا — بقي rangeHiLo/rangeDays + حارس MAX_HIST؛ v3 = waveLeftStruct البنيويّة)
 import Jassar_Mahmoud/JW_Degrees/4 as jwd                     // [ط1] الدرجات (v4 = حذف buildWave نهائيًّا — المؤشّر كلّه على SmallScan/feedBar/syncPending بالمحرّك الأماميّ؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
-import Jassar_Mahmoud/JW_Lines/4 as jwl                       // [ط2] الخطوط (v4 = f_liqPairPhaseAt: زوج المراحل منفصل عن زوج الرسم ق2 + رجوع المحور الشمعيّ؛ v2 = ق2 للرسم)
+import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المناطق: التزويج الموحّد (v2 = بركة موحّدة، أيّ نوع، إلّا قمّة+تصحيحها المباشر، لا حدّ أدنى) — حسم المستخدم 2026-07-14
 // ════════════════════════════════════════════════════════════════════════════
