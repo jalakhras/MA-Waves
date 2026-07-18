@@ -597,7 +597,7 @@ f_drawWavePanel(int degShown, int impulse, float medImpDays, bool impFromHist) =
     color tvHdr  = color.new(color.rgb(color.r(fhBg) * 0.72, color.g(fhBg) * 0.72, color.b(fhBg) * 0.72), color.t(fhBg))
     color tvMain = #D1D4DC
     color tvMute = #787B86
-    table.cell(fht, 0, 0, f_t("لوحة اختبار الموجة", "Wave Test") + " · v2.54.0", text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)   // [ختم النسخة · دائم بقرار أ11] أداة ضدّ فخّ اللصق البائت — يميّز «اللصق لم يُحمَّل» عن «الإصلاح لا يلمس المسار»؛ يُواكب سجلّ الإصدار أعلى الملفّ
+    table.cell(fht, 0, 0, f_t("لوحة اختبار الموجة", "Wave Test"), text_color = tvMain, bgcolor = tvHdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(fht, 1, 0, "", bgcolor = tvHdr)
     // 🔴 [ت2-3 · Fail Loud] «درجات ظاهرة» هو **حَكَم صحّة الموجة/الفريم** (منصوص 3 مرّات: 3✓ · 4⇒اصعد · 2⇒انزل).
     //   وإن بلغت حلقة التقطيع سقفها (`subCapHit`) فالموجة **مقصوصة** ⇒ كلّ ما تحته مبنيّ على نافذة ناقصة ⇒ **أعلِن ولا تصمت** (§11).
