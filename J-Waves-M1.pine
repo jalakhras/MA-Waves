@@ -2,7 +2,7 @@
 import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
 import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطاقات الموجة النقيّة (v4 = النقلة 3: محرّك leg حُذف كاملًا — بقي rangeHiLo/rangeDays + حارس MAX_HIST؛ v3 = waveLeftStruct البنيويّة)
 import Jassar_Mahmoud/JW_Degrees/5 as jwd                     // [ط1] الدرجات (v5 = أ44: +5 دوالّ تحليل نقيّة f_covLater/f_effLive/f_degVis/f_degVisWide/f_impulseIn؛ v4 = حذف buildWave؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
-import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
+import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخطوط (v6 = أ48/د: +f_activeDir(twoC وسيط)+f_liqBroken نقيّتان؛ v5 = f_liqLine بـextend.right ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المناطق: التزويج الموحّد (v5 = أ40: حذف between + حارس التقارب impAmp؛ v4 = أ38 استرجاع between مدحوض؛ v3 = أ34 حذف between+eTier؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
 // ════════════════════════════════════════════════════════════════════════════
@@ -1078,63 +1078,7 @@ f_phTxt(int ph, int dir) =>
 // [درس09/م3-أ] الاتجاه الفعّال **الملتقَط** (latch) — عرض فقط، لا يمسّ القمم/القيعان (الماضي ثابت):
 //   يبدأ startDir، وينقلب عند كلّ **كسر مؤكَّد** = شمعتان إغلاقًا خلف **جسم** آخر تطرّف فعّال من الجانب الحاليّ (مقاومة هبوطًا/دعم صعودًا)،
 //   ويثبت حتى **كسر معاكس**. (الكسر شرط الانقلاب؛ الارتداد بلا كسر لا يقلب.) يُحاكي تطوّر الاتجاه عبر الموجة دفعةً واحدةً في islast.
-f_activeDir(array<int> aBar, array<bool> aTop, array<bool> aEff, int startDir) =>
-    int dir   = startDir
-    int n     = array.size(aBar)
-    int first = -1
-    int fi    = 0
-    while fi < n and first < 0                             // أوّل تطرّف فعّال (بداية المحاكاة)
-        if array.get(aEff, fi)
-            first := array.get(aBar, fi)
-        fi := fi + 1
-    if first >= 0
-        bool  twoC   = lvlBreakMode == "2 candles"
-        float topLvl = na                                  // [درس08] جسم آخر قمّة فعّالة (المستوى على الجسم لا الذيل — مطابق f_levelLine) حتى البار الحاليّ
-        float botLvl = na                                  // جسم آخر قاع فعّال
-        int   pi     = 0
-        for j = first to bar_index
-            int o = bar_index - j
-            if o >= 0
-                while pi < n and array.get(aBar, pi) <= j   // فعّل كلّ تطرّف بلغ الباره ⇒ حدّث ذيل القمّة/القاع المرجع
-                    if array.get(aEff, pi)
-                        int po = bar_index - array.get(aBar, pi)
-                        if po >= 0
-                            if array.get(aTop, pi)
-                                topLvl := math.max(open[po], close[po])
-                            else
-                                botLvl := math.min(open[po], close[po])
-                    pi := pi + 1
-                if dir == -1 and not na(topLvl)             // هابط ⇒ كسر المقاومة (فوق جسم القمّة) ⇒ انقلاب لصاعد
-                    if twoC ? (o + 1 <= bar_index and close[o] > topLvl and close[o + 1] > topLvl) : high[o] > topLvl
-                        dir := 1
-                else if dir == 1 and not na(botLvl)         // صاعد ⇒ كسر الدعم (تحت جسم القاع) ⇒ انقلاب لهابط
-                    if twoC ? (o + 1 <= bar_index and close[o] < botLvl and close[o + 1] < botLvl) : low[o] < botLvl
-                        dir := -1
-    dir
-
-// [درس09/م2] رصد كسر خطّ السيولة المائل = **شمعتان** إغلاقًا خلف الخطّ المُسقَط (دعم أسفل · مقاومة أعلى)
-f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
-    bool broken = false
-    bool wantTop = wdir == -1
-    [i1, i2] = jwl.f_liqPair(aBar, aTop, aEff, wdir)
-    if i1 >= 0 and i2 >= 0
-        int o1 = bar_index - array.get(aBar, i1)
-        int o2 = bar_index - array.get(aBar, i2)
-        if o1 >= 0 and o2 >= 0
-            float wp1 = wantTop ? high[o1] : low[o1]
-            float wp2 = wantTop ? high[o2] : low[o2]
-            int   b1  = array.get(aBar, i1)
-            int   b2  = array.get(aBar, i2)
-            float slope = b2 != b1 ? (wp2 - wp1) / (b2 - b1) : 0.0    // 🔴 [رجوع عن #3 · v2.39.2] بالشموع لا بالزمن — يطابق jwl.f_liqLine (محور TradingView بالبار)
-            // يُلتقَط الكسر من **تاريخ** الخطّ المُسقَط (إغلاقان متتاليان خلفه بعد الطرف الأحدث) ⇒ يثبت مكسورًا حتى تطرّفين جديدين — **بلا إزاحة** (مطابق f_liqLine: يمرّ بالطرفين تمامًا)
-            for k = b2 + 1 to bar_index
-                int ok = bar_index - k
-                if ok >= 0
-                    float lk  = wp1 + slope * (k - b1)
-                    float lk1 = wp1 + slope * (k - 1 - b1)
-                    if wantTop ? (close[ok] > lk and close[ok + 1] > lk1) : (close[ok] < lk and close[ok + 1] < lk1)
-                        broken := true
-    broken
+// [أ48/د] f_activeDir (+twoC) · f_liqBroken ⇐ نُقلتا إلى JW_Lines/6 (jwl.f_activeDir · jwl.f_liqBroken)
 
 // ⇐ آلة المراحل (داو/إليوت ABC): f_phaseAt (التعميم الزمنيّ) + f_phase (الغلاف عند bar_index) استُخرِجتا إلى JW_Conclusions (jwc.f_phaseAt/jwc.f_phase). تُستدعى بـjwc. مع تمرير useDistrib وسيطًا.
 
@@ -1283,9 +1227,9 @@ var int bActVg = 0
 var int mActVg = 0
 var int sActVg = 0
 if barstate.islast
-    bActVg := f_activeDir(lgBar, lgTop, lgEff, curWdir0)   // [نقلة3] بذرة الـlatch = اتجاه السلسلة البنيويّ (كان bigDir الملفّق)
-    mActVg := f_activeDir(mcBar, mcTop, mcEff, curWdir0)
-    sActVg := f_activeDir(scBar, scTop, scEff, curWdir0)
+    bActVg := jwl.f_activeDir(lgBar, lgTop, lgEff, curWdir0, lvlBreakMode == "2 candles")   // [نقلة3] بذرة الـlatch = اتجاه السلسلة البنيويّ · [أ48/د] twoC وسيط
+    mActVg := jwl.f_activeDir(mcBar, mcTop, mcEff, curWdir0, lvlBreakMode == "2 candles")
+    sActVg := jwl.f_activeDir(scBar, scTop, scEff, curWdir0, lvlBreakMode == "2 candles")
 
 var line bigLevelLine = na
 var line medLevelLine = na
@@ -1334,21 +1278,21 @@ if barstate.islast
         int sActL = sActVg
         smallLiqLine := showLiqS ? jwl.f_liqLine(scBar, scTop, scEffLive, scTm, cLiqS, liqWidthS, sActL) : na   // الصغيرة
         // [درس09 خ2] خطّ السيولة المكسور ⇒ **للعرض فقط** (متقطّع، لا يُعتمَد عليه في قرار) أو يُخفى (showBroken). الخطّ الجديد يأتي بتطرّفين جديدين
-        if f_liqBroken(lgBar, lgTop, lgEffLive, bActL) and not na(bigLiqLine)
+        if jwl.f_liqBroken(lgBar, lgTop, lgEffLive, bActL) and not na(bigLiqLine)
             if showBroken
                 line.set_style(bigLiqLine, line.style_dashed)
                 line.set_width(bigLiqLine, brkWidthB)
             else
                 line.delete(bigLiqLine)
                 bigLiqLine := na
-        if f_liqBroken(mcBar, mcTop, mcEffLive, mActL) and not na(medLiqLine)
+        if jwl.f_liqBroken(mcBar, mcTop, mcEffLive, mActL) and not na(medLiqLine)
             if showBroken
                 line.set_style(medLiqLine, line.style_dashed)
                 line.set_width(medLiqLine, brkWidthM)
             else
                 line.delete(medLiqLine)
                 medLiqLine := na
-        if f_liqBroken(scBar, scTop, scEffLive, sActL) and not na(smallLiqLine)
+        if jwl.f_liqBroken(scBar, scTop, scEffLive, sActL) and not na(smallLiqLine)
             if showBroken
                 line.set_style(smallLiqLine, line.style_dashed)
                 line.set_width(smallLiqLine, brkWidthS)
