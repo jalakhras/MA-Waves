@@ -3,7 +3,7 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطاقات الموجة النقيّة (v4 = النقلة 3: محرّك leg حُذف كاملًا — بقي rangeHiLo/rangeDays + حارس MAX_HIST؛ v3 = waveLeftStruct البنيويّة)
 import Jassar_Mahmoud/JW_Degrees/5 as jwd                     // [ط1] الدرجات (v5 = أ44: +5 دوالّ تحليل نقيّة f_covLater/f_effLive/f_degVis/f_degVisWide/f_impulseIn؛ v4 = حذف buildWave؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
-import Jassar_Mahmoud/JW_Conclusions/12 as jwc               // [ط3] الاستنتاجات/المراحل (v12 = أ44/ب: +f_phaseLblI موضع وسم المرحلة نقيّة؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
+import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المناطق: التزويج الموحّد (v5 = أ40: حذف between + حارس التقارب impAmp؛ v4 = أ38 استرجاع between مدحوض؛ v3 = أ34 حذف between+eTier؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
@@ -1141,39 +1141,7 @@ f_liqBroken(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir) =>
 // [بحث الأطلس — L2-03/04] قرار FSM من الحالة الكاملة (عرض فقط، جدول قرار قاعديّ لا سلاسل if متضخّمة). الأولويّة:
 //   الكبيرة انعطاف(E)⇒مراجعة · خارج منطقة⇒لا تداول · تعارض⇒النطاق فقط · توافق داخل منطقة: لا هدف⇒لا تداول · تجميع مكتمل+تأكيد⇒شراء/بيع · تصحيح جارٍ/بانتظار⇒انتظار.
 //   يُرجِع [نصّ القرار, نوع k]: 1 شراء · -1 بيع · 2 نطاق · 3 انتظار · 9 مراجعة · 0 لا تداول. متّسق مع basicSig (تجميع+تأكيد داخل منطقة بهدف).
-f_atlasDecision(int entry, bool inZone, int phSm, bool confOk, int phBig, bool hasTgt) =>
-    string t = f_t("لا تداول", "NoTrade")
-    int    k = 0
-    if phBig == 1 or phBig == 2
-        t := f_t("مراجعة (الكبيرة في انعطاف)", "Review (large reversal)")
-        k := 9
-    else if not inZone
-        t := f_t("لا تداول (خارج منطقة)", "NoTrade (out of zone)")
-        k := 0
-    else if entry == 2
-        t := f_t("النطاق فقط (جهة المنطقة صارمة)", "RangeOnly (strict zone side)")
-        k := 2
-    else if entry == 1 or entry == -1
-        string dr = entry == 1 ? f_t("شراء", "buy") : f_t("بيع", "sell")
-        if not hasTgt
-            t := f_t("لا تداول (لا منطقة هدف)", "NoTrade (no target)")
-            k := 0
-        else if (phSm == 2 or phSm == 3 or phSm == 4) and confOk     // [توحيد] نضج (يأس/تجميع/تصريف) + تأكيد ⇒ أساسيّة (تطابق basicSig)
-            t := entry == 1 ? f_t("شراء ✓", "Buy ✓") : f_t("بيع ✓", "Sell ✓")
-            k := entry
-        else if phSm == 2 or phSm == 3 or phSm == 4                  // نضج بلا تأكيد ⇒ انتظار
-            t := f_t("انتظار · " + dr + " (بانتظار تأكيد)", "Wait · " + dr + " (awaiting confirm)")
-            k := 3
-        else if phSm == 1 and confOk                                 // [توحيد S13] ذعر + تأكيد ⇒ مخاطرة (تطابق hrSig)
-            t := entry == 1 ? f_t("شراء مخاطرة ⚠", "Buy risky ⚠") : f_t("بيع مخاطرة ⚠", "Sell risky ⚠")
-            k := entry
-        else if phSm == 1                                            // ذعر بلا تأكيد ⇒ انتظار
-            t := f_t("انتظار · " + dr + " مخاطرة (تصحيح جارٍ، بلا تأكيد)", "Wait · risky " + dr + " (correction, no confirm)")
-            k := 3
-        else                                                         // مشاركة(0)/لا سيولة(-1) ⇒ لا تصحيح ⇒ لا إشارة
-            t := f_t("انتظار · " + dr + " (بانتظار تصحيح)", "Wait · " + dr + " (awaiting correction)")
-            k := 3
-    [t, k]
+// [أ48/ج] f_atlasDecision ⇐ نُقلت إلى JW_Conclusions/13 (jwc.f_atlasDecision · اللغة بوسيط isAR)
 
 // [درس L2-04 — تأكيد الرابعة MTF] محرّك شمعتين مستقلّ (حركة سعر بحتة) يُحسب عبر request.security على فريم أصغر:
 //   يُرجِع [كسر آخر قمّة صحيحة (تأكيد شراء)، كسر آخر قاع صحيح (تأكيد بيع)]. منقول من الكود القديم f_degree4 (تتابُع شمعتين تصحيح غير مبتلِع).
@@ -1649,7 +1617,7 @@ if barstate.islast
             if nzc > 0 and array.get(zTop, zi) < close
                 tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
     // [بحث الأطلس] صفّ القرار = فئة FSM كاملة من الحالة (متّسق مع الإشارات)
-    [decTxt, decK] = f_atlasDecision(entry, inZone, gatePh, confOk, phB, not na(tgt))   // [G2] القرار يتبع بوّابة درجة الصفقة (اتّساق اللوحة مع الإشارة)
+    [decTxt, decK] = jwc.f_atlasDecision(entry, inZone, gatePh, confOk, phB, not na(tgt), uiLang == "AR / عربيّة")   // [G2] القرار يتبع بوّابة درجة الصفقة (اتّساق اللوحة مع الإشارة) · [أ48/ج] اللغة بوسيط
     color decBg = decK == 1 ? cUp : decK == -1 ? cDn : decK == 2 ? cRngC : (decK == 3 or decK == 9) ? color.new(#FF9800, 0) : pMute
     if showConc
         table.cell(concTbl, 0, 9, f_t("القرار", "Decision"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)

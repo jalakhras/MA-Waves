@@ -212,3 +212,47 @@ f_lastEffTypeI(array<bool> effArr, array<bool> topArr, bool wantTop) =>
 export f_phaseLblI(int ph, int dir, array<bool> eff, array<bool> top) =>
     int idx = ph >= 1 and ph <= 3 ? f_lastEffTypeI(eff, top, dir == -1) : ph == 4 ? f_lastEffTypeI(eff, top, dir == 1) : f_lastEffI(eff)
     idx < 0 ? f_lastEffI(eff) : idx
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [v13 · أ48/ج] بحث الأطلس — قرار FSM نقيّ نُقل حرفيًّا من المؤشّر. `f_tt` (داخليّة) تحلّ محلّ `f_t` بوسيط `isAR` (لا `uiLang` عالميّ).
+// ═════════════════════════════════════════════════════════════════════════════
+
+// مبدِّل نصّ عرض (النظير الداخليّ لـ`f_t` المؤشّر) — اللغة وسيطٌ لا عالميّ.
+f_tt(bool isAR, string ar, string en) => isAR ? ar : en
+
+// [بحث الأطلس — L2-03/04] قرار FSM من الحالة الكاملة (عرض فقط، جدول قرار قاعديّ لا سلاسل if متضخّمة). الأولويّة:
+//   الكبيرة انعطاف(E)⇒مراجعة · خارج منطقة⇒لا تداول · تعارض⇒النطاق فقط · توافق داخل منطقة: لا هدف⇒لا تداول · تجميع مكتمل+تأكيد⇒شراء/بيع · تصحيح جارٍ/بانتظار⇒انتظار.
+//   يُرجِع [نصّ القرار, نوع k]: 1 شراء · -1 بيع · 2 نطاق · 3 انتظار · 9 مراجعة · 0 لا تداول. متّسق مع basicSig (تجميع+تأكيد داخل منطقة بهدف).
+export f_atlasDecision(int entry, bool inZone, int phSm, bool confOk, int phBig, bool hasTgt, bool isAR) =>
+    string t = f_tt(isAR, "لا تداول", "NoTrade")
+    int    k = 0
+    if phBig == 1 or phBig == 2
+        t := f_tt(isAR, "مراجعة (الكبيرة في انعطاف)", "Review (large reversal)")
+        k := 9
+    else if not inZone
+        t := f_tt(isAR, "لا تداول (خارج منطقة)", "NoTrade (out of zone)")
+        k := 0
+    else if entry == 2
+        t := f_tt(isAR, "النطاق فقط (جهة المنطقة صارمة)", "RangeOnly (strict zone side)")
+        k := 2
+    else if entry == 1 or entry == -1
+        string dr = entry == 1 ? f_tt(isAR, "شراء", "buy") : f_tt(isAR, "بيع", "sell")
+        if not hasTgt
+            t := f_tt(isAR, "لا تداول (لا منطقة هدف)", "NoTrade (no target)")
+            k := 0
+        else if (phSm == 2 or phSm == 3 or phSm == 4) and confOk     // [توحيد] نضج (يأس/تجميع/تصريف) + تأكيد ⇒ أساسيّة (تطابق basicSig)
+            t := entry == 1 ? f_tt(isAR, "شراء ✓", "Buy ✓") : f_tt(isAR, "بيع ✓", "Sell ✓")
+            k := entry
+        else if phSm == 2 or phSm == 3 or phSm == 4                  // نضج بلا تأكيد ⇒ انتظار
+            t := f_tt(isAR, "انتظار · " + dr + " (بانتظار تأكيد)", "Wait · " + dr + " (awaiting confirm)")
+            k := 3
+        else if phSm == 1 and confOk                                 // [توحيد S13] ذعر + تأكيد ⇒ مخاطرة (تطابق hrSig)
+            t := entry == 1 ? f_tt(isAR, "شراء مخاطرة ⚠", "Buy risky ⚠") : f_tt(isAR, "بيع مخاطرة ⚠", "Sell risky ⚠")
+            k := entry
+        else if phSm == 1                                            // ذعر بلا تأكيد ⇒ انتظار
+            t := f_tt(isAR, "انتظار · " + dr + " مخاطرة (تصحيح جارٍ، بلا تأكيد)", "Wait · risky " + dr + " (correction, no confirm)")
+            k := 3
+        else                                                         // مشاركة(0)/لا سيولة(-1) ⇒ لا تصحيح ⇒ لا إشارة
+            t := f_tt(isAR, "انتظار · " + dr + " (بانتظار تصحيح)", "Wait · " + dr + " (awaiting correction)")
+            k := 3
+    [t, k]
