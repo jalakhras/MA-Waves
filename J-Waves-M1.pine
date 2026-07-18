@@ -1,7 +1,7 @@
 //@version=6
 import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
 import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطاقات الموجة النقيّة (v4 = النقلة 3: محرّك leg حُذف كاملًا — بقي rangeHiLo/rangeDays + حارس MAX_HIST؛ v3 = waveLeftStruct البنيويّة)
-import Jassar_Mahmoud/JW_Degrees/4 as jwd                     // [ط1] الدرجات (v4 = حذف buildWave نهائيًّا — المؤشّر كلّه على SmallScan/feedBar/syncPending بالمحرّك الأماميّ؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
+import Jassar_Mahmoud/JW_Degrees/5 as jwd                     // [ط1] الدرجات (v5 = أ44: +5 دوالّ تحليل نقيّة f_covLater/f_effLive/f_degVis/f_degVisWide/f_impulseIn؛ v4 = حذف buildWave؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المناطق: التزويج الموحّد (v5 = أ40: حذف between + حارس التقارب impAmp؛ v4 = أ38 استرجاع between مدحوض؛ v3 = أ34 حذف between+eTier؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
@@ -10,7 +10,7 @@ import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المن�
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
 // ═══ الإصدار: v2.54.0 — [GAPS-9 · f_degVisWide: نافذة عدّ خشِنة بنيويّة ⇒ زوال انحطاط عدّ الفريم] ═══
-//   v2.54.0 [GAPS-9 · أ22/ت15 · قناة الإشراف]: `f_degVis(lg)=0` في 8/8 شارتات ⇒ degShown عالق ≤2 ⇒ «انزل» دائمًا (قيمة لا تتنوّع).
+//   v2.54.0 [GAPS-9 · أ22/ت15 · قناة الإشراف]: `jwd.f_degVis(lg)=0` في 8/8 شارتات ⇒ degShown عالق ≤2 ⇒ «انزل» دائمًا (قيمة لا تتنوّع).
 //     العلاج: `f_degVisWide` للدرجتين الخشِنتين (كبيرة/رابعة) — نافذة = عرض تأرجُح الدرجة `[min(lastTop,lastBot)..bar_index]`
 //     + بوّابة «بالمنظر ده» (الطرف الأحدث ≥ cntB، مصعب:212). sc/mc على `f_degVis` الأصليّة (نافذة 500) حرفيًّا. A/B: degShown
 //     يتنوّع {1,2,3} (US100·D 2⇒3 «مناسب») بلا إفراط (onScr=N يبقى منخفضًا). المفتوح: «اصعد»(degShown=4) خامل (قيد xl، بند مؤجَّل #10).
@@ -506,66 +506,21 @@ f_durTxt(float d) =>
 //   **وبالتعشيش يصير العدّ رتيبًا** ⇒ «الدرجات الظاهرة» = **عمق السلّم الذي له بنية** ⇒ «4 ⇒ اصعد» تصير ذات معنى.
 //   `pendBar`: يُستبعَد الطرف الحيّ (قاعدة الانتظار د06 — لم يتأكّد بعد فلا يُعدّ بنيةً؛ ونفس الاستبعاد في س~2178 والمناطق).
 //   🔴 نطاق عالميّ إلزامًا: Pine يمنع تعريف الدوالّ داخل الكتل الشرطيّة.
-f_degVis(array<int> aBar, array<bool> aTop, array<bool> aEff, int fromB, int pendBar) =>
-    int  n  = array.size(aBar)
-    bool hT = false                                        // قمّة فعّالة مؤكَّدة داخل النافذة
-    bool hB = false                                        // قاع فعّال مؤكَّد
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and array.get(aBar, i) >= fromB and not (not na(pendBar) and array.get(aBar, i) == pendBar)
-            if array.get(aTop, i)
-                hT := true
-            else
-                hB := true
-    hT and hB ? 1 : 0
+// [أ44] f_degVis ⇐ نُقلت إلى JW_Degrees/5 (jwd.f_degVis)
 
 // 🔴 [GAPS-9 · spec_gaps9_frame_count · معتمَدة أ22] «الدرجة ظاهرة» للدرجات **الخشِنة** (كبيرة/رابعة) — نافذة بنيويّة لا 500 ثابتة.
 //   السبب: تأرجُح الدرجة الخشِنة أوسع من 500 (قياس ت14: US100·D dist=553) فتُقصى بالخطأ من `f_degVis` ⇒ degShown عالق ≤2 (انحطاط).
 //   الآليّة (§2): النافذة = `[min(lastTop,lastBot)..bar_index]` = عرض تأرجُح الدرجة نفسها (لا رقم اجتهاديّ)؛ القمّة والقاع طرفاها ⇒ موجودان بالبناء.
 //   البوّابة المصدريّة (§3 · «بالمنظر ده» مصعب:212): الطرف **الأحدث** للتأرجُح داخل الشاشة القياسيّة (`>= cntB`) ⇒ تُعَدّ البنية الحاضرة لا تاريخ خارج المنظر (تحذير س435). المعلَّق مُستبعَد (نفس `f_degVis`).
 //   نقيّة: قراءة + إرجاع int، صفر إسناد عالميّ (درس أ14). `f_degVis` الأصليّة (sc/mc) لم تُلمَس.
-f_degVisWide(array<int> aBar, array<bool> aTop, array<bool> aEff, int cntB, int pendBar) =>
-    int lastTop = na
-    int lastBot = na
-    int n = array.size(aBar)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and not (not na(pendBar) and array.get(aBar, i) == pendBar)
-            if array.get(aTop, i)
-                lastTop := na(lastTop) ? array.get(aBar, i) : math.max(lastTop, array.get(aBar, i))
-            else
-                lastBot := na(lastBot) ? array.get(aBar, i) : math.max(lastBot, array.get(aBar, i))
-    (not na(lastTop)) and (not na(lastBot)) and (math.max(lastTop, lastBot) >= cntB) ? 1 : 0
+// [أ44] f_degVisWide ⇐ نُقلت إلى JW_Degrees/5 (jwd.f_degVisWide)
 
 // 🔴 [نوع التداول · حسم المستخدم 2026-07-15] سيقان **المتوسطة الدافعة** داخل مدًى `[fromB..toB]` باتّجاه `wdir` ⇒ [العدد، وسيط المدد بالأيّام].
 //   مُعمَّمة على **المدى** عمدًا: تُستدعى للموجة **الجارية** ثمّ — إن لم تكفِ البيانات — للموجة **التاريخيّة**. دالّة واحدة، لا مسار مزدوج.
 //   تقرأ **السلسلة المرسومة** (`mcBar/mcTop/mcTm` — `f_pushChain` يفرض التناوب) لا الخام، وتستبعد الطرف **المعلَّق** (قاعدة الانتظار د06).
 //   الوسيط يحتاج **عيّنتين** فأكثر (median على عيّنة = العيّنة نفسها ⇒ لا معنى إحصائيّ) ⇒ وإلّا `na`.
 //   [أ40] عُمِّمت لتُرجع **السعة السعريّة** أيضًا (`amps` = `|prc[i]−prc[i−1]|` لكلّ ساق دافعة) بجانب المدّة الزمنيّة — النظير السعريّ لـ«وسيط زمن الدافعة» (حارس تقارب المناطق). `aPrc` = مستوى الطرف.
-f_impulseIn(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, array<int> aTm, int fromB, int toB, int wdir, int pendBar) =>
-    array<bool>  tps = array.new<bool>()
-    array<int>   tms = array.new<int>()
-    array<int>   brs = array.new<int>()
-    array<float> pxs = array.new<float>()
-    int n = array.size(aBar)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and array.get(aBar, i) >= fromB and array.get(aBar, i) <= toB and not (not na(pendBar) and array.get(aBar, i) == pendBar)
-            array.push(tps, array.get(aTop, i))
-            array.push(tms, array.get(aTm, i))
-            array.push(brs, array.get(aBar, i))
-            array.push(pxs, array.get(aPrc, i))
-    int m   = array.size(tps)
-    int cnt = 0
-    array<float> durs = array.new<float>()
-    array<float> amps = array.new<float>()
-    if m > 1
-        for i = 1 to m - 1
-            bool pT = array.get(tps, i - 1)
-            bool cT = array.get(tps, i)
-            if (wdir == 1 and (not pT) and cT) or (wdir == -1 and pT and (not cT))   // ساق باتجاه الموجة = دافعة
-                if array.get(brs, i) - array.get(brs, i - 1) >= 2                    // [S1] تجاهُل الساق < بارين (نويز/ازدواج)
-                    cnt := cnt + 1
-                    array.push(durs, (array.get(tms, i) - array.get(tms, i - 1)) / 86400000.0)
-                    array.push(amps, math.abs(array.get(pxs, i) - array.get(pxs, i - 1)))   // [أ40] سعة الساق الدافعة السعريّة
-    [cnt, durs, amps]                                                           // تُرجِع **المدد/السعات نفسها** لا الوسيط: الموجة الواحدة تُعطي ساقًا دافعة أو اثنتين فقط ⇒ يلزم **تجميعها عبر موجات** لبلوغ عيّنة ذات معنى
+// [أ44] f_impulseIn ⇐ نُقلت إلى JW_Degrees/5 (jwd.f_impulseIn)
 
 f_drawWavePanel(int degShown, int impulse, float medImpDays, bool impFromHist) =>
     table.set_position(fht, f_pos(fhPos))
@@ -1553,22 +1508,7 @@ bool confUp = confValid and confUpRaw   // تأكيد شراء (كسر آخر ق
 bool confDn = confValid and confDnRaw   // تأكيد بيع
 
 // [أداء P1] علم «مُغطّى بنقطة لاحقة أكثر تطرّفًا» لكلّ نقطة في تمريرة O(n) واحدة (من الأحدث للأقدم، بأقصى قمّة/أدنى قاع جارٍ) — بدل حلقة O(n) داخل كلّ استدعاء تغطية. السلاسل زمنيّة تصاعديّة ⇒ فهرس أعلى = بار لاحق.
-f_covLater(array<int> aBar, array<bool> aTop, array<float> aPrc) =>
-    int n = array.size(aBar)
-    array<bool> cl = array.new<bool>(n, false)
-    float mxT = na
-    float mnB = na
-    for j = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0
-            int   i  = n - 1 - j
-            bool  ti = array.get(aTop, i)
-            float pi = array.get(aPrc, i)
-            array.set(cl, i, ti ? (not na(mxT) and mxT > pi) : (not na(mnB) and mnB < pi))   // نقطة لاحقة (فُحِصت قبلها) أكثر تطرّفًا من نوعها
-            if ti
-                mxT := na(mxT) ? pi : math.max(mxT, pi)
-            else
-                mnB := na(mnB) ? pi : math.min(mnB, pi)
-    cl
+// [أ44] f_covLater ⇐ نُقلت إلى JW_Degrees/5 (jwd.f_covLater)
 
 // [الدرس05 — التغطية] نقطة مُغطّاة إن وُجدت **بعدها** نقطة من نوعها **أكثر تطرّفًا** ⇒ غير فعّالة. عالميّة للأمام، لكلّ طبقة حسب مفتاحها (covCur/covHist/covHoH). الاستثناء: خارج نطاق سعر الموجة ⇒ تبقى فعّالة. (covLater مُحسَب مسبقًا O(n) — P1)
 f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1, int hL2, float wHi, float wLo, array<bool> covLater) =>
@@ -1589,13 +1529,7 @@ f_coveredAt(array<int> aBar, array<bool> aTop, array<float> aPrc, int i, int hL1
 //   🔴 [تصحيح v2.51.1] **`covLater` الخام لا `f_coveredAt`**: النقطة الشبح في الموجة **الجارية** (covCur=false افتراضًا) ⇒
 //   `f_coveredAt` يُرجِعها «غير مُغطّاة» فلا يُقصيها (فشلت v2.51.0). والزوج السيوليّ (Musab) = آخر تطرّفين **غير مُتجاوَزَين**:
 //   نقطة تجاوزها لاحق أكثر تطرّفًا ليست مرساة سيولة صالحة **بأيّ طبقة** ⇒ الإقصاء البنيويّ (covLater) هو الصحيح، وهو ما اعتمده المدير حرفيًّا (scCovLg/mcCovLg/lgCovLg).
-f_effLive(array<bool> aEff, array<bool> covLater) =>
-    int n = array.size(aEff)
-    array<bool> el = array.new<bool>(n, false)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(aEff, i) and not array.get(covLater, i)
-            array.set(el, i, true)
-    el
+// [أ44] f_effLive ⇐ نُقلت إلى JW_Degrees/5 (jwd.f_effLive)
 var array<bool> scCovLg = array.new<bool>()
 var array<bool> mcCovLg = array.new<bool>()
 var array<bool> lgCovLg = array.new<bool>()
@@ -1607,12 +1541,12 @@ var array<int>   xlBar = array.new<int>()
 var array<bool>  xlTop = array.new<bool>()
 var array<bool>  xlEff = array.new<bool>()
 if barstate.islast
-    scCovLg := f_covLater(scBar, scTop, scPrc)
-    mcCovLg := f_covLater(mcBar, mcTop, mcPrc)
-    lgCovLg := f_covLater(lgBar, lgTop, lgPrc)
-    scEffLive := f_effLive(scEff, scCovLg)
-    mcEffLive := f_effLive(mcEff, mcCovLg)
-    lgEffLive := f_effLive(lgEff, lgCovLg)
+    scCovLg := jwd.f_covLater(scBar, scTop, scPrc)
+    mcCovLg := jwd.f_covLater(mcBar, mcTop, mcPrc)
+    lgCovLg := jwd.f_covLater(lgBar, lgTop, lgPrc)
+    scEffLive := jwd.f_effLive(scEff, scCovLg)
+    mcEffLive := jwd.f_effLive(mcEff, mcCovLg)
+    lgEffLive := jwd.f_effLive(lgEff, lgCovLg)
     // ═══ [رابعة السلّم · ladderDepth=4] الدرجة الرابعة (الأكبر) = f_deriveDegree(الكبيرة، lgEffLive — §9 القناع الحيّ لا الخام) ═══
     //   نفس الدالّة المعمّمة كالكبيرة، الفرق: الدخل (الكبيرة) والقناع (effLive). [§1-هـ] الإسناد العالميّ xlPendBg عند النداء.
     //   المستهلك الوحيد = عدّ اللوحة wpDeg (§5) ⇒ يُحيي فرع «اصعد ↑» النائم. لا خطوط/مناطق (طبقة عدّ صرفة).
@@ -1775,12 +1709,12 @@ if barstate.islast
                     array.push(zoneLvlLines, line.new(array.get(eTm, p), array.get(eLvl, p), rightTm2, array.get(eLvl, p), xloc = xloc.bar_time, color = lc, width = 1, style = array.get(eCov, p) ? line.style_dashed : line.style_solid))
         // ─── [أ40] المرجع البنيويّ لحارس التقارب: وسيط سعة الساق الدافعة المتوسطة (النظير السعريّ لـ«وسيط زمن الدافعة»؛ نفس فولباك اللوحة: الجارية→التاريخيّة) ───
         //   🔴 بنية الفولباك مكرّرة عمدًا (لا تُوحَّد مع اللوحة): عزلٌ عن مستهلِك «نوع التداول» الحسّاس — التمييز الدافع نفسه موحّد في f_impulseIn. na ⇒ الحارس معطَّل في المكتبة (fail-open).
-        [_acA, _adA, cAmpsZ] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, histLeft, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
+        [_acA, _adA, cAmpsZ] = jwd.f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, histLeft, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
         array<float> poolAmpZ = array.copy(cAmpsZ)
         int nSegAz = array.size(segLefts)
         for s = 1 to (nSegAz > 1 ? nSegAz - 1 : 0)                                    // فولباك تاريخيّ حتّى كفاية العيّنة (عيّنتان للوسيط)
             if nSegAz > 1 and array.size(poolAmpZ) < 2
-                [_hcA, _hdA, hAmpsZ] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
+                [_hcA, _hdA, hAmpsZ] = jwd.f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
                 if array.size(hAmpsZ) > 0
                     for a in hAmpsZ
                         array.push(poolAmpZ, a)
@@ -2317,7 +2251,7 @@ if showFrameHelper and barstate.islast
     //   `wlB` يبقى لـ«موجات دافعة» و«زمن الموجة» (يخصّان **الموجة الجارية** بحقّ).
     int   cntB   = math.max(bar_index - VIEW_WIN + 1, 0)
     // [GAPS-9 · أ22] الدرجتان السفليان (sc/mc) بنافذة 500 كما هي (f_degVis)؛ الخشِنتان (lg/xl) بالنافذة البنيويّة + بوّابة المنظر (f_degVisWide).
-    int   wpDeg  = f_degVis(scBar, scTop, scEff, cntB, na) + f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + f_degVisWide(lgBar, lgTop, lgEff, cntB, lgPendBg) + f_degVisWide(xlBar, xlTop, xlEff, cntB, xlPendBg)
+    int   wpDeg  = jwd.f_degVis(scBar, scTop, scEff, cntB, na) + jwd.f_degVis(mcBar, mcTop, mcEff, cntB, mediumDegree.pendingBar) + jwd.f_degVisWide(lgBar, lgTop, lgEff, cntB, lgPendBg) + jwd.f_degVisWide(xlBar, xlTop, xlEff, cntB, xlPendBg)
     // 🔴 [حسم المستخدم] قِس الدافعة داخل **الموجة الجارية**؛ فإن لم تتوفّر بيانات ⇒ ارجع إلى **الموجة التاريخيّة** (المقطع المكتمل قبلها).
     //   المرجع لكلّ مقطع = **اتجاهه هو**: الجارية `curWdir` (= `buildWave(lastL, wRb)`) · التاريخيّة من نوع حدّها (`segLeftTop[1]`: قمّة ⇒ هابطة).
     //   ⚠️ الثابتة: **النافذة والمرجع على المدى نفسه** — وإلّا قِيس مدًى وعُدّ في آخر (عطب ف0-2 في موضع آخر).
@@ -2326,14 +2260,14 @@ if showFrameHelper and barstate.islast
     //   والموجة الواحدة تُعطي **ساقًا دافعة أو اثنتين** فقط (US100·60: 24 نقطة متوسطة ÷ 8 موجات ≈ 3 نقاط ⇒ ساقان ⇒ دافعة+تصحيح).
     //   ⇒ التجميع عبر الموجات **ضرورة لا اختيار**. وهو أمين: كلّها **نفس القياس** (ساق متوسطة دافعة)، والمرجع لكلّ موجة **اتجاهها هي**.
     //   ⚠️ يبقى **الفارق مُفصَحًا**: `impHist` ⇒ لاحقة «(التاريخيّة)» متى دخلت أيّ عيّنة من خارج الجارية.
-    [cImpC, cDurs, _cAmpsP] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, wlB, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
+    [cImpC, cDurs, _cAmpsP] = jwd.f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, wlB, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
     int   wpImp    = cImpC                                                     // «موجات دافعة» = عدد سيقان **الجارية** حصرًا (لا يُلوَّث بالتاريخ)
     array<float> pool = array.copy(cDurs)
     bool  impHist  = false
     int   nSegP    = array.size(segLefts)
     for s = 1 to (nSegP > 1 ? nSegP - 1 : 0)                                   // من الأحدث للأقدم (السلسلة تنازليّة) — وقف فور كفاية العيّنة
         if nSegP > 1 and array.size(pool) < 2
-            [hC, hDurs, _hAmpsP] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
+            [hC, hDurs, _hAmpsP] = jwd.f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
             if array.size(hDurs) > 0
                 for d in hDurs
                     array.push(pool, d)

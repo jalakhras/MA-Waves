@@ -437,3 +437,89 @@ export syncPending(DegreeLaws md, BreakProc mb, int wdir) =>
 // [v4 · م2-5] `buildWave` (الغلاف الدفعيّ) **حُذفت** — صفر مستدعين بعد أن صار المؤشّر كلّه على المحرّك الأماميّ
 //   (feedBar بحالة var عند كلّ بار مؤكَّد + syncPending). زال الازدواج المؤقّت المُعلَن في /3.
 //   🔴 تذكير دائم: لا غلاف method على كائن محلّيّ في المكتبات أبدًا (عيب ترجمة /2 المقيس).
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 5) تحليل سلسلة درجة — دوالّ نقيّة [v5 · أ44: نُقلت حرفيًّا من المؤشّر]
+//   كلّها تأخذ سلسلة درجة مُمرَّرة (bar/top/prc/eff/tm) وتُرجع تحليلًا — دوالّ حرّة (لا method، لا كائن محلّيّ) ⇒ **خارج فخّ الترجمة**.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// [أداء P1] علم «مُغطّى بنقطة لاحقة أكثر تطرّفًا» لكلّ نقطة، تمريرة O(n) واحدة (من الأحدث للأقدم، بأقصى قمّة/أدنى قاع جارٍ). السلاسل تصاعديّة ⇒ فهرس أعلى = بار لاحق.
+export f_covLater(array<int> aBar, array<bool> aTop, array<float> aPrc) =>
+    int n = array.size(aBar)
+    array<bool> cl = array.new<bool>(n, false)
+    float mxT = na
+    float mnB = na
+    for j = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0
+            int   i  = n - 1 - j
+            bool  ti = array.get(aTop, i)
+            float pi = array.get(aPrc, i)
+            array.set(cl, i, ti ? (not na(mxT) and mxT > pi) : (not na(mnB) and mnB < pi))   // نقطة لاحقة (فُحِصت قبلها) أكثر تطرّفًا من نوعها
+            if ti
+                mxT := na(mxT) ? pi : math.max(mxT, pi)
+            else
+                mnB := na(mnB) ? pi : math.min(mnB, pi)
+    cl
+
+// [أ10 · قناع «المؤكَّد فقط» للسيولة] effLive = فعّال ∧ **غير مُغطّى بنيويًّا** (covLater الخام: وُجدت بعده نقطة من نوعه أكثر تطرّفًا). يُمرَّر بدل aEff الخام لدوالّ السيولة الثلاث.
+export f_effLive(array<bool> aEff, array<bool> covLater) =>
+    int n = array.size(aEff)
+    array<bool> el = array.new<bool>(n, false)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and not array.get(covLater, i)
+            array.set(el, i, true)
+    el
+
+// 🔴 [الحَكَم · د04] هل للدرجة **بنية ظاهرة** داخل [fromB..الآن]؟ = **قمّة فعّالة وقاع فعّال** على الأقلّ (بصيغة الجمع والنوعين، مصعب2:16-24). pendBar: يُستبعَد الطرف الحيّ (قاعدة الانتظار د06).
+export f_degVis(array<int> aBar, array<bool> aTop, array<bool> aEff, int fromB, int pendBar) =>
+    int  n  = array.size(aBar)
+    bool hT = false                                        // قمّة فعّالة مؤكَّدة داخل النافذة
+    bool hB = false                                        // قاع فعّال مؤكَّد
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and array.get(aBar, i) >= fromB and not (not na(pendBar) and array.get(aBar, i) == pendBar)
+            if array.get(aTop, i)
+                hT := true
+            else
+                hB := true
+    hT and hB ? 1 : 0
+
+// 🔴 [GAPS-9 · spec_gaps9_frame_count] «الدرجة ظاهرة» للدرجات **الخشِنة** (كبيرة/رابعة) — نافذة بنيويّة `[min(lastTop,lastBot)..bar_index]` (عرض تأرجُح الدرجة نفسها) + بوّابة «بالمنظر ده» (الطرف الأحدث ≥ cntB · مصعب:212). المعلَّق مُستبعَد.
+export f_degVisWide(array<int> aBar, array<bool> aTop, array<bool> aEff, int cntB, int pendBar) =>
+    int lastTop = na
+    int lastBot = na
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and not (not na(pendBar) and array.get(aBar, i) == pendBar)
+            if array.get(aTop, i)
+                lastTop := na(lastTop) ? array.get(aBar, i) : math.max(lastTop, array.get(aBar, i))
+            else
+                lastBot := na(lastBot) ? array.get(aBar, i) : math.max(lastBot, array.get(aBar, i))
+    (not na(lastTop)) and (not na(lastBot)) and (math.max(lastTop, lastBot) >= cntB) ? 1 : 0
+
+// 🔴 [نوع التداول · حسم المستخدم 2026-07-15] سيقان **المتوسطة الدافعة** داخل [fromB..toB] باتّجاه wdir ⇒ [العدد، مدد بالأيّام، سعات سعريّة]. تُرجع المدد/السعات الخام (الوسيط يُحسَب خارجًا — الموجة الواحدة ساقان فقط ⇒ يلزم التجميع). [أ40] amps = |prc[i]−prc[i−1]|.
+export f_impulseIn(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, array<int> aTm, int fromB, int toB, int wdir, int pendBar) =>
+    array<bool>  tps = array.new<bool>()
+    array<int>   tms = array.new<int>()
+    array<int>   brs = array.new<int>()
+    array<float> pxs = array.new<float>()
+    int n = array.size(aBar)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(aEff, i) and array.get(aBar, i) >= fromB and array.get(aBar, i) <= toB and not (not na(pendBar) and array.get(aBar, i) == pendBar)
+            array.push(tps, array.get(aTop, i))
+            array.push(tms, array.get(aTm, i))
+            array.push(brs, array.get(aBar, i))
+            array.push(pxs, array.get(aPrc, i))
+    int m   = array.size(tps)
+    int cnt = 0
+    array<float> durs = array.new<float>()
+    array<float> amps = array.new<float>()
+    if m > 1
+        for i = 1 to m - 1
+            bool pT = array.get(tps, i - 1)
+            bool cT = array.get(tps, i)
+            if (wdir == 1 and (not pT) and cT) or (wdir == -1 and pT and (not cT))   // ساق باتجاه الموجة = دافعة
+                if array.get(brs, i) - array.get(brs, i - 1) >= 2                    // [S1] تجاهُل الساق < بارين (نويز/ازدواج)
+                    cnt := cnt + 1
+                    array.push(durs, (array.get(tms, i) - array.get(tms, i - 1)) / 86400000.0)
+                    array.push(amps, math.abs(array.get(pxs, i) - array.get(pxs, i - 1)))   // [أ40] سعة الساق الدافعة السعريّة
+    [cnt, durs, amps]
