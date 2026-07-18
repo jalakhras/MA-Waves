@@ -4,7 +4,7 @@ import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطا�
 import Jassar_Mahmoud/JW_Degrees/4 as jwd                     // [ط1] الدرجات (v4 = حذف buildWave نهائيًّا — المؤشّر كلّه على SmallScan/feedBar/syncPending بالمحرّك الأماميّ؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
-import Jassar_Mahmoud/JW_Zones/3 as jwz                       // [ط4] المناطق: التزويج الموحّد (v3 = أ34: حذف between + أولويّة الطبقة eTier + إسقاط usedZ؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
+import Jassar_Mahmoud/JW_Zones/4 as jwz                       // [ط4] المناطق: التزويج الموحّد (v4 = أ38: استرجاع between مع eTier؛ v3 = أ34: حذف between + أولويّة الطبقة eTier + إسقاط usedZ؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch

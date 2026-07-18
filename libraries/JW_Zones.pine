@@ -5,7 +5,7 @@
 //
 //   القاعدة (حسم المستخدم 2026-07-14 — يَنسخ «نفس النوع فقط» المستخرَج سابقًا من الفيديو):
 //     «مستطيل بين كلّ خطّين متقاربين سعريًّا» — **بأيّ نوع** (قمّة/قاع)، الأقرب سعريًّا (الأحدث أوّلًا)،
-//     **بأولويّة الطبقة** (الحاليّة ← تاريخ التاريخ ← التاريخ · أ34-3)، **لا تداخل** (`contain`)، **لا حدّ أدنى**. [أ34-2: حُذِف `between`.]
+//     **الجوار** (`between`: لا مستوى بينهما سعريًّا ⇒ متجاوران · استُرجِع أ38)، **بأولويّة الطبقة** (الحاليّة ← تاريخ التاريخ ← التاريخ · أ34-3)، **لا تداخل** (`contain`)، **لا حدّ أدنى**.
 //     🔴 الاستثناء الوحيد: **قمّة + تصحيحها المباشر** = طرفان معاكسا النوع من **نفس الدرجة** متتاليان
 //        زمنيًّا (لا طرف نفس-الدرجة بينهما زمنيًّا = موجة واحدة) ⇒ لا منطقة بينهما.
 //     البركة موحّدة (تُبنى في المؤشّر): المتوسطة الفعّالة + تاريخ التاريخ (المُغطّاة) + الكبيرة ⇒ لا استعارة منفصلة.
@@ -15,9 +15,9 @@
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Zones", overlay = true)
 
-// ─── التزويج الموحّد — أقرب طرف سعريًّا (أيّ نوع) منطقة، إلّا قمّة+تصحيحها المباشر · بأولويّة الطبقة (أ34) ───
-//   [أ34-2] حُذِف حارس الجوار `between` (الأقرب سعريًّا يُغنيه للأطراف المتاحة). يبقى: `directCorr` + `contain`.
-//   [أ34-3] `eTier` (0 حاليّة · 1 تاريخ التاريخ · 2 التاريخ): الشريك يُنتقى **بأولويّة الطبقة** — أقرب سعريًّا في الحاليّة أوّلًا، ثمّ تاريخ التاريخ، ثمّ التاريخ (تاريخ التاريخ فولباك دائم).
+// ─── التزويج الموحّد — طرفان متجاوران سعريًّا (أيّ نوع) منطقة، إلّا قمّة+تصحيحها المباشر · بأولويّة الطبقة (أ34) ───
+//   [أ38] استُرجِع حارس الجوار `between` (لا مستوى بينهما سعريًّا — **يشمل المُستهلَك** ⇒ يمنع المنطقة المفرطة العرض العابرة لطرف مُستهلَك، علّة v2.33.0/§7-ب). يبقى معه: `eTier` + المتدرّج + `directCorr` + `contain`.
+//   [أ34-3] `eTier` (0 حاليّة · 1 تاريخ التاريخ · 2 التاريخ): الشريك يُنتقى **بأولويّة الطبقة** — أقرب سعريًّا **ومتجاور** في الحاليّة أوّلًا، ثمّ تاريخ التاريخ، ثمّ التاريخ (تاريخ التاريخ فولباك دائم).
 export f_pairZones(array<float> eLvl, array<bool> eTp, array<int> eBar, array<int> eDeg, array<int> eTier) =>
     int en = array.size(eLvl)
     array<bool>  usedZ = array.new<bool>(en, false)
@@ -37,6 +37,12 @@ export f_pairZones(array<float> eLvl, array<bool> eTp, array<int> eBar, array<in
                 for c = 0 to en - 1
                     if c != aa and not array.get(usedZ, c)
                         float d = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
+                        float loB = math.min(array.get(eLvl, aa), array.get(eLvl, c))
+                        float hiB = math.max(array.get(eLvl, aa), array.get(eLvl, c))
+                        bool between = false                       // [أ38] الجوار السعريّ: مستوى بينهما (ولو مُستهلَك) ⇒ ليسا متجاورَين
+                        for k = 0 to en - 1
+                            if k != aa and k != c and array.get(eLvl, k) > loB and array.get(eLvl, k) < hiB
+                                between := true
                         bool directCorr = false                    // 🔴 قمّة + تصحيحها المباشر: معاكسا النوع + نفس الدرجة + متتاليان زمنيًّا
                         if array.get(eTp, c) != array.get(eTp, aa) and array.get(eDeg, c) == array.get(eDeg, aa)
                             int loT = math.min(array.get(eBar, aa), array.get(eBar, c))
@@ -46,7 +52,7 @@ export f_pairZones(array<float> eLvl, array<bool> eTp, array<int> eBar, array<in
                                 if k != aa and k != c and array.get(eDeg, k) == array.get(eDeg, aa) and array.get(eBar, k) > loT and array.get(eBar, k) < hiT
                                     timeBetween := true
                             directCorr := not timeBetween          // لا طرف نفس-الدرجة بينهما زمنيًّا ⇒ موجة واحدة (قمّة↔تصحيحها)
-                        if not directCorr
+                        if not between and not directCorr
                             int tc = array.get(eTier, c)
                             if tc == 0
                                 if d < bd0
