@@ -4,7 +4,7 @@ import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطا�
 import Jassar_Mahmoud/JW_Degrees/4 as jwd                     // [ط1] الدرجات (v4 = حذف buildWave نهائيًّا — المؤشّر كلّه على SmallScan/feedBar/syncPending بالمحرّك الأماميّ؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
-import Jassar_Mahmoud/JW_Zones/4 as jwz                       // [ط4] المناطق: التزويج الموحّد (v4 = أ38: استرجاع between مع eTier؛ v3 = أ34: حذف between + أولويّة الطبقة eTier + إسقاط usedZ؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
+import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المناطق: التزويج الموحّد (v5 = أ40: حذف between + حارس التقارب impAmp؛ v4 = أ38 استرجاع between مدحوض؛ v3 = أ34 حذف between+eTier؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
@@ -539,19 +539,23 @@ f_degVisWide(array<int> aBar, array<bool> aTop, array<bool> aEff, int cntB, int 
 //   مُعمَّمة على **المدى** عمدًا: تُستدعى للموجة **الجارية** ثمّ — إن لم تكفِ البيانات — للموجة **التاريخيّة**. دالّة واحدة، لا مسار مزدوج.
 //   تقرأ **السلسلة المرسومة** (`mcBar/mcTop/mcTm` — `f_pushChain` يفرض التناوب) لا الخام، وتستبعد الطرف **المعلَّق** (قاعدة الانتظار د06).
 //   الوسيط يحتاج **عيّنتين** فأكثر (median على عيّنة = العيّنة نفسها ⇒ لا معنى إحصائيّ) ⇒ وإلّا `na`.
-f_impulseIn(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm, int fromB, int toB, int wdir, int pendBar) =>
-    array<bool> tps = array.new<bool>()
-    array<int>  tms = array.new<int>()
-    array<int>  brs = array.new<int>()
+//   [أ40] عُمِّمت لتُرجع **السعة السعريّة** أيضًا (`amps` = `|prc[i]−prc[i−1]|` لكلّ ساق دافعة) بجانب المدّة الزمنيّة — النظير السعريّ لـ«وسيط زمن الدافعة» (حارس تقارب المناطق). `aPrc` = مستوى الطرف.
+f_impulseIn(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, array<int> aTm, int fromB, int toB, int wdir, int pendBar) =>
+    array<bool>  tps = array.new<bool>()
+    array<int>   tms = array.new<int>()
+    array<int>   brs = array.new<int>()
+    array<float> pxs = array.new<float>()
     int n = array.size(aBar)
     for i = 0 to (n > 0 ? n - 1 : 0)
         if n > 0 and array.get(aEff, i) and array.get(aBar, i) >= fromB and array.get(aBar, i) <= toB and not (not na(pendBar) and array.get(aBar, i) == pendBar)
             array.push(tps, array.get(aTop, i))
             array.push(tms, array.get(aTm, i))
             array.push(brs, array.get(aBar, i))
+            array.push(pxs, array.get(aPrc, i))
     int m   = array.size(tps)
     int cnt = 0
     array<float> durs = array.new<float>()
+    array<float> amps = array.new<float>()
     if m > 1
         for i = 1 to m - 1
             bool pT = array.get(tps, i - 1)
@@ -560,7 +564,8 @@ f_impulseIn(array<int> aBar, array<bool> aTop, array<bool> aEff, array<int> aTm,
                 if array.get(brs, i) - array.get(brs, i - 1) >= 2                    // [S1] تجاهُل الساق < بارين (نويز/ازدواج)
                     cnt := cnt + 1
                     array.push(durs, (array.get(tms, i) - array.get(tms, i - 1)) / 86400000.0)
-    [cnt, durs]                                                                 // تُرجِع **المدد نفسها** لا الوسيط: الموجة الواحدة تُعطي ساقًا دافعة أو اثنتين فقط ⇒ يلزم **تجميعها عبر موجات** لبلوغ عيّنة ذات معنى
+                    array.push(amps, math.abs(array.get(pxs, i) - array.get(pxs, i - 1)))   // [أ40] سعة الساق الدافعة السعريّة
+    [cnt, durs, amps]                                                           // تُرجِع **المدد/السعات نفسها** لا الوسيط: الموجة الواحدة تُعطي ساقًا دافعة أو اثنتين فقط ⇒ يلزم **تجميعها عبر موجات** لبلوغ عيّنة ذات معنى
 
 f_drawWavePanel(int degShown, int impulse, float medImpDays, bool impFromHist) =>
     table.set_position(fht, f_pos(fhPos))
@@ -1768,9 +1773,21 @@ if barstate.islast
                 if en > 0
                     color lc = array.get(eLarge, p) ? cLvlB : cZoneLvl
                     array.push(zoneLvlLines, line.new(array.get(eTm, p), array.get(eLvl, p), rightTm2, array.get(eLvl, p), xloc = xloc.bar_time, color = lc, width = 1, style = array.get(eCov, p) ? line.style_dashed : line.style_solid))
-        // ─── التزويج الموحّد ⇒ حوافّ المناطق (أيّ نوع + أولويّة الطبقة + استثناء التصحيح المباشر + لا احتواء) ───
+        // ─── [أ40] المرجع البنيويّ لحارس التقارب: وسيط سعة الساق الدافعة المتوسطة (النظير السعريّ لـ«وسيط زمن الدافعة»؛ نفس فولباك اللوحة: الجارية→التاريخيّة) ───
+        //   🔴 بنية الفولباك مكرّرة عمدًا (لا تُوحَّد مع اللوحة): عزلٌ عن مستهلِك «نوع التداول» الحسّاس — التمييز الدافع نفسه موحّد في f_impulseIn. na ⇒ الحارس معطَّل في المكتبة (fail-open).
+        [_acA, _adA, cAmpsZ] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, histLeft, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
+        array<float> poolAmpZ = array.copy(cAmpsZ)
+        int nSegAz = array.size(segLefts)
+        for s = 1 to (nSegAz > 1 ? nSegAz - 1 : 0)                                    // فولباك تاريخيّ حتّى كفاية العيّنة (عيّنتان للوسيط)
+            if nSegAz > 1 and array.size(poolAmpZ) < 2
+                [_hcA, _hdA, hAmpsZ] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
+                if array.size(hAmpsZ) > 0
+                    for a in hAmpsZ
+                        array.push(poolAmpZ, a)
+        float impMedAmp = array.size(poolAmpZ) >= 2 ? array.median(poolAmpZ) : na    // na ⇒ حارس التقارب معطَّل (fail-open، لا تلفيق)
+        // ─── التزويج الموحّد ⇒ حوافّ المناطق (أيّ نوع + أولويّة الطبقة + استثناء التصحيح المباشر + حارس التقارب + لا احتواء) ───
         if showZoneBox and en >= 1
-            [zTpZ, zBtZ, zLfZ] = jwz.f_pairZones(eLvl, eTp, eBar, eDeg, eTier)
+            [zTpZ, zBtZ, zLfZ] = jwz.f_pairZones(eLvl, eTp, eBar, eDeg, eTier, impMedAmp)
             int nzz = array.size(zTpZ)
             for zi = 0 to (nzz > 0 ? nzz - 1 : 0)
                 if nzz > 0
@@ -2309,14 +2326,14 @@ if showFrameHelper and barstate.islast
     //   والموجة الواحدة تُعطي **ساقًا دافعة أو اثنتين** فقط (US100·60: 24 نقطة متوسطة ÷ 8 موجات ≈ 3 نقاط ⇒ ساقان ⇒ دافعة+تصحيح).
     //   ⇒ التجميع عبر الموجات **ضرورة لا اختيار**. وهو أمين: كلّها **نفس القياس** (ساق متوسطة دافعة)، والمرجع لكلّ موجة **اتجاهها هي**.
     //   ⚠️ يبقى **الفارق مُفصَحًا**: `impHist` ⇒ لاحقة «(التاريخيّة)» متى دخلت أيّ عيّنة من خارج الجارية.
-    [cImpC, cDurs] = f_impulseIn(mcBar, mcTop, mcEff, mcTm, wlB, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
+    [cImpC, cDurs, _cAmpsP] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, wlB, bar_index, curWdir, mediumDegree.pendingType != 0 ? mediumDegree.pendingBar : na)
     int   wpImp    = cImpC                                                     // «موجات دافعة» = عدد سيقان **الجارية** حصرًا (لا يُلوَّث بالتاريخ)
     array<float> pool = array.copy(cDurs)
     bool  impHist  = false
     int   nSegP    = array.size(segLefts)
     for s = 1 to (nSegP > 1 ? nSegP - 1 : 0)                                   // من الأحدث للأقدم (السلسلة تنازليّة) — وقف فور كفاية العيّنة
         if nSegP > 1 and array.size(pool) < 2
-            [hC, hDurs] = f_impulseIn(mcBar, mcTop, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
+            [hC, hDurs, _hAmpsP] = f_impulseIn(mcBar, mcTop, mcPrc, mcEff, mcTm, array.get(segLefts, s), array.get(segRights, s), array.get(segLeftTop, s) ? -1 : 1, na)
             if array.size(hDurs) > 0
                 for d in hDurs
                     array.push(pool, d)
