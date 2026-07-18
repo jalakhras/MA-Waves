@@ -4,7 +4,7 @@ import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطا�
 import Jassar_Mahmoud/JW_Degrees/4 as jwd                     // [ط1] الدرجات (v4 = حذف buildWave نهائيًّا — المؤشّر كلّه على SmallScan/feedBar/syncPending بالمحرّك الأماميّ؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
 import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
-import Jassar_Mahmoud/JW_Zones/2 as jwz                       // [ط4] المناطق: التزويج الموحّد (v2 = بركة موحّدة، أيّ نوع، إلّا قمّة+تصحيحها المباشر، لا حدّ أدنى) — حسم المستخدم 2026-07-14
+import Jassar_Mahmoud/JW_Zones/3 as jwz                       // [ط4] المناطق: التزويج الموحّد (v3 = أ34: حذف between + أولويّة الطبقة eTier + إسقاط usedZ؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
@@ -1699,7 +1699,7 @@ if barstate.islast
 // ─── [ط4-أ / الدرس L2-02 · حسم 2026-07-14] مستويات م.A + المناطق — **بركة موحّدة** (كتلة واحدة أدناه) ───
 //   البركة = المتوسطة الفعّالة + تاريخ التاريخ (المُغطّاة) + الكبيرة. التزويج بأيّ نوع (إلّا قمّة+تصحيحها المباشر)، لا حدّ أدنى.
 var array<line> zoneLvlLines = array.new<line>()
-var array<int>  zoneLvlPool  = array.new<int>()   // [محو الخطّ] موضع كلّ خطّ م.A في البركة — لحذف خطّ الطرف الذي يصير عضو منطقة (المنفردة تبقى خطًّا)
+// [أ34-1] `zoneLvlPool` حُذف: خدم المسح التلقائيّ (usedZ) الذي أُزيل — `showZoneLvl` وحده يحكم الآن.
 
 // ─── [ط4-أ / الدرس L2-02 · حسم 2026-07-14] المناطق = مستطيل بين طرفين **متجاورين سعريًّا** من البركة الموحّدة (أيّ نوع) ───
 //   البركة = المتوسطة الفعّالة + تاريخ التاريخ (المُغطّاة) + الكبيرة. 🔴 الممنوع الوحيد: قمّة+تصحيحها المباشر · 🔴 لا منطقة داخل منطقة · لا حدّ أدنى. التزويج/الجوار/الاستثناء في jwz.f_pairZones.
@@ -1717,7 +1717,6 @@ if barstate.islast
         for li = 0 to array.size(zoneLvlLines) - 1
             line.delete(array.get(zoneLvlLines, li))
     array.clear(zoneLvlLines)
-    array.clear(zoneLvlPool)
     if showZones
         int rightTm2 = time + zoneExtend * timeframe.in_seconds() * 1000
         int histLeft  = array.size(segLefts) > 0 ? array.get(segLefts, 0) : 0
@@ -1728,6 +1727,7 @@ if barstate.islast
         array<bool>  eTp  = array.new<bool>()
         array<int>   eBar = array.new<int>()
         array<int>   eDeg = array.new<int>()                                          // 0 متوسطة · 1 كبيرة
+        array<int>   eTier = array.new<int>()                                         // [أ34-3] طبقة الطرف: 0 حاليّة · 1 تاريخ التاريخ · 2 التاريخ — لأولويّة التزويج
         array<int>   eTm  = array.new<int>()                                          // زمن الطرف (لرسم الخطّ)
         array<bool>  eCov = array.new<bool>()                                         // مُغطّى (تاريخ التاريخ)؟ — للتلوين (متقطّع)
         array<bool>  eLarge = array.new<bool>()                                       // طرف كبير (أزرق)؟ — للتلوين فقط (الكبيرة ⊆ المتوسطة ⇒ لا تكرار في البركة)
@@ -1745,6 +1745,7 @@ if barstate.islast
                     array.push(eTp, array.get(mcTop, i))
                     array.push(eBar, array.get(mcBar, i))
                     array.push(eDeg, 0)
+                    array.push(eTier, array.get(mcBar, i) >= histLeft ? 0 : array.get(mcBar, i) >= hL2b ? 1 : 2)   // [أ34-3] طبقة الطرف من موضعه مقابل حدود الموجات
                     array.push(eTm, array.get(mcTm, i))
                     array.push(eCov, f_coveredAt(mcBar, mcTop, mcPrc, i, histLeft, hL2b, wHiB, wLoB, mcCovLg))
                     array.push(eLarge, isLg)
@@ -1756,6 +1757,7 @@ if barstate.islast
                     array.push(eTp, array.get(lgTop, c))
                     array.push(eBar, array.get(lgBar, c))
                     array.push(eDeg, 1)
+                    array.push(eTier, array.get(lgBar, c) >= histLeft ? 0 : array.get(lgBar, c) >= hL2b ? 1 : 2)   // [أ34-3] طبقة الطرف الكبير
                     array.push(eTm, array.get(lgTm, c))
                     array.push(eCov, false)
                     array.push(eLarge, true)
@@ -1766,10 +1768,9 @@ if barstate.islast
                 if en > 0
                     color lc = array.get(eLarge, p) ? cLvlB : cZoneLvl
                     array.push(zoneLvlLines, line.new(array.get(eTm, p), array.get(eLvl, p), rightTm2, array.get(eLvl, p), xloc = xloc.bar_time, color = lc, width = 1, style = array.get(eCov, p) ? line.style_dashed : line.style_solid))
-                    array.push(zoneLvlPool, p)
-        // ─── التزويج الموحّد ⇒ حوافّ المناطق (أيّ نوع + الجوار + استثناء التصحيح المباشر + لا احتواء) ───
+        // ─── التزويج الموحّد ⇒ حوافّ المناطق (أيّ نوع + أولويّة الطبقة + استثناء التصحيح المباشر + لا احتواء) ───
         if showZoneBox and en >= 1
-            [zTpZ, zBtZ, zLfZ, usedZ] = jwz.f_pairZones(eLvl, eTp, eBar, eDeg)
+            [zTpZ, zBtZ, zLfZ] = jwz.f_pairZones(eLvl, eTp, eBar, eDeg, eTier)
             int nzz = array.size(zTpZ)
             for zi = 0 to (nzz > 0 ? nzz - 1 : 0)
                 if nzz > 0
@@ -1781,11 +1782,7 @@ if barstate.islast
                     array.push(zTop, cT)
                     array.push(zBot, cB)
                     array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
-            // [محو الخطّ] احذف خطّ م.A لكلّ طرف صار **عضو منطقة** (usedZ) ⇒ يبقى الخطّ **للمنفردة فقط**
-            if showZoneLvl
-                for k = 0 to (array.size(zoneLvlPool) > 0 ? array.size(zoneLvlPool) - 1 : 0)
-                    if array.size(zoneLvlPool) > 0 and array.get(usedZ, array.get(zoneLvlPool, k))
-                        line.delete(array.get(zoneLvlLines, k))
+            // [أ34-1] المسح التلقائيّ لخطوط الأعضاء (usedZ) حُذف: `showZoneLvl` وحده يحكم عرض كلّ خطوط م.A (أعضاء ومنفردات).
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var array<label> sigMarks = array.new<label>()   // علامات إشارات ثابتة (تُرسم عند إغلاق الشمعة وتبقى في مكانها — لا تتحرك مع السعر)
