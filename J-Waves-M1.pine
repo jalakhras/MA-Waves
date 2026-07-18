@@ -3,7 +3,7 @@ import Jassar_Mahmoud/JW_Elliott/1 as jwew                      // [تحمّل �
 import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطاقات الموجة النقيّة (v4 = النقلة 3: محرّك leg حُذف كاملًا — بقي rangeHiLo/rangeDays + حارس MAX_HIST؛ v3 = waveLeftStruct البنيويّة)
 import Jassar_Mahmoud/JW_Degrees/5 as jwd                     // [ط1] الدرجات (v5 = أ44: +5 دوالّ تحليل نقيّة f_covLater/f_effLive/f_degVis/f_degVisWide/f_impulseIn؛ v4 = حذف buildWave؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/5 as jwl                       // [ط2] الخطوط (v5 = أ11: f_liqLine بـextend.right على الطرفين الحقيقيّين ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
-import Jassar_Mahmoud/JW_Conclusions/11 as jwc               // [ط3] الاستنتاجات/المراحل (v11 = 🔴 إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
+import Jassar_Mahmoud/JW_Conclusions/12 as jwc               // [ط3] الاستنتاجات/المراحل (v12 = أ44/ب: +f_phaseLblI موضع وسم المرحلة نقيّة؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف: زوج المراحل + إزالة look-ahead + إصلاح القوّة/التراكب + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المناطق: التزويج الموحّد (v5 = أ40: حذف between + حارس التقارب impAmp؛ v4 = أ38 استرجاع between مدحوض؛ v3 = أ34 حذف between+eTier؛ v2 = بركة موحّدة أيّ نوع إلّا المباشر)
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
@@ -897,28 +897,7 @@ f_drawMedCircle(array<label> store, int tm, float price, color fillCol, color bo
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = bordCol, size = f_lblSize(szStr)))    // الحافة (أكبر، خلف)
     array.push(store, label.new(tm, price, "", xloc = xloc.bar_time, yloc = yloc.price, style = label.style_circle, color = fillCol, size = f_lblSizeIn(szStr)))   // التعبئة (أصغر، أمام)
 
-// [ط3 · فجوة #1] فهرس آخر تطرّف فعّال (eff=true) في مصفوفة الفعاليّة — لوسم مرحلة الدرجة (showPhaseLbl)؛ يرجع -1 إن لا فعّال
-f_lastEffI(array<bool> effArr) =>
-    int res = -1
-    int n   = array.size(effArr)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(effArr, i)
-            res := i
-    res
-
-// [ط3 · موضع الوسم الواعي بالاتجاه · قرار المستخدم 2026-07-13] فهرس آخر تطرّف فعّال **من نوع محدّد** (قمّة=true/قاع=false)
-f_lastEffTypeI(array<bool> effArr, array<bool> topArr, bool wantTop) =>
-    int res = -1
-    int n   = array.size(effArr)
-    for i = 0 to (n > 0 ? n - 1 : 0)
-        if n > 0 and array.get(effArr, i) and array.get(topArr, i) == wantTop
-            res := i
-    res
-
-// موضع وسم المرحلة عند **تطرّفها المفهوميّ**: ذعر/يأس/ph3 (التصحيح المضادّ) ⇒ هبوطًا قمّة · صعودًا قاع · ph4 (تصريف صعودًا/تجميع هبوطًا) ⇒ المعاكس · مشاركة/غيرها ⇒ آخر تطرّف. fallback = آخر تطرّف إن لا نوع مطابق.
-f_phaseLblI(int ph, int dir, array<bool> eff, array<bool> top) =>
-    int idx = ph >= 1 and ph <= 3 ? f_lastEffTypeI(eff, top, dir == -1) : ph == 4 ? f_lastEffTypeI(eff, top, dir == 1) : f_lastEffI(eff)
-    idx < 0 ? f_lastEffI(eff) : idx
+// [أ44/ب] f_lastEffI · f_lastEffTypeI (داخليّتان) · f_phaseLblI (export) ⇐ نُقلت إلى JW_Conclusions/12 (jwc.f_phaseLblI)
 
 // ─── [⑥ عدّ إليوت] مُستخرَج إلى مكتبة JW_Elliott (jwew.ewRun) — تحمّل الأسطر ×10. القيم (ewStrict/ewOffset/showEWForm/arrScale/اللغة) تُمرَّر وسائط عند النداء ───
 
@@ -1810,19 +1789,19 @@ if barstate.islast
     array.clear(phaseLbls)
     if showPhaseLbl
         if showSmall and phS != -1
-            int si = f_phaseLblI(phS, smallLvlDir, scEff, scTop)
+            int si = jwc.f_phaseLblI(phS, smallLvlDir, scEff, scTop)
             if si >= 0
                 bool  isTopS = array.get(scTop, si)
                 color bgS    = phS == 1 ? color.black : cLvlS
                 array.push(phaseLbls, label.new(array.get(scTm, si), array.get(scPrc, si), phsS, xloc = xloc.bar_time, yloc = yloc.price, style = isTopS ? label.style_label_down : label.style_label_up, color = bgS, textcolor = color.white, size = size.small))
         if showMedium and phM != -1
-            int mi = f_phaseLblI(phM, medLvlDir, mcEff, mcTop)
+            int mi = jwc.f_phaseLblI(phM, medLvlDir, mcEff, mcTop)
             if mi >= 0
                 bool  isTopM = array.get(mcTop, mi)
                 color bgM    = phM == 1 ? color.black : cLvlM
                 array.push(phaseLbls, label.new(array.get(mcTm, mi), array.get(mcPrc, mi), phsM, xloc = xloc.bar_time, yloc = yloc.price, style = isTopM ? label.style_label_down : label.style_label_up, color = bgM, textcolor = color.white, size = size.small))
         if showLarge and phB != -1
-            int bi = f_phaseLblI(phB, bigLvlDir, lgEff, lgTop)
+            int bi = jwc.f_phaseLblI(phB, bigLvlDir, lgEff, lgTop)
             if bi >= 0
                 bool  isTopB = array.get(lgTop, bi)
                 color bgB    = phB == 1 ? color.black : cLvlB

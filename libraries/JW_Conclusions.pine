@@ -185,3 +185,30 @@ export f_phaseAt(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, 
 // غلاف رفيع: السلوك الحاليّ = التقييم عند البار الحاليّ (atBar=bar_index). useDistrib يُمرَّر.
 export f_phase(array<int> aBar, array<bool> aTop, array<bool> aEff, int wdir, bool useDistrib) =>
     f_phaseAt(aBar, aTop, aEff, wdir, bar_index, useDistrib)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [v12 · أ44/ب] موضع وسم المرحلة — دوالّ نقيّة نُقلت حرفيًّا من المؤشّر. `f_lastEffI`/`f_lastEffTypeI` **داخليّتان** (مستهلَكهما الوحيد `f_phaseLblI`).
+// ═════════════════════════════════════════════════════════════════════════════
+
+// [ط3 · فجوة #1] فهرس آخر تطرّف فعّال (eff=true) في مصفوفة الفعاليّة — يرجع -1 إن لا فعّال.
+f_lastEffI(array<bool> effArr) =>
+    int res = -1
+    int n   = array.size(effArr)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(effArr, i)
+            res := i
+    res
+
+// [ط3 · موضع الوسم الواعي بالاتجاه] فهرس آخر تطرّف فعّال **من نوع محدّد** (قمّة=true/قاع=false).
+f_lastEffTypeI(array<bool> effArr, array<bool> topArr, bool wantTop) =>
+    int res = -1
+    int n   = array.size(effArr)
+    for i = 0 to (n > 0 ? n - 1 : 0)
+        if n > 0 and array.get(effArr, i) and array.get(topArr, i) == wantTop
+            res := i
+    res
+
+// موضع وسم المرحلة عند **تطرّفها المفهوميّ**: ذعر/يأس/ph3 (التصحيح المضادّ) ⇒ هبوطًا قمّة · صعودًا قاع · ph4 (تصريف صعودًا/تجميع هبوطًا) ⇒ المعاكس · مشاركة/غيرها ⇒ آخر تطرّف. fallback = آخر تطرّف إن لا نوع مطابق.
+export f_phaseLblI(int ph, int dir, array<bool> eff, array<bool> top) =>
+    int idx = ph >= 1 and ph <= 3 ? f_lastEffTypeI(eff, top, dir == -1) : ph == 4 ? f_lastEffTypeI(eff, top, dir == 1) : f_lastEffI(eff)
+    idx < 0 ? f_lastEffI(eff) : idx
