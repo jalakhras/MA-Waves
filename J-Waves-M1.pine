@@ -1969,8 +1969,23 @@ if barstate.islast
         table.cell(concTbl, 1, 12, blk, text_color = color.white, bgcolor = concBg, text_size = size.small)
     // [ط3 · التراكب/ذروة الشراء #18 · قاعدة ذهبيّة] مشاركة عامّة في **الدرجات الثلاث** + قوّة سيولة **الصغيرة ضعيفة** (توغّل = نهاية الموجة، أسماء) ⇒ ذروة شراء/بيع ⇒ تصحيح متوقَّع حتى خطّ السيولة الأكبر. اشتقاق فوق مخرجات المكتبة، بلا رقم سحريّ (شروط بنيويّة كلّها).
     bool   allShare = phB == 0 and phM == 0 and phS == 0            // الدرجات الثلاث في مشاركة عامّة (ترند متوافق)
-    bool   climaxUp = allShare and stS == -1 and bigLvlDir == 1     // صعود + سيولة صغيرة ضعيفة ⇒ ذروة شراء
-    bool   climaxDn = allShare and stS == -1 and bigLvlDir == -1    // هبوط + سيولة صغيرة ضعيفة ⇒ ذروة بيع
+    // [ط3 · أ31] «السعر مرتفع» بنيويًّا (بلا رقم سحريّ): بلغ حدّ قناة السيولة الكبيرة = ذيل آخر قمّة/قاع كبير فعّال (السيولة على الذيول، د08).
+    //   المعلَّق مُستبعَد أصلًا (lgEff=false، أ7). حارس na: بلا تطرّف كبير فعّال ⇒ لا ذروة. يُقصي «ذروة وسط القناة» (السعر لم يبلغ الحدّ بعد).
+    float  bigTopTail = na                                          // ذيل آخر قمّة كبيرة فعّالة (يُحدَّث تصاعديًّا ⇒ الأحدث)
+    float  bigBotTail = na                                          // ذيل آخر قاع كبير فعّال
+    int    nLgClm = array.size(lgBar)
+    for i = 0 to (nLgClm > 0 ? nLgClm - 1 : 0)
+        if nLgClm > 0 and array.get(lgEff, i)
+            int o = bar_index - array.get(lgBar, i)
+            if o >= 0
+                if array.get(lgTop, i)
+                    bigTopTail := high[o]
+                else
+                    bigBotTail := low[o]
+    bool   priceHigh = not na(bigTopTail) and close >= bigTopTail   // بلغ قمّة القناة الكبيرة (ممتدّ صعوديًّا)
+    bool   priceLow  = not na(bigBotTail) and close <= bigBotTail   // بلغ قاع القناة الكبيرة (ممتدّ هبوطيًّا)
+    bool   climaxUp = allShare and stS == -1 and bigLvlDir == 1 and priceHigh    // صعود + سيولة صغيرة ضعيفة + بلغ الحدّ الكبير ⇒ ذروة شراء
+    bool   climaxDn = allShare and stS == -1 and bigLvlDir == -1 and priceLow    // هبوط + سيولة صغيرة ضعيفة + بلغ الحدّ الكبير ⇒ ذروة بيع
     string clmTxt   = climaxUp ? f_t("⚠️ ذروة شراء ⇒ تصحيح متوقَّع", "⚠️ Buy climax ⇒ correction likely") : climaxDn ? f_t("⚠️ ذروة بيع ⇒ ارتداد متوقَّع", "⚠️ Sell climax ⇒ bounce likely") : "—"
     color  clmBg    = (climaxUp or climaxDn) ? color.new(#FF9800, 0) : pMute
     if showConc
