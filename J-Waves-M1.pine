@@ -9,7 +9,7 @@ import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ v2.57.0 — طبقة الإشارات م1: G-S1 (شرط الانعكاس = كسر قمّة الدرجة N+1، معمّم) + تعطيل الكبيرة · G-S3 (حدّ الصفقة الثالثة: maxTradesL2=2 + وسم «م٣ مؤجّل» + تصفير بنيويّ) ═══
+// ═══ v2.59.0 — طبقة الإشارات م1: G-S1 (شرط الانعكاس N+1) + تعطيل الكبيرة · G-S3 (حدّ الصفقة الثالثة) · f_sigStrength (قوّة الإشارة: نجوم 1-3 = عمق المرحلة + R:R + الرابعة MTF · سقف الذعر ≤2 · معايَرة ت33: حذف توافق-الثلاث+سيولة-الصغيرة المنحطّين · plot data-window لـم3) ═══
 //   🔴 السجلّ التاريخيّ الكامل (v1.09 → v2.54) محفوظ في **git log** — لا يُكرَّر هنا (رسائل commit عربيّة بنمط `vX.Y.Z مN-K: وصف`).
 //   المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد · WORK_STATE · GAPS_TODO) — يُقرأ قبل أيّ تعديل.
 //   الخطوط الحمراء + المصادر (مصعب/الدروس/فروست-بريكتر) + تحذيرات فخّ الترجمة (CE10237 · «UDT محلّيّ+method» · look-ahead < atBar) محفوظة في تعليقات الدوالّ أدناه.
@@ -1075,6 +1075,22 @@ f_stTxt(int st) =>
 f_phTxt(int ph, int dir) =>
     ph == -1 ? "—" : ph == 4 ? (dir == -1 ? f_t("تجميع", "Accum") : f_t("تصريف", "Distrib")) : ph == 3 ? (dir == -1 ? f_t("تصريف", "Distrib") : f_t("تجميع", "Accum")) : ph == 2 ? f_t("يأس ⚠", "Despair ⚠") : ph == 1 ? f_t("ذعر ⚠", "Panic ⚠") : f_t("مشاركة", "Part")
 
+// [م-إش-1ج · قوّة الإشارة L2-04 · معايَرة ت33→حسم المدير] دالّة **نقيّة «تُقيّم لا تولّد»**: الأساس = **عمق المرحلة** + تلاقٍ ⇒ نجوم [1..3].
+//   🔴 **حُذِف عاملان منحطّان مقيسان (ت33):** «توافق الدرجات الثلاث» (يُعاقِب دائمًا — الإشارة تقع في تصحيح الصغيرة فالصغيرة تعارض بالبناء) · «سيولة الصغيرة» (ضعيفة بنيويًّا 6/7 شارتات).
+//   الأساس = عمق مرحلة **هذه الإشارة** (`phCode` من phAt/gatePh — per-signal، يُصلح تقريب الشمعة الأخيرة): **ذعر=1 · يأس=2 · تجميع/تصريف=3**.
+//   التلاقي: **R:R** (≥2 +1 · <1 −1) · **الرابعة MTF** (تؤكّد +1) — 🔴 [أ60] الرابعة = `confUp/confDn` لا `xl` الخاملة (mtf=0 للتاريخيّة، لا تلفيق).
+//   🔴 **سقف المخاطرة**: الذعر (عالية المخاطرة ⚠) ≤ 2 نجوم — **لا ⚠ بـ★★★**. veto وجوديّ في النواة (الإشارة لا تُطلَق إن خُرِق شرط) ⇒ تُقيّم الناجي فقط. النجوم تتنوّع {1,2,3} بعمق المرحلة+R:R+MTF.
+f_sigStrength(int phCode, float rr, int mtfConf) =>
+    int base = phCode == 1 ? 1 : phCode == 2 ? 2 : phCode >= 3 ? 3 : 2         // عمق المرحلة: ذعر1 · يأس2 · تجميع/تصريف3 · (مشاركة/كسر ⇒ 2)
+    int conf = 0
+    conf += (not na(rr) and rr >= 2) ? 1 : (not na(rr) and rr < 1) ? -1 : 0    // R:R
+    conf += mtfConf == 1 ? 1 : 0                                               // الرابعة MTF (أ60: confUp/confDn)
+    int st = math.max(1, math.min(3, base + conf))
+    phCode == 1 ? math.min(st, 2) : st                                        // 🔴 سقف الذعر ≤ 2 (لا ⚠ بـ★★★)
+
+// [م-إش-1ج] نصّ النجوم (عرض): 3 ممتلئة ⇒ ★★★ · 2 ⇒ ★★☆ · 1 ⇒ ★☆☆
+f_starTx(int stars) => stars == 3 ? "★★★" : stars == 2 ? "★★☆" : "★☆☆"
+
 // [درس09/م3-أ] الاتجاه الفعّال **الملتقَط** (latch) — عرض فقط، لا يمسّ القمم/القيعان (الماضي ثابت):
 //   يبدأ startDir، وينقلب عند كلّ **كسر مؤكَّد** = شمعتان إغلاقًا خلف **جسم** آخر تطرّف فعّال من الجانب الحاليّ (مقاومة هبوطًا/دعم صعودًا)،
 //   ويثبت حتى **كسر معاكس**. (الكسر شرط الانقلاب؛ الارتداد بلا كسر لا يقلب.) يُحاكي تطوّر الاتجاه عبر الموجة دفعةً واحدةً في islast.
@@ -1403,6 +1419,7 @@ if barstate.islast
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
 var array<label> sigMarks = array.new<label>()   // علامات إشارات ثابتة (تُرسم عند إغلاق الشمعة وتبقى في مكانها — لا تتحرك مع السعر)
+var int liveSigStars = na                        // [م-إش-1ج] قوّة آخر إشارة حيّة (نجوم 1-3، na = لا إشارة) — للعرض + استهلاك الاستراتيجية (م3) عبر plot(display.data_window)
 var table concTbl = table.new(f_pos(concPos), 2, 14, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
 if barstate.islast
     if not showConc                                             // [فصل الإشارات/التنبيه عن اللوحة] إخفاء اللوحة يمسح خلاياها فقط — الحساب والإشارات والتنبيه تعمل دائمًا (تُحرَس الخلايا بـshowConc)
@@ -1673,8 +1690,13 @@ if barstate.islast
         float  sTgt  = isBrk ? bTgt : tgt
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
         bool   rrOk  = minRR <= 0 or (not na(rr) and rr >= minRR)   // [بوّابة RR اختياريّة] إن minRR>0: لا وسم/تنبيه إن RR<الحدّ
+        // [م-إش-1ج · معايَرة ت33] قوّة الإشارة = عمق المرحلة (phCode) + R:R + الرابعة MTF (نقيّة، تُقيّم لا تولّد).
+        int    mtfC  = (up ? confUp : confDn) ? 1 : 0                                    // [أ60] الرابعة = تأكيد الفريم الأصغر (لا xl الخاملة) ⇒ بونس قوّة (لم يعد بوّابة بعد G-S1)
+        int    phCd  = isBrk ? 2 : gatePh                                               // عمق مرحلة هذه الإشارة (الكسر/الخروج ⇒ 2 كالأساسيّة الناضجة)
+        int    sStars = f_sigStrength(phCd, rr, mtfC)
+        liveSigStars := sStars                                                          // ⇒ plot(display.data_window) لاستهلاك الاستراتيجية
         string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // للـtooltip/التنبيه (وصفيّ)
-        string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد] رمز ✦/⚠ كالإشارات التاريخيّة (لا «أساسية/مخاطرة» نصًّا)
+        string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + f_starTx(sStars) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد+م-إش-1ج] رمز ✦/⚠ + نجوم القوّة
         // tooltip تصميم القديم: شراء ⇒ الهدف/الدخول/الوقف · بيع ⇒ الوقف/الدخول/الهدف
         string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + f_t("\nنوع: ", "\nType: ") + sTyp + f_t("\nالرابعة MTF: ", "\n4th (MTF): ") + ((up ? confUp : confDn) ? "✓" : "✗") + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))   // [G-S1] الرابعة صارت معلومةً (عامل قوّة لاحقًا) لا تأكيدًا
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
@@ -1755,7 +1777,8 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                     cEmt := cEmt + 1
                                     emitOrder := emitOrder + 1
                                     bool dfr = emitOrder > maxTradesL2                                    // [G-S3] الثالثة+ في الموجة الجارية ⇒ مؤجّلة (L2-04: لا ثالثة في م2)
-                                    array.push(sigLabels, label.new(cB, e, (dfr ? f_t("م٣", "T3") : mk) + f_t("شراء", "Buy") + (dfr ? f_t(" مؤجّل", " def") : ""), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = dfr ? color.new(#787B86, 20) : (basic ? #089981 : #66BB6A), textcolor = color.white, size = size.small, tooltip = tp))
+                                    string stTx = dfr ? f_t(" مؤجّل", " def") : " " + f_starTx(f_sigStrength(phAt, rr, 0))   // [م-إش-1ج · ت33] نجوم القوّة من عمق مرحلة هذه الإشارة (phAt · تاريخيّ ⇒ mtf=0) · المؤجّلة بلا نجوم
+                                    array.push(sigLabels, label.new(cB, e, (dfr ? f_t("م٣", "T3") : mk) + f_t("شراء", "Buy") + stTx, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = dfr ? color.new(#787B86, 20) : (basic ? #089981 : #66BB6A), textcolor = color.white, size = size.small, tooltip = tp))
                                     if not na(rr)
                                         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                         array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
@@ -1772,7 +1795,8 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                     cEmt := cEmt + 1
                                     emitOrder := emitOrder + 1
                                     bool dfr = emitOrder > maxTradesL2                                    // [G-S3] الثالثة+ ⇒ مؤجّلة
-                                    array.push(sigLabels, label.new(cB, e, (dfr ? f_t("م٣", "T3") : mk) + f_t("بيع", "Sell") + (dfr ? f_t(" مؤجّل", " def") : ""), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = dfr ? color.new(#787B86, 20) : (basic ? #F23645 : #E57373), textcolor = color.white, size = size.small, tooltip = tp))
+                                    string stTx = dfr ? f_t(" مؤجّل", " def") : " " + f_starTx(f_sigStrength(phAt, rr, 0))   // [م-إش-1ج · ت33] نجوم القوّة من عمق مرحلة هذه الإشارة (phAt · تاريخيّ ⇒ mtf=0) · المؤجّلة بلا نجوم
+                                    array.push(sigLabels, label.new(cB, e, (dfr ? f_t("م٣", "T3") : mk) + f_t("بيع", "Sell") + stTx, xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = dfr ? color.new(#787B86, 20) : (basic ? #F23645 : #E57373), textcolor = color.white, size = size.small, tooltip = tp))
                                     if not na(rr)
                                         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                         array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
@@ -1864,12 +1888,12 @@ if barstate.islast
     int xEm = 0
     if showSignals and showSigSub and nzs > 0 and sigDir != 0
         if showSigS
-            [siz, scf, sem] = f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg, sActVg, mcBar, mcTop, mcPrc, mcEff)     // إشارات الصغيرة · [G-S1] تأكيد N+1 = المتوسطة
+            [siz, scf, sem] = f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg, sActVg, mcBar, mcTop, mcPrc, mcEff)     // إشارات الصغيرة · [G-S1] تأكيد N+1 = المتوسطة · [م-إش-1ج] القوّة من phAt داخليًّا
             sIz := siz
             sCf := scf
             sEm := sem
         if showSigM
-            [miz, mcf, mem] = f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg, mActVg, lgBar, lgTop, lgPrc, lgEff)    // إشارات المتوسطة · [G-S1] تأكيد N+1 = الكبيرة
+            [miz, mcf, mem] = f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg, mActVg, lgBar, lgTop, lgPrc, lgEff)    // إشارات المتوسطة · [G-S1] تأكيد N+1 = الكبيرة · [م-إش-1ج] القوّة من phAt داخليًّا
             mIz := miz
             mCf := mcf
             mEm := mem
@@ -1954,3 +1978,7 @@ if showFrameHelper and barstate.islast
     f_drawWavePanel(wpDeg, wpImp, impMed, impHist)
 
 // ── نهاية النواة (صغيرة + متوسطة + كبيرة + لوحة الموجة). التالي: الخطوط/التجدّد (دروس 08-09) أو طريقة الكسر للكبيرة. ──
+
+// [م-إش-1ج] مخرَج قوّة الإشارة الحيّة (نجوم 1-3، na = لا إشارة) — data-window فقط (لا يرسم على الشارت). يستهلكه م3 (حجم الصفقة بدلالة القوّة).
+//   🔴 بعد كتلة islast عمدًا: liveSigStars يُسنَد داخلها ⇒ plot يقرأ القيمة المُحدَّثة على الشمعة الأخيرة (لا na سابقة).
+plot(liveSigStars, "Signal strength (stars) [م-إش-1ج]", color = color.new(color.yellow, 0), display = display.data_window)
