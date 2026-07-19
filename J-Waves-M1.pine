@@ -175,7 +175,6 @@ int    confWin      = input.int(200, "Confirmation window (bars) [2-ب] / ناف
 bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpSig, tooltip = "المفتاح العامّ لكلّ الإشارات. يُغلق الكلّ دفعةً.")
 bool   showSigMain  = input.bool(true, "main: live confirmed / الرئيسيّة: الحيّة المؤكَّدة", group = grpSig, tooltip = "الوسم الحيّ للفرصة المؤكَّدة على آخر شمعة (شراء/بيع + RR + وقف/هدف).")
 bool   showSigSub   = input.bool(true, "sub: historical/degrees / الفرعيّة: التاريخيّة/الدرجات", group = grpSig, tooltip = "الوسوم التاريخيّة عبر الشارت (تطرّفات الدرجات داخل المناطق ✦/⚠ + إشارات الخروج). تحتها مفاتيح الدرجات الثلاث.")
-bool   showSigL     = input.bool(true, "large / الكبيرة", inline = "sigdeg", group = grpSig)
 bool   showSigM     = input.bool(true, "medium / المتوسطة", inline = "sigdeg", group = grpSig)
 bool   showSigS     = input.bool(true, "small / الصغيرة", inline = "sigdeg", group = grpSig)
 bool   showSigExit  = input.bool(true, "Exit signals (break+retest) / إشارات الخروج (كسر+إعادة اختبار)", group = grpSig, tooltip = "«الفرصة الثالثة» (الخروج) بنمط **الكسر ثمّ إعادة الاختبار ثمّ الارتداد** (v2.4.0): (1) السعر يكسر المنطقة بتأكيد (شمعة على >15د · شمعتان على ≤15د). (2) يعود ويلمس الحافّة المكسورة ثمّ يُغلِق ثانيةً خلفها (ارتداد). (3) ✦ **مرّة واحدة** لكلّ منطقة، عند شمعة الارتداد المُغلَقة. لا تكرار بعده. منفصلة عن إشارات الدرجات.")
@@ -1202,7 +1201,7 @@ var array<bool> lgCovLg = array.new<bool>()
 var array<bool> scEffLive = array.new<bool>()
 var array<bool> mcEffLive = array.new<bool>()
 var array<bool> lgEffLive = array.new<bool>()
-// [رابعة السلّم] مصفوفات الدرجة الرابعة التي تقرؤها اللوحة (wpDeg) حصرًا = bar/top/eff. (prc/tm في xlSeries، تُستخرَج حين يحتاجها مستهلك لاحق — لا تُخزَّن الآن تفاديًا لـCE10237.)
+// [رابعة السلّم] مصفوفات الدرجة الرابعة: bar/top/eff (اللوحة wpDeg). (prc/tm في xlSeries، غير مخزّنة — إشارات الكبيرة عُطِّلت ت30/ب.)
 var array<int>   xlBar = array.new<int>()
 var array<bool>  xlTop = array.new<bool>()
 var array<bool>  xlEff = array.new<bool>()
@@ -1525,26 +1524,41 @@ if barstate.islast
         table.cell(concTbl, 1, 8, zTxt, text_color = color.white, bgcolor = inZone ? cUp : pMute, text_size = size.small)
     // [ط4-ب الفرصة المُدرَّجة] القرار = داخل منطقة ؟ (اتجاه + درجة الفرصة حسب مرحلة الصغيرة) : انتظار (الدرس L2-03):
     //   تجميع (اكتمل التصحيح ذعر→يأس) ⇒ **قويّة** · ذعر/يأس (تصحيح جارٍ) ⇒ **مخاطرة** · مشاركة (ترند) ⇒ **متاحة**.
-    // [L2-04 التأكيد بدرجة الصفقة] متوسطة ⇐ كسر آخر قمّة/قاع **صغيرة** (نفس الشارت) · صغيرة ⇐ **الرابعة** (MTF):
-    float lstSmT = na
-    float lstSmB = na
-    float inZhigh = na                                                     // [G4-حيّ] أحدث قمّة صغيرة داخل منطقة الدخول
-    float inZlow  = na                                                     // [G4-حيّ] أحدث قاع صغير داخل منطقة الدخول
+    // [G4-حيّ] أحدث قمّة/قاع صغير **داخل** منطقة الدخول — للوقف (التأكيد صار N+1 أدناه، فلم يعد يلزم lstSm للتأكيد).
+    float inZhigh = na
+    float inZlow  = na
     int   nscc = array.size(scBar)
     for si = 0 to (nscc > 0 ? nscc - 1 : 0)
         if nscc > 0 and array.get(scEff, si)
             float scp = array.get(scPrc, si)
             if array.get(scTop, si)
-                lstSmT := scp
                 if not na(zaBot) and scp >= zaBot and scp <= zaTop         // داخل المنطقة ⇒ مرشّح وقف البيع
                     inZhigh := scp
             else
-                lstSmB := scp
                 if not na(zaBot) and scp >= zaBot and scp <= zaTop         // داخل المنطقة ⇒ مرشّح وقف الشراء
                     inZlow := scp
+    // [G-S1 · شرط الانعكاس L2-04 · معمّم على الفهرس] مرجع الكسر = آخر قمّة/قاع فعّالة من الدرجة **N+1**: صغيرة⇒متوسطة (mc) · متوسطة⇒كبيرة (lg). «آخر في الهبوط/الصعود» = الأحدث فعّالة.
+    float lstMdT = na
+    float lstMdB = na
+    int   nmcc = array.size(mcBar)
+    for mi = 0 to (nmcc > 0 ? nmcc - 1 : 0)
+        if nmcc > 0 and array.get(mcEff, mi)
+            if array.get(mcTop, mi)
+                lstMdT := array.get(mcPrc, mi)
+            else
+                lstMdB := array.get(mcPrc, mi)
+    float lstLgT = na
+    float lstLgB = na
+    int   nlgc = array.size(lgBar)
+    for li = 0 to (nlgc > 0 ? nlgc - 1 : 0)
+        if nlgc > 0 and array.get(lgEff, li)
+            if array.get(lgTop, li)
+                lstLgT := array.get(lgPrc, li)
+            else
+                lstLgB := array.get(lgPrc, li)
     bool isMedTrade = tradeDeg == "Medium / متوسطة"
-    bool cfBuy  = isMedTrade ? (not na(lstSmT) and close > lstSmT) : confUp   // متوسطة←كسر قمّة صغيرة (نفس الشارت) · صغيرة←كسر بنيويّ على الفريم الأصغر (15/5/1)
-    bool cfSell = isMedTrade ? (not na(lstSmB) and close < lstSmB) : confDn
+    bool cfBuy  = isMedTrade ? (not na(lstLgT) and close > lstLgT) : (not na(lstMdT) and close > lstMdT)   // [G-S1] كسر قمّة N+1: متوسطة⇒كبيرة · صغيرة⇒متوسطة (الرابعة MTF صارت عامل قوّة)
+    bool cfSell = isMedTrade ? (not na(lstLgB) and close < lstLgB) : (not na(lstMdB) and close < lstMdB)
     bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
     int    gatePh = (useMedGate and isMedTrade) ? phM : phS                    // [G2 · L2-04 س30] بوّابة اليأس تتبع درجة الصفقة: متوسطة⇒المتوسطة(phM) · صغيرة⇒الصغيرة(phS). مصدر موحّد للقرار+الإشارة+نوع الوسم.
     // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. (zaTop/zaBot حُسِبا في حلقة inZone أعلاه.)
@@ -1661,7 +1675,7 @@ if barstate.islast
         string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // للـtooltip/التنبيه (وصفيّ)
         string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد] رمز ✦/⚠ كالإشارات التاريخيّة (لا «أساسية/مخاطرة» نصًّا)
         // tooltip تصميم القديم: شراء ⇒ الهدف/الدخول/الوقف · بيع ⇒ الوقف/الدخول/الهدف
-        string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + f_t("\nنوع: ", "\nType: ") + sTyp + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+        string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + f_t("\nنوع: ", "\nType: ") + sTyp + f_t("\nالرابعة MTF: ", "\n4th (MTF): ") + ((up ? confUp : confDn) ? "✓" : "✗") + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))   // [G-S1] الرابعة صارت معلومةً (عامل قوّة لاحقًا) لا تأكيدًا
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
         // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
         if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
@@ -1678,7 +1692,7 @@ if barstate.islast
 //   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
 var array<label> sigLabels = array.new<label>()
 // [ط4-ج إشارات لكلّ درجة] «كلّ تصحيح = صفقة · درجة الصفقة = درجة التصحيح»: تطرّف فعّال داخل منطقة بالاتجاه ⇒ شراء/بيع (✦أساسية/⚠مخاطرة) + RR + tooltip. الهدف = منطقة الدرجة التالية ⇒ التدرّج تلقائيّ.
-f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int sigDir, int hL1, int hL2, float wHi, float wLo, string degNm, array<bool> covLater, int wdirDeg) =>
+f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, int sigDir, int hL1, int hL2, float wHi, float wLo, string degNm, array<bool> covLater, int wdirDeg, array<int> upBar, array<bool> upTop, array<float> upPrc, array<bool> upEff) =>
     int  nps = array.size(aBar)
     int  nzs = array.size(zTop)
     bool wantBot = sigDir == 1
@@ -1701,12 +1715,13 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                         zbC := array.get(zBot, zi)
                 if not na(zbC)
                     cInZ := cInZ + 1
-                    // [2-ب · L2-04] مرجع التأكيد = آخر تطرّف **معاكس** من نفس الدرجة قبل التطرّف (القمّة التي يُكسَر عندها للشراء · القاع للبيع)
+                    // [G-S1 · شرط الانعكاس L2-04 س34] مرجع التأكيد = آخر قمّة/قاع فعّالة من الدرجة **N+1** (upBar) قبل التطرّف — لا نفس الدرجة. شراء⇒آخر قمّة N+1 «في الهبوط» · بيع⇒آخر قاع N+1.
                     float refPx = na
-                    if si >= 1
-                        for sj = si - 1 to 0
-                            if array.get(aEff, sj) and array.get(aTop, sj) != isT
-                                refPx := array.get(aPrc, sj)
+                    int   nUp = array.size(upBar)
+                    if nUp > 0
+                        for uj = nUp - 1 to 0
+                            if array.get(upEff, uj) and array.get(upBar, uj) < sBar and array.get(upTop, uj) == wantBot
+                                refPx := array.get(upPrc, uj)
                                 break
                     // [2-ب · شروط الانعكاس] شمعة التأكيد cB = أوّل إغلاق **مُغلَق** (ok≥1، لا وميض) يكسر refPx باتجاه الصفقة بعد التطرّف (خلال confWin)
                     int cB   = -1
@@ -1840,26 +1855,19 @@ if barstate.islast
     int mIz = 0
     int mCf = 0
     int mEm = 0
-    int lIz = 0
-    int lCf = 0
-    int lEm = 0
     int xEm = 0
     if showSignals and showSigSub and nzs > 0 and sigDir != 0
         if showSigS
-            [siz, scf, sem] = f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg, sActVg)     // إشارات الصغيرة (بوّابة+تأكيد بدرجتها)
+            [siz, scf, sem] = f_emitDegSignals(scBar, scTop, scPrc, scEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("صغيرة", "Small"), scCovLg, sActVg, mcBar, mcTop, mcPrc, mcEff)     // إشارات الصغيرة · [G-S1] تأكيد N+1 = المتوسطة
             sIz := siz
             sCf := scf
             sEm := sem
         if showSigM
-            [miz, mcf, mem] = f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg, mActVg)    // إشارات المتوسطة (بوّابة+تأكيد بدرجتها)
+            [miz, mcf, mem] = f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("متوسطة", "Medium"), mcCovLg, mActVg, lgBar, lgTop, lgPrc, lgEff)    // إشارات المتوسطة · [G-S1] تأكيد N+1 = الكبيرة
             mIz := miz
             mCf := mcf
             mEm := mem
-        if showSigL
-            [liz, lcf, lem] = f_emitDegSignals(lgBar, lgTop, lgPrc, lgEff, sigDir, histLs, hL2s, wHiS, wLoS, f_t("كبيرة", "Large"), lgCovLg, bActVg)      // إشارات الكبيرة (بوّابة+تأكيد بدرجتها)
-            lIz := liz
-            lCf := lcf
-            lEm := lem
+        // [ت30/ب · G-S1] إشارات الكبيرة **عُطِّلت**: صفقة الكبيرة غير مصدريّة (L2-04: أعلى صفقة = المتوسطة) · xl خاملة للإشارات حتّى الأسبوعيّ (تأكّد=0 عبر US100·60/D/W · BTC·60/W). الكبيرة تبقى **مرجعَ N+1 للمتوسطة** (lgBar تُمرَّر لنداء المتوسطة).
         if showSigExit                                                                                                          // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات — افتراض OFF لتنظيف الشارت
             int xN0 = array.size(sigLabels)
             f_emitExit(sigDir, math.max(histLs, bar_index - 500))                                                              // [#2] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
@@ -1879,18 +1887,15 @@ if barstate.islast
         table.cell(dgT, 1, 2, str.tostring(mIz), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
         table.cell(dgT, 2, 2, str.tostring(mCf), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
         table.cell(dgT, 3, 2, str.tostring(mEm), text_color = mEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 0, 3, f_t("كبيرة", "Large"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
-        table.cell(dgT, 1, 3, str.tostring(lIz), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 2, 3, str.tostring(lCf), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 3, 3, str.tostring(lEm), text_color = lEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 0, 4, f_t("خروج (تسميات)", "Exit (labels)"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
-        table.cell(dgT, 1, 4, "—", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 2, 4, "—", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 3, 4, str.tostring(xEm), text_color = xEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 0, 5, "sigDir / tradeDeg", text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
-        table.cell(dgT, 1, 5, sigDir == 1 ? "▲" : sigDir == -1 ? "▼" : "0", text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 2, 5, tradeDeg, text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
-        table.cell(dgT, 3, 5, "", bgcolor = #1E222D)
+        // [ت30/ب] صفّ الكبيرة حُذف (إشاراتها عُطِّلت — مرجع N+1 فقط)
+        table.cell(dgT, 0, 3, f_t("خروج (تسميات)", "Exit (labels)"), text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 3, "—", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 3, "—", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 3, str.tostring(xEm), text_color = xEm > 0 ? #089981 : #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 0, 4, "sigDir / tradeDeg", text_color = #787B86, bgcolor = #1E222D, text_size = size.small, text_halign = text.align_right)
+        table.cell(dgT, 1, 4, sigDir == 1 ? "▲" : sigDir == -1 ? "▼" : "0", text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 2, 4, tradeDeg, text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+        table.cell(dgT, 3, 4, "", bgcolor = #1E222D)
 
 // ─── لوحة اختبار الموجة (بعد بناء الدرجات ⇒ البيانات جاهزة): تُحسَب الإحصاءات هنا وتُمرَّر قيمًا أوّليّة ───
 if showFrameHelper and barstate.islast
