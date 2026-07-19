@@ -9,7 +9,7 @@ import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ v2.55.0 — تنظيف: 8 دوالّ نقيّة ⇒ JW_Degrees/5 + JW_Conclusions/12 (أ43-44) · حذف السجلّ التاريخيّ من الرأس (أ45) ═══
+// ═══ v2.57.0 — طبقة الإشارات م1: G-S1 (شرط الانعكاس = كسر قمّة الدرجة N+1، معمّم) + تعطيل الكبيرة · G-S3 (حدّ الصفقة الثالثة: maxTradesL2=2 + وسم «م٣ مؤجّل» + تصفير بنيويّ) ═══
 //   🔴 السجلّ التاريخيّ الكامل (v1.09 → v2.54) محفوظ في **git log** — لا يُكرَّر هنا (رسائل commit عربيّة بنمط `vX.Y.Z مN-K: وصف`).
 //   المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد · WORK_STATE · GAPS_TODO) — يُقرأ قبل أيّ تعديل.
 //   الخطوط الحمراء + المصادر (مصعب/الدروس/فروست-بريكتر) + تحذيرات فخّ الترجمة (CE10237 · «UDT محلّيّ+method» · look-ahead < atBar) محفوظة في تعليقات الدوالّ أدناه.
@@ -172,6 +172,7 @@ float  minRR        = input.float(0.0, "Min R:R to fire (reward÷risk, 0=off) / 
 string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm one finer) / درجة الصفقة (تأكيد بدرجة أنعم)", options = ["Medium / متوسطة", "Small / صغيرة"], group = grpSig, tooltip = "درجة صفقتك تحدّد درجة التأكيد (L2-04): متوسطة ⇐ تأكيد بكسر آخر قمّة/قاع **صغيرة** · صغيرة ⇐ تأكيد بـ**الرابعة** (الفريم الأنعم MTF).")
 bool   useMedGate   = input.bool(true, "Entry gate follows trade degree (Medium despair) [G2] / بوّابة اليأس تتبع درجة الصفقة", group = grpSig, tooltip = "[G2 · درس L2-04 «شروط الانعكاس» س30: «اليأس الذي يحدّد الدخول هو يأس الدرجة **المتوسطة**، وليس الصغيرة. الخلط بينهما سيجعلك تدخل مبكّرًا جدًّا» — يؤكّده مصعب3 س75] مفعّل + درجة الصفقة متوسطة ⇒ بوّابة اليأس تُقرأ من **المتوسطة** (phM). درجة الصفقة صغيرة ⇒ من الصغيرة (phS). أطفئه للسلوك السابق (phS دائمًا) للمقارنة قبل/بعد.")
 int    confWin      = input.int(200, "Confirmation window (bars) [2-ب] / نافذة تأكيد الكسر (بارات)", minval = 5, maxval = 500, group = grpSig, tooltip = "[2-ب · شروط الانعكاس L2-04] بعد تطرّف داخل منطقة: ابحث عن كسر مؤكِّد لآخر تطرّف معاكس (نفس الدرجة) خلال هذا العدد من البارات. لا كسر ⇒ لا إشارة (نُظهِر المؤكَّد فقط). الكسر يُقرأ على شمعة **مُغلَقة** فقط ⇒ لا إعادة رسم (repaint).")
+int    maxTradesL2  = input.int(2, "Max trades per wave (L2) [G-S3] / حدّ صفقات الموجة (م2)", minval = 1, maxval = 5, group = grpSig, tooltip = "[G-S3 · L2-04 س60] المستوى الثاني: صفقتان في المشاركة المتوسطة الواحدة؛ الثالثة+ تُوسَم «م٣ مؤجّل» (تُترك للمستوى الثالث) بدل ✦/⚠. العدّ يُصفَّر بنيويًّا عند تجدّد الموجة.")
 bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpSig, tooltip = "المفتاح العامّ لكلّ الإشارات. يُغلق الكلّ دفعةً.")
 bool   showSigMain  = input.bool(true, "main: live confirmed / الرئيسيّة: الحيّة المؤكَّدة", group = grpSig, tooltip = "الوسم الحيّ للفرصة المؤكَّدة على آخر شمعة (شراء/بيع + RR + وقف/هدف).")
 bool   showSigSub   = input.bool(true, "sub: historical/degrees / الفرعيّة: التاريخيّة/الدرجات", group = grpSig, tooltip = "الوسوم التاريخيّة عبر الشارت (تطرّفات الدرجات داخل المناطق ✦/⚠ + إشارات الخروج). تحتها مفاتيح الدرجات الثلاث.")
@@ -1700,6 +1701,7 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
     int  cInZ = 0                                                                                     // [تشخيص] عدّاد: تطرّفات داخل منطقة
     int  cCnf = 0                                                                                     // [تشخيص] عدّاد: منها ما تأكّد بكسر
     int  cEmt = 0                                                                                     // [تشخيص] عدّاد: منها ما أُطلِق فعلًا
+    int  emitOrder = 0                                                                                // [G-S3] ترتيب الإشارة ضمن الموجة الجارية (الحلقة من hL1=segLefts[0] ⇒ تصفير بنيويّ عند التجدّد) — الثالثة+ مؤجّلة
     for si = 0 to (nps > 0 ? nps - 1 : 0)
         if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= hL1 and not f_coveredAt(aBar, aTop, aPrc, si, hL1, hL2, wHi, wLo, covLater)   // فعّال + غير مُغطّى (اتّساق مع المناطق/خطوط m.A)
             float pp   = array.get(aPrc, si)
@@ -1751,7 +1753,9 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
                                 if not na(t) and e > s and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · الدخول فوق الوقف (شراء) · [بوّابة RR]
                                     cEmt := cEmt + 1
-                                    array.push(sigLabels, label.new(cB, e, mk + f_t("شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = basic ? #089981 : #66BB6A, textcolor = color.white, size = size.small, tooltip = tp))
+                                    emitOrder := emitOrder + 1
+                                    bool dfr = emitOrder > maxTradesL2                                    // [G-S3] الثالثة+ في الموجة الجارية ⇒ مؤجّلة (L2-04: لا ثالثة في م2)
+                                    array.push(sigLabels, label.new(cB, e, (dfr ? f_t("م٣", "T3") : mk) + f_t("شراء", "Buy") + (dfr ? f_t(" مؤجّل", " def") : ""), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = dfr ? color.new(#787B86, 20) : (basic ? #089981 : #66BB6A), textcolor = color.white, size = size.small, tooltip = tp))
                                     if not na(rr)
                                         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                         array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
@@ -1766,7 +1770,9 @@ f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<boo
                                 string tp = f_t("درجة: ", "Degree: ") + degNm + f_t(" · نوع: ", " · Type: ") + (basic ? f_t("أساسية", "Basic") : f_t("عالية مخاطرة", "High-risk")) + f_t("\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
                                 if not na(t) and s > e and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · الوقف فوق الدخول (بيع) · [بوّابة RR]
                                     cEmt := cEmt + 1
-                                    array.push(sigLabels, label.new(cB, e, mk + f_t("بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = basic ? #F23645 : #E57373, textcolor = color.white, size = size.small, tooltip = tp))
+                                    emitOrder := emitOrder + 1
+                                    bool dfr = emitOrder > maxTradesL2                                    // [G-S3] الثالثة+ ⇒ مؤجّلة
+                                    array.push(sigLabels, label.new(cB, e, (dfr ? f_t("م٣", "T3") : mk) + f_t("بيع", "Sell") + (dfr ? f_t(" مؤجّل", " def") : ""), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = dfr ? color.new(#787B86, 20) : (basic ? #F23645 : #E57373), textcolor = color.white, size = size.small, tooltip = tp))
                                     if not na(rr)
                                         color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
                                         array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
