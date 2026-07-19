@@ -9,7 +9,7 @@ import Jassar_Mahmoud/JW_Zones/5 as jwz                       // [ط4] المن�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ v2.60.0 — طبقة الإشارات م1 (مكتملة): G-S1 (شرط الانعكاس N+1) + تعطيل الكبيرة · G-S3 (حدّ الصفقة الثالثة) · قوّة الإشارة (النجوم = التوافق) رُفِعت من المؤشّر ⇒ تُبنى في م3 (الوسم = ✦/⚠ + RR فقط) ═══
+// ═══ v2.61.1 — م-إش-2أ (منطق SL/TP · نموذج المالك · الحيّة فقط): الوقف = حافّة المنطقة ± slBufPts×mintick · الأهداف = سلّم مستويات م.A **خارج منطقة الدخول** (TP1 أوّل مستوى بعد الحافّة، L2-03 «مش اللي قدامها») · zMaLevels تعريض eLvl · النواة/التاريخيّة صفر تغيير ═══
 //   🔴 السجلّ التاريخيّ الكامل (v1.09 → v2.54) محفوظ في **git log** — لا يُكرَّر هنا (رسائل commit عربيّة بنمط `vX.Y.Z مN-K: وصف`).
 //   المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد · WORK_STATE · GAPS_TODO) — يُقرأ قبل أيّ تعديل.
 //   الخطوط الحمراء + المصادر (مصعب/الدروس/فروست-بريكتر) + تحذيرات فخّ الترجمة (CE10237 · «UDT محلّيّ+method» · look-ahead < atBar) محفوظة في تعليقات الدوالّ أدناه.
@@ -173,6 +173,8 @@ string tradeDeg     = input.string("Small / صغيرة", "Trade degree (confirm 
 bool   useMedGate   = input.bool(true, "Entry gate follows trade degree (Medium despair) [G2] / بوّابة اليأس تتبع درجة الصفقة", group = grpSig, tooltip = "[G2 · درس L2-04 «شروط الانعكاس» س30: «اليأس الذي يحدّد الدخول هو يأس الدرجة **المتوسطة**، وليس الصغيرة. الخلط بينهما سيجعلك تدخل مبكّرًا جدًّا» — يؤكّده مصعب3 س75] مفعّل + درجة الصفقة متوسطة ⇒ بوّابة اليأس تُقرأ من **المتوسطة** (phM). درجة الصفقة صغيرة ⇒ من الصغيرة (phS). أطفئه للسلوك السابق (phS دائمًا) للمقارنة قبل/بعد.")
 int    confWin      = input.int(200, "Confirmation window (bars) [2-ب] / نافذة تأكيد الكسر (بارات)", minval = 5, maxval = 500, group = grpSig, tooltip = "[2-ب · شروط الانعكاس L2-04] بعد تطرّف داخل منطقة: ابحث عن كسر مؤكِّد لآخر تطرّف معاكس (نفس الدرجة) خلال هذا العدد من البارات. لا كسر ⇒ لا إشارة (نُظهِر المؤكَّد فقط). الكسر يُقرأ على شمعة **مُغلَقة** فقط ⇒ لا إعادة رسم (repaint).")
 int    maxTradesL2  = input.int(2, "Max trades per wave (L2) [G-S3] / حدّ صفقات الموجة (م2)", minval = 1, maxval = 5, group = grpSig, tooltip = "[G-S3 · L2-04 س60] المستوى الثاني: صفقتان في المشاركة المتوسطة الواحدة؛ الثالثة+ تُوسَم «م٣ مؤجّل» (تُترك للمستوى الثالث) بدل ✦/⚠. العدّ يُصفَّر بنيويًّا عند تجدّد الموجة.")
+float  slBufPts     = input.float(0.0, "SL buffer (× mintick) [م-إش-2أ] / هامش الوقف (× mintick)", minval = 0.0, step = 1.0, group = grpSig, tooltip = "[نموذج المالك · م-إش-2أ] الوقف = حافّة منطقة الدخول (شراء: السفلى − · بيع: العليا +) ± هذا العدد × الحدّ الأدنى للسعر (mintick). 0 = عند الحافّة تمامًا. يُعاير لكلّ أداة (لا رقم سحريّ). للإشارة الحيّة فقط.")
+int    numTP        = input.int(3, "Target ladder count TP1..N [م-إش-2أ] / عدد أهداف السلّم", minval = 1, maxval = 5, group = grpSig, tooltip = "[نموذج المالك · م-إش-2أ] عدد أهداف السلّم من خطوط م.A بالاتجاه: TP1 = أوّل مستوى م.A **خارج منطقة الدخول** (L2-03 «مش اللي قدامها»)، ثمّ التالي تباعًا. RR/بوّابة minRR على TP1. إن لا مستوى خارج المنطقة ⇒ لا هدف ⇒ لا إشارة. للحيّة فقط (التاريخيّة بهدف واحد).")
 bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpSig, tooltip = "المفتاح العامّ لكلّ الإشارات. يُغلق الكلّ دفعةً.")
 bool   showSigMain  = input.bool(true, "main: live confirmed / الرئيسيّة: الحيّة المؤكَّدة", group = grpSig, tooltip = "الوسم الحيّ للفرصة المؤكَّدة على آخر شمعة (شراء/بيع + RR + وقف/هدف).")
 bool   showSigSub   = input.bool(true, "sub: historical/degrees / الفرعيّة: التاريخيّة/الدرجات", group = grpSig, tooltip = "الوسوم التاريخيّة عبر الشارت (تطرّفات الدرجات داخل المناطق ✦/⚠ + إشارات الخروج). تحتها مفاتيح الدرجات الثلاث.")
@@ -1314,6 +1316,7 @@ var array<line> zoneLvlLines = array.new<line>()
 var array<box>   zoneBoxes = array.new<box>()
 var array<float> zTop = array.new<float>()                                  // حدود المناطق (للتصنيف وin_zone لاحقًا — ط4-أ-3)
 var array<float> zBot = array.new<float>()
+var array<float> zMaLevels = array.new<float>()                             // [م-إش-2أ] تعريض مستويات م.A (eLvl) لكتلة الإشارات (سلّم الأهداف) — نمط zTop/zBot، تعريض بحت لا منطق جديد
 if barstate.islast
     if array.size(zoneBoxes) > 0
         for zi = 0 to array.size(zoneBoxes) - 1
@@ -1321,6 +1324,7 @@ if barstate.islast
     array.clear(zoneBoxes)
     array.clear(zTop)
     array.clear(zBot)
+    array.clear(zMaLevels)
     if array.size(zoneLvlLines) > 0
         for li = 0 to array.size(zoneLvlLines) - 1
             line.delete(array.get(zoneLvlLines, li))
@@ -1370,6 +1374,10 @@ if barstate.islast
                     array.push(eCov, false)
                     array.push(eLarge, true)
         int en = array.size(eLvl)
+        // [م-إش-2أ] تعريض مستويات م.A لسلّم الأهداف (الإشارة الحيّة) — نسخ بحت من eLvl الكامل (مزوَّجة+منفردة)، صفر منطق جديد
+        for p2 = 0 to (en > 0 ? en - 1 : 0)
+            if en > 0
+                array.push(zMaLevels, array.get(eLvl, p2))
         // ─── خطوط م.A لكلّ أطراف البركة (أزرق كبيرة · متوسطة رماديّ · المُغطّى متقطّع) ───
         if showZoneLvl
             for p = 0 to (en > 0 ? en - 1 : 0)
@@ -1565,19 +1573,40 @@ if barstate.islast
     bool cfSell = isMedTrade ? (not na(lstLgB) and close < lstLgB) : (not na(lstMdB) and close < lstMdB)
     bool   confOk = (entry == 1 and cfBuy) or (entry == -1 and cfSell)        // التأكيد يطابق الاتجاه ودرجة الصفقة
     int    gatePh = (useMedGate and isMedTrade) ? phM : phS                    // [G2 · L2-04 س30] بوّابة اليأس تتبع درجة الصفقة: متوسطة⇒المتوسطة(phM) · صغيرة⇒الصغيرة(phS). مصدر موحّد للقرار+الإشارة+نوع الوسم.
-    // [ط4-ج الوقف/الهدف] (الدرس L2-04): الوقف = حافّة منطقة الدخول · الهدف = أقرب منطقة تالية باتجاه الصفقة. (zaTop/zaBot حُسِبا في حلقة inZone أعلاه.)
+    // [م-إش-2أ · نموذج المالك] الوقف = **حافّة منطقة الدخول ± هامش** (slBufPts × mintick) · الأهداف = **سلّم مستويات م.A** بالاتجاه (TP1 الأقرب … numTP).
+    //   🔴 لا look-ahead (zMaLevels تطرّفات ماضية تُقرأ عند islast) · النواة (المناطق/الدرجات/م.A) بلا تغيير · inZlow/inZhigh تُبقى (للتأمين 2ج + الـtooltip).
     float stp = na
-    float tgt = na
-    if inZone and entry == 1                                              // شراء: الوقف عند أحدث قاع صغير داخل المنطقة [G4] (وإلّا حافّتها السفلى) · الهدف أقرب منطقة فوق
-        stp := not na(inZlow) ? inZlow : zaBot
-        for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
-            if nzc > 0 and array.get(zBot, zi) > close
-                tgt := na(tgt) or array.get(zBot, zi) < tgt ? array.get(zBot, zi) : tgt
-    else if inZone and entry == -1                                        // بيع: الوقف عند أحدث قمّة صغيرة داخل المنطقة [G4] (وإلّا حافّتها العليا) · الهدف أقرب منطقة تحت
-        stp := not na(inZhigh) ? inZhigh : zaTop
-        for zi = 0 to (nzc > 0 ? nzc - 1 : 0)
-            if nzc > 0 and array.get(zTop, zi) < close
-                tgt := na(tgt) or array.get(zTop, zi) > tgt ? array.get(zTop, zi) : tgt
+    array<float> tps = array.new<float>()                                // سلّم الأهداف TP1..numTP (الحيّة فقط)
+    float buf = slBufPts * syminfo.mintick
+    if inZone and entry == 1                                              // شراء: الوقف تحت الحافّة السفلى − buf · الأهداف مستويات م.A **فوق منطقة الدخول** تصاعديًّا (L2-03: «مش اللي قدامها»)
+        stp := zaBot - buf
+        array<float> above = array.new<float>()
+        for lv in zMaLevels
+            if lv > zaTop                                                // 🔴 يتخطّى حافّة منطقة الدخول (لا هدفها القريب) — إن لا مستوى خارجها ⇒ لا TP ⇒ لا إشارة (لا تلفيق)
+                array.push(above, lv)
+        array.sort(above, order.ascending)
+        float lastTp = na
+        for lv in above
+            if array.size(tps) >= numTP
+                break
+            if na(lastTp) or lv > lastTp + syminfo.mintick               // تخطّي المكرّرات (نفس المستوى من المتوسطة+الكبيرة)
+                array.push(tps, lv)
+                lastTp := lv
+    else if inZone and entry == -1                                        // بيع: الوقف فوق الحافّة العليا + buf · الأهداف مستويات م.A **تحت منطقة الدخول** تنازليًّا (L2-03: «مش اللي قدامها»)
+        stp := zaTop + buf
+        array<float> below = array.new<float>()
+        for lv in zMaLevels
+            if lv < zaBot                                               // 🔴 يتخطّى حافّة منطقة الدخول — إن لا مستوى خارجها ⇒ لا TP ⇒ لا إشارة (لا تلفيق)
+                array.push(below, lv)
+        array.sort(below, order.descending)
+        float lastTp = na
+        for lv in below
+            if array.size(tps) >= numTP
+                break
+            if na(lastTp) or lv < lastTp - syminfo.mintick
+                array.push(tps, lv)
+                lastTp := lv
+    float tgt = array.size(tps) > 0 ? array.get(tps, 0) : na              // TP1 = الأقرب ⇒ RR والبوّابة minRR (الأمين)
     // [بحث الأطلس] صفّ القرار = فئة FSM كاملة من الحالة (متّسق مع الإشارات)
     [decTxt, decK] = jwc.f_atlasDecision(entry, inZone, gatePh, confOk, phB, not na(tgt), uiLang == "AR / عربيّة")   // [G2] القرار يتبع بوّابة درجة الصفقة (اتّساق اللوحة مع الإشارة) · [أ48/ج] اللغة بوسيط
     color decBg = decK == 1 ? cUp : decK == -1 ? cDn : decK == 2 ? cRngC : (decK == 3 or decK == 9) ? color.new(#FF9800, 0) : pMute
@@ -1678,8 +1707,15 @@ if barstate.islast
         bool   rrOk  = minRR <= 0 or (not na(rr) and rr >= minRR)   // [بوّابة RR اختياريّة] إن minRR>0: لا وسم/تنبيه إن RR<الحدّ
         string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // للـtooltip/التنبيه (وصفيّ)
         string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد] رمز ✦/⚠ كالإشارات التاريخيّة (النجوم/القوّة ⇒ م3)
+        // [م-إش-2أ] سلّم الأهداف في الـtooltip (الحيّة داخل المنطقة) + تطرّف داخل المنطقة (مرجع التأمين 2ج — يُبقي inZlow/inZhigh حيّين)
+        string tpLad = ""
+        if not isBrk and array.size(tps) > 0
+            for ti = 0 to array.size(tps) - 1
+                tpLad := tpLad + "\nTP" + str.tostring(ti + 1) + ": " + str.tostring(array.get(tps, ti), format.mintick)
+        float  zPv   = up ? inZlow : inZhigh                                                          // [2ج] تطرّف داخل المنطقة (مرجع التأمين لاحقًا)
+        string zPvTx = f_t("\nتطرّف داخل المنطقة: ", "\nZone pivot: ") + (na(zPv) ? "—" : str.tostring(zPv, format.mintick))
         // tooltip تصميم القديم: شراء ⇒ الهدف/الدخول/الوقف · بيع ⇒ الوقف/الدخول/الهدف
-        string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + f_t("\nنوع: ", "\nType: ") + sTyp + f_t("\nالرابعة MTF: ", "\n4th (MTF): ") + ((up ? confUp : confDn) ? "✓" : "✗") + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))   // [G-S1] الرابعة صارت معلومةً (عامل قوّة لاحقًا) لا تأكيدًا
+        string sigTip = (up ? f_t("الهدف: ", "Target: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالوقف: ", "\nStop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) : f_t("الوقف: ", "Stop: ") + (na(sStp) ? "—" : str.tostring(sStp, format.mintick)) + f_t("\nالدخول: ", "\nEntry: ") + str.tostring(close, format.mintick) + f_t("\nالهدف: ", "\nTarget: ") + (na(sTgt) ? "—" : str.tostring(sTgt, format.mintick))) + tpLad + f_t("\nنوع: ", "\nType: ") + sTyp + zPvTx + f_t("\nالرابعة MTF: ", "\n4th (MTF): ") + ((up ? confUp : confDn) ? "✓" : "✗") + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))   // [G-S1] الرابعة عامل قوّة · [م-إش-2أ] +سلّم TP +تطرّف المنطقة
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
         // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
         if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
