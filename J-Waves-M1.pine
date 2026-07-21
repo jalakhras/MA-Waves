@@ -15,6 +15,7 @@ import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.86.1 [م-إش-3 · IDM بشكل الأصل — خيار — حسم المالك] — أُضيف مفتاح `idmFullDraw` (مطفأ): يرسم لآخر إشارة IDM **مستويات الصفقة كاملةً كالمؤشّر الأصليّ** (Inducement Engine): صناديق الوقف/الدخول/الأهداف بتدرّج شفافيّة + خطوط أفقيّة مسعّرة Entry/SL/TP1/2/3 عند الحافّة اليمنى + ألوان (TP/SL/Entry) + امتداد. صفقة واحدة نشطة (تُمسَح/تُعاد كلّ islast · لا زحام تاريخيّ). مطفأ ⇒ الشكل الحاليّ المقتضب (الوسم فقط) يبقى تمامًا. عرض بحت · النواة لا تُمَسّ (A/B). ═══
 // ═══ v2.86.0 [م-إش-3 · دفعة الإغراء IDM — التلاقي متعدّد الاستراتيجيّات] — أوّل **استراتيجيّة مُقيَّمة** عبر **JW_Inducement/1** (نقل «كنس الإغراء» Inducement Engine [MarkitTick] · بيانات فقط · © MarkitTick): (1) حساب إشارة IDM كلّ بار (اتّجاه/دخول/وقف/أهداف/موقف) · (2) **رسمها معنونةً «IDM شراء/بيع»** عند بار كنسها بمعلومات صفقتها هي (لا زون M-Waves) · (3) **تقييمها بنجوم SMC + الزخم** (per-bar عند بار الإشارة، jwconf.f_rate — IDM لا يصوّت على نفسه). مجموعة «🎯 الإغراء» خلف `idmEnable` مطفأ ⇒ **A/B مطلق** (النواة وتصويت M-Waves لم يُمَسّا). النموذج (حسم المالك): كلّ استراتيجيّة تُطلِق إشاراتها باسمها بأمانتها، والتقييم بالنجوم حسب بقيّة المصادر. (M-Waves/الجلسات كمصوّتَين على IDM + تاريخيّة IDM = دفعات تالية.) ═══
 // ═══ v2.85.3 [م-إش-3 · تنبيه مقتضَب — حسم المالك] — رسالة `alert()` أُعيد تنسيقها: **الاسم + القوّة + معلومات الصفقة المهمّة فقط** (M-Waves شراء/بيع ✦/⚠ ★★★ [⛔] · دخول · وقف · هدف · RR). حُذِف الحشو؛ أُبقيت العناصر التنفيذيّة للصفقة بطلب المالك («أضِف المعلومات المهمّة للصفقة»). عرض بحت · لا نشر مكتبة · النواة لا تُمَسّ. ═══
 // ═══ v2.85.2 [م-إش-3 · أوقات الجلسات النهائيّة (الأردن · US100) — حسم المالك] — ثُبِّتت افتراضات المالك: **نيويورك 16:30–00:00** (= فتح الناسداك 09:30 ET بتوقيت الأردن، صيف أمريكا · شتاءً يُزاح +1 ⇒ 17:30) · **لندن 10:00–16:30** (تسليم نظيف لنيويورك) · طوكيو 03:00–12:00 · سيدني 00:00–09:00. تشخيص الجذر (لقطة المالك): «Use exchange timezone» كان مفعّلًا فيتجاهل إزاحة +3 ⇒ الصناديق مُزاحة؛ إطفاؤه حلّها. لا إعادة نشر مكتبة (مدخلات فقط). ═══
@@ -374,6 +375,11 @@ float  idmRr2       = input.float(2.0, "TP2 R:R", minval = 1.0, step = 0.5, grou
 float  idmRr3       = input.float(3.0, "TP3 R:R", minval = 1.5, step = 0.5, group = grpIdm)
 color  idmColBull   = input.color(#26A69A, "IDM buy / إشارة شراء IDM", inline = "idmc", group = grpIdm)
 color  idmColBear   = input.color(#EF5350, "IDM sell / إشارة بيع IDM", inline = "idmc", group = grpIdm)
+bool   idmFullDraw  = input.bool(false, "Draw full trade levels (like original) / رسم مستويات الصفقة كاملة (كالأصل)", group = grpIdm, tooltip = "[شكل المؤشّر الأصليّ] يرسم لآخر إشارة IDM: صناديق الوقف/الدخول/الأهداف + خطوطًا أفقيّة مسعّرة (Entry/SL/TP1/2/3) — تمامًا كـInducement Engine الأصليّ. مطفأ ⇒ الشكل الحاليّ المقتضب (الوسم فقط). لآخر صفقة فقط (لا زحام تاريخيّ).")
+color  idmColTp     = input.color(color.new(#00C8FF, 55), "TP levels / مستويات الأهداف", inline = "idmlvl", group = grpIdm)
+color  idmColSl     = input.color(color.new(#DC2850, 55), "SL / الوقف", inline = "idmlvl", group = grpIdm)
+color  idmColEntry  = input.color(#64B4FF, "Entry / الدخول", inline = "idmlvl", group = grpIdm)
+int    idmLvlOff    = input.int(40, "Levels extend (bars) / امتداد المستويات (شموع)", minval = 1, maxval = 200, group = grpIdm)
 
 // ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
 // يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
@@ -451,8 +457,23 @@ f_drawSesBox(sesBxD, sesLbD, sesShowD, sesShowLbl, sesActD, sesStD, sesMaxD, ses
 plot(idmEnable ? idmDir    : na, "IDM dir",    display = display.data_window)   // للتحقّق البرمجيّ (مقابل المؤشّر الأصليّ)
 plot(idmEnable ? idmStance : na, "IDM stance", display = display.data_window)
 var array<label> idmLabels = array.new<label>()
+// [الشكل الأصليّ] حالة آخر إشارة IDM — لرسم مستوياتها كاملةً (خلف idmFullDraw) كالمؤشّر الأصليّ (صفقة واحدة نشطة، لا زحام)
+var int   idmLastBar   = na
+var int   idmLastDir   = 0
+var float idmLastEntry = na
+var float idmLastSl    = na
+var float idmLastTp1   = na
+var float idmLastTp2   = na
+var float idmLastTp3   = na
 if idmEnable and idmTrig and barstate.isconfirmed and idmDir != 0
     bool idmUp = idmDir == 1
+    idmLastBar   := bar_index                                   // خزّن آخر إشارة (تُرسَم مستوياتها كاملةً في كتلة islast أدناه)
+    idmLastDir   := idmDir
+    idmLastEntry := idmEntry
+    idmLastSl    := idmSl
+    idmLastTp1   := idmTp1
+    idmLastTp2   := idmTp2
+    idmLastTp3   := idmTp3
     // التقييم: أصوات المصادر المتاحة per-bar عند بار الإشارة (SMC + الزخم) — IDM لا يصوّت على نفسه · M-Waves/الجلسات لاحقًا
     array<int>   cfDirI  = array.new<int>()
     array<float> cfStrI  = array.new<float>()
@@ -487,6 +508,92 @@ if idmEnable and idmTrig and barstate.isconfirmed and idmDir != 0
     array.push(idmLabels, label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip))
     while array.size(idmLabels) > 100                          // سقف علامات IDM (حماية سقف الوسوم المشترَك 500)
         label.delete(array.shift(idmLabels))
+
+// [الشكل الأصليّ · خلف idmFullDraw] رسم مستويات آخر صفقة IDM كاملةً (صناديق الوقف/الدخول/الأهداف + خطوط مسعّرة) كـInducement Engine الأصليّ — صفقة واحدة، تُمسَح وتُعاد كلّ islast.
+var box   idmBxSl = na
+var box   idmBxT1 = na
+var box   idmBxT2 = na
+var box   idmBxT3 = na
+var line  idmLnE  = na
+var line  idmLnS  = na
+var line  idmLnT1 = na
+var line  idmLnT2 = na
+var line  idmLnT3 = na
+var label idmLbE  = na
+var label idmLbS  = na
+var label idmLbT1 = na
+var label idmLbT2 = na
+var label idmLbT3 = na
+if barstate.islast
+    if not na(idmBxSl)
+        box.delete(idmBxSl)
+    if not na(idmBxT1)
+        box.delete(idmBxT1)
+    if not na(idmBxT2)
+        box.delete(idmBxT2)
+    if not na(idmBxT3)
+        box.delete(idmBxT3)
+    if not na(idmLnE)
+        line.delete(idmLnE)
+    if not na(idmLnS)
+        line.delete(idmLnS)
+    if not na(idmLnT1)
+        line.delete(idmLnT1)
+    if not na(idmLnT2)
+        line.delete(idmLnT2)
+    if not na(idmLnT3)
+        line.delete(idmLnT3)
+    if not na(idmLbE)
+        label.delete(idmLbE)
+    if not na(idmLbS)
+        label.delete(idmLbS)
+    if not na(idmLbT1)
+        label.delete(idmLbT1)
+    if not na(idmLbT2)
+        label.delete(idmLbT2)
+    if not na(idmLbT3)
+        label.delete(idmLbT3)
+    idmBxSl := na
+    idmBxT1 := na
+    idmBxT2 := na
+    idmBxT3 := na
+    idmLnE  := na
+    idmLnS  := na
+    idmLnT1 := na
+    idmLnT2 := na
+    idmLnT3 := na
+    idmLbE  := na
+    idmLbS  := na
+    idmLbT1 := na
+    idmLbT2 := na
+    idmLbT3 := na
+    if idmEnable and idmFullDraw and not na(idmLastBar) and idmLastDir != 0
+        int   rB = idmLastBar + idmLvlOff                       // امتداد المستويات يمينًا
+        float e  = idmLastEntry
+        // صناديق: الوقف (بين SL والدخول) · TP1 (الدخول→TP1) · TP2 (TP1→TP2) · TP3 (TP2→TP3) — تدرّج شفافيّة كالأصل
+        if not na(idmLastSl)
+            idmBxSl := box.new(idmLastBar, math.max(idmLastSl, e), rB, math.min(idmLastSl, e), xloc = xloc.bar_index, bgcolor = color.new(idmColSl, 68), border_color = color(na))
+        if not na(idmLastTp1)
+            idmBxT1 := box.new(idmLastBar, math.max(e, idmLastTp1), rB, math.min(e, idmLastTp1), xloc = xloc.bar_index, bgcolor = color.new(idmColTp, 68), border_color = color(na))
+        if not na(idmLastTp1) and not na(idmLastTp2)
+            idmBxT2 := box.new(idmLastBar, math.max(idmLastTp1, idmLastTp2), rB, math.min(idmLastTp1, idmLastTp2), xloc = xloc.bar_index, bgcolor = color.new(idmColTp, 82), border_color = color(na))
+        if not na(idmLastTp2) and not na(idmLastTp3)
+            idmBxT3 := box.new(idmLastBar, math.max(idmLastTp2, idmLastTp3), rB, math.min(idmLastTp2, idmLastTp3), xloc = xloc.bar_index, bgcolor = color.new(idmColTp, 90), border_color = color(na))
+        // خطوط أفقيّة مسعّرة عند الحافّة اليمنى (Entry/SL/TP1/2/3)
+        idmLnE := line.new(idmLastBar, e, rB, e, xloc = xloc.bar_index, color = idmColEntry, width = 1)
+        idmLbE := label.new(rB, e, "Entry " + str.tostring(e, format.mintick), xloc = xloc.bar_index, color = color.new(idmColEntry, 78), textcolor = color.white, style = label.style_label_left, size = size.small)
+        if not na(idmLastSl)
+            idmLnS := line.new(idmLastBar, idmLastSl, rB, idmLastSl, xloc = xloc.bar_index, color = idmColSl, width = 1, style = line.style_dashed)
+            idmLbS := label.new(rB, idmLastSl, "SL " + str.tostring(idmLastSl, format.mintick), xloc = xloc.bar_index, color = color.new(idmColSl, 78), textcolor = color.white, style = label.style_label_left, size = size.small)
+        if not na(idmLastTp1)
+            idmLnT1 := line.new(idmLastBar, idmLastTp1, rB, idmLastTp1, xloc = xloc.bar_index, color = idmColTp, width = 1, style = line.style_dashed)
+            idmLbT1 := label.new(rB, idmLastTp1, "TP1 " + str.tostring(idmLastTp1, format.mintick), xloc = xloc.bar_index, color = color.new(idmColTp, 78), textcolor = color.white, style = label.style_label_left, size = size.small)
+        if not na(idmLastTp2)
+            idmLnT2 := line.new(idmLastBar, idmLastTp2, rB, idmLastTp2, xloc = xloc.bar_index, color = idmColTp, width = 1, style = line.style_dotted)
+            idmLbT2 := label.new(rB, idmLastTp2, "TP2 " + str.tostring(idmLastTp2, format.mintick), xloc = xloc.bar_index, color = color.new(idmColTp, 83), textcolor = color.white, style = label.style_label_left, size = size.small)
+        if not na(idmLastTp3)
+            idmLnT3 := line.new(idmLastBar, idmLastTp3, rB, idmLastTp3, xloc = xloc.bar_index, color = idmColTp, width = 1, style = line.style_dotted)
+            idmLbT3 := label.new(rB, idmLastTp3, "TP3 " + str.tostring(idmLastTp3, format.mintick), xloc = xloc.bar_index, color = color.new(idmColTp, 88), textcolor = color.white, style = label.style_label_left, size = size.small)
 
 // [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
 [smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
