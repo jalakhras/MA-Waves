@@ -1,0 +1,45 @@
+//@version=6
+// ============================================================================
+// JW_Sessions — نطاقات الجلسات كمصدر تلاقٍ لـM-Waves
+// ----------------------------------------------------------------------------
+// منطق كشف الجلسات ومداها منقول عن:
+//   "Sessions [LuxAlgo]"  © LuxAlgo  —  CC BY-NC-SA 4.0
+//   https://creativecommons.org/licenses/by-nc-sa/4.0/
+// اقتباس شخصيّ غير تجاريّ؛ النسب لـLuxAlgo محفوظ وفق الرخصة.
+//
+// 🔴 الخطّ الأحمر: النواة (M-Waves) هي المولّد الوحيد للإشارة. هذه المكتبة
+//    «تقرأ فقط»: تحسب حالة الجلسة ومداها (بيانات) — المؤشّر يرسم/يصوّت.
+//    القيمة التلاقيّة المميّزة: **قمّة/قاع الجلسة الكبرى السابقة = بِرَك سيولة**
+//    مؤرّخة؛ تلاقيها مع منطقة M-Waves ⇒ +نجمة (كتلاقي OB). لا صوت اتّجاه
+//    (يكرّر VWAP الزخم). بوّابة نشاط (الوقت الميّت) اختياريّة في المؤشّر.
+//
+// العقد: بيانات كقيمة · بلا «UDT محلّيّ + method» (يتفادى فخّ الترجمة CE10237).
+//   التوقيت مرجعٌ ثابت (UTC/البورصة) لا توقيت المستخدم ⇒ ساعات السوق الحقيقيّة.
+// ============================================================================
+library("JW_Sessions", overlay = true)
+
+// @function   حالة جلسة واحدة: نشطة؟ + مداها الجاري (max/min) + بدؤها + مدى الجلسة السابقة المكتملة.
+//             نقل LuxAlgo get_range/is_ses حرفيًّا كسلاسل صرفة. time() مسموح في مكتبات Pine v6.
+// @param ses  نصّ الجلسة ("1300-2200") — على ساعة الـtz.
+// @param tz   المنطقة الزمنيّة ("UTC+0" أو syminfo.timezone) — مرجع ثابت لا توقيت المستخدم.
+// @returns [active, sMax, sMin, isStart, prevMax, prevMin, startTime]
+//   active: هل البار داخل الجلسة · sMax/sMin: مدى الجلسة الجاري (تراكميّ) · isStart: أوّل بار في الجلسة
+//   prevMax/prevMin: مدى الجلسة **السابقة المكتملة** (بِرَك السيولة للتلاقي) · startTime: زمن بدء الجلسة الجارية (يسار الصندوق).
+export f_sessionState(string ses, string tz) =>
+    bool inSes  = not na(time(timeframe.period, ses, tz))                            // داخل الجلسة؟ time() تُرجِع na خارجها (يكافئ LuxAlgo is_ses)
+    var float sMax    = na
+    var float sMin    = na
+    var float prevMax = na
+    var float prevMin = na
+    var int   startT  = na
+    bool isStart = inSes and not inSes[1]                                           // أوّل بار في الجلسة (session > session[1]) · bar 0: inSes[1]=na ⇒ الشرط يُعامَل false
+    if isStart
+        prevMax := sMax                                                             // أغلِق مدى الجلسة السابقة ⇒ بِركة سيولة
+        prevMin := sMin
+        sMax    := high
+        sMin    := low
+        startT  := time
+    else if inSes
+        sMax := math.max(sMax, high)                                                // نمِّ المدى ما دامت الجلسة نشطة
+        sMin := math.min(sMin, low)
+    [inSes, sMax, sMin, isStart, prevMax, prevMin, startT]

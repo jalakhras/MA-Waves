@@ -9,10 +9,14 @@ import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.6
 import Jassar_Mahmoud/JW_SMC/13 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL + [v13] إصلاح انهيار MTF على bar 0 [array.slice]) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 import Jassar_Mahmoud/JW_Momentum/1 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · بيانات فقط، المؤشّر يرسم/يصوّت
+import Jassar_Mahmoud/JW_Sessions/1 as jsess                // [م-إش-3 · تلاقٍ] الجلسات (نقل LuxAlgo Sessions) — f_sessionState يُرجِع حالة الجلسة+مداها · المؤشّر يرسم الصناديق + تلاقي سيولة (قمّة/قاع جلسة كبرى ⇒ +نجمة) + بوّابة نشاط
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.85.2 [م-إش-3 · أوقات الجلسات النهائيّة (الأردن · US100) — حسم المالك] — ثُبِّتت افتراضات المالك: **نيويورك 16:30–00:00** (= فتح الناسداك 09:30 ET بتوقيت الأردن، صيف أمريكا · شتاءً يُزاح +1 ⇒ 17:30) · **لندن 10:00–16:30** (تسليم نظيف لنيويورك) · طوكيو 03:00–12:00 · سيدني 00:00–09:00. تشخيص الجذر (لقطة المالك): «Use exchange timezone» كان مفعّلًا فيتجاهل إزاحة +3 ⇒ الصناديق مُزاحة؛ إطفاؤه حلّها. لا إعادة نشر مكتبة (مدخلات فقط). ═══
+// ═══ v2.85.1 [م-إش-3 · الجلسات بتوقيت الأردن افتراضًا — حسم المالك] — أوقات الجلسات الافتراضيّة حُوِّلت لتوقيت الأردن UTC+3 (نيويورك 1600-0100 · لندن 1000-1900 · طوكيو 0300-1200 · سيدني 0000-0900) + إزاحة UTC الافتراضيّة صارت +3 ⇒ الأرقام في الإعدادات تُقرأ بساعة المالك مباشرةً. 🔴 **المواضع لم تتغيّر** (الإزاحة+الأوقات معًا تحفظان نفس اللحظات المطلقة = 13-22 UTC…): الجلسات كانت صحيحة أصلًا؛ التغيير عرضيّ (أرقام مقروءة) لا موضعيّ. لا إعادة نشر مكتبة. ═══
+// ═══ v2.85.0 [م-إش-3 · دفعة الجلسات Sessions — فرع m3/confluence-sources] — مصدر تلاقٍ ثالث عبر **JW_Sessions/1** (نقل LuxAlgo Sessions · f_sessionState يُرجِع حالة الجلسة+مداها · بيانات فقط · © LuxAlgo CC BY-NC-SA). المؤشّر: (1) **رسم صناديق مدى** 4 جلسات (نيويورك/لندن/طوكيو/سيدني · مفتاح إظهار + اسم + وقت UTC + لون + «كبرى» لكلٍّ) · (2) **تلاقي سيولة**: قمّة/قاع جلسة كبرى **سابقة** (بِركة سيولة مؤرّخة) داخل منطقة الدخول ⇒ +نجمة (المميّز غير المكرّر · كتلاقي OB) · (3) **بوّابة نشاط** اختياريّة: إشارة في الوقت الميّت (لا جلسة كبرى نشطة) ⇒ ⛔veto. 🔴 التوقيت مرجعٌ ثابت (UTC افتراضًا / أو توقيت البورصة) لا توقيت المستخدم. مجموعة «🕐 الجلسات» أسفل الزخم · التصويت خلف `sesEnable` مطفأ (A/B). عرض/تقييم بحت · النواة لا تُمَسّ. (الحيّة أوّلًا · التاريخيّة لاحقًا كـSMC/الزخم.) ═══
 // ═══ v2.84.1 [إصلاح انهيار — JW_SMC/13] — استيراد **JW_SMC/13**: إصلاح خطأ وقت تشغيل «array.slice Index 1 out of bounds» على bar 0 في `f_smcMtfLevel` (المستوى MTF يُحسَب بلا شرط حتّى لو المفتاح مطفأ). السبب: `binary_search_rightmost` قد يُرجِع فهرسًا خارج الحدود حين قيمة البحث أكبر من كلّ عناصر المصفوفة الصغيرة (bar 0) ⇒ قُيِّد leftIndex/rightIndex + حارس شريحة. ظهر على تطبيق TradingView لا المتصفّح. لا تغيّر سلوكيّ بعد التراكم. النواة/الزخم لا تُمَسّ. ═══
 // ═══ v2.84.0 [م-إش-3ج · نجوم الزخم على الإشارات التاريخيّة — تناظر الدفعتين] — أصوات الزخم (EMA/SMA/VWAP/RSI + veto تطرّف RSI) صارت تُلحِق ★ على الإشارات **التاريخيّة** (✦/⚠ عبر الشارت) كـSMC تمامًا: post-process يقرأ `momEmaDir[off]/…` **عند بار كلّ إشارة** (فهرسة زمنيّة، لا look-ahead) عبر `max_bars_back(...,500)` للسلاسل الستّ. الكتلة تعمل الآن لـ`smcEnable or momEnable` (كلّ مصدر خلف مفتاحه ⇒ A/B). كان الزخم يصوّت على الحيّة فقط. عرض بحت · jws يبقى مولّدًا نقيًّا · النواة لا تُمَسّ. ═══
 // ═══ v2.83.1 [م-إش-3 · الزخم في لوحة القرار — حسم المالك] — دُمِجت معلومات الزخم في **لوحة القرار** (صفّان: «الزخم RSI» قيمة+تشبّع · «المتوسّطات E·S·V» اتجاهات EMA/SMA/VWAP مجمَّعة ▲▼) بدل لوحة منفصلة (حُذِفت momTbl + مدخلا الموضع/الخلفيّة). خلف مفتاح `momShowPanel` مستقلّ (إخفاء بإطفائه · يتطلّب لوحة القرار). عرض بحت — النواة/الأصوات لا تُمَسّ. تحقُّق الزخم السابق: RSI مطابق (JW RSI 68.22 ≈ MOM 68.28 · فارق الشمعة الحيّة) · الأصوات الأربعة تعمل. ═══
@@ -317,6 +321,40 @@ bool   momDrawVwap  = input.bool(false, "Show VWAP / إظهار VWAP", inline = 
 color  momColVwap   = input.color(#FFCA28, "", inline = "momv", group = grpMom)
 bool   momShowPanel = input.bool(false, "Show momentum in decision panel / إظهار الزخم في لوحة القرار", group = grpMom, tooltip = "يُضيف صفَّي زخم إلى **لوحة القرار**: RSI (قيمة + تشبّع) + اتجاهات EMA/SMA/VWAP مجمَّعة. خلف مفتاح مستقلّ (إخفاء بإطفائه) · يتطلّب إظهار لوحة القرار. عرض بحت.")
 
+// ═════════════════ 🕐 الجلسات / Sessions (تلاقٍ) [م-إش-3] ═════════════════
+// نطاقات الجلسات (© LuxAlgo · اقتباس شخصيّ CC BY-NC-SA) — الحساب في **JW_Sessions** (f_sessionState)؛ المؤشّر يرسم الصناديق ويصوّت.
+// القيمة المميّزة: **قمّة/قاع الجلسة الكبرى السابقة = بِرَك سيولة** ⇒ تلاقيها مع منطقتنا = +نجمة (كتلاقي OB). لا صوت اتّجاه (يكرّر VWAP الزخم).
+// 🔴 التوقيت مرجعٌ ثابت (افتراض **توقيت الأردن UTC+3** / أو غيّر الإزاحة / أو توقيت البورصة) ⇒ ساعات السوق الحقيقيّة. المواضع لا تتغيّر بتغيّر (الإزاحة+الأوقات) معًا. صفر أثر على النواة ما لم يُفعَّل (A/B).
+string grpSes       = "🕐 الجلسات / Sessions"
+bool   sesEnable    = input.bool(false, "Enable session-liquidity vote / تفعيل صوت سيولة الجلسات", group = grpSes, tooltip = "[م-إش-3] قمّة/قاع الجلسة الكبرى السابقة (بِركة سيولة) تتلاقى مع منطقة الدخول ⇒ +نجمة. + بوّابة نشاط اختياريّة. تقييم/عرض فقط — لا يولّد إشارة. مطفأ افتراضيًّا (A/B).")
+bool   sesUseExch   = input.bool(false, "Use exchange timezone / توقيت البورصة", group = grpSes, tooltip = "مفعّل: أوقات الجلسات على ساعة بورصة الأداة (ينضبط تلقائيًّا). مطفأ: UTC + الإزاحة أدناه. المرجع ثابت لا توقيتك الشخصيّ.")
+int    sesUtcOff    = input.int(3, "UTC offset (+/-) / إزاحة UTC", minval = -12, maxval = 14, group = grpSes, tooltip = "إزاحة UTC حين إطفاء «توقيت البورصة». **افتراض +3 = توقيت الأردن**؛ أوقات الجلسات أدناه مكتوبة بساعتك. للـUTC اجعله 0 وأعِد الأوقات لـUTC القياسيّ (سيدني 21-06 · طوكيو 00-09 · لندن 07-16 · نيويورك 13-22). المواضع نفسها في الحالتين (المرجع ثابت لا شاشتك).")
+bool   sesLiqConfl  = input.bool(true, "Session H/L ↔ zone confluence / تلاقي سيولة الجلسة مع المنطقة", group = grpSes, tooltip = "قمّة/قاع أيّ جلسة **كبرى** (مؤشَّرة أدناه) السابقة يقع داخل منطقة الدخول ⇒ +نجمة (بِركة سيولة مؤرّخة). المميّز غير المكرّر.")
+bool   sesActGate   = input.bool(false, "Dead-time veto (no major session) / veto الوقت الميّت", group = grpSes, tooltip = "الإشارة خارج كلّ الجلسات الكبرى (وقت ميّت قليل السيولة) ⇒ ⛔veto. عرض فقط — لا يُلغي الإشارة. مطفأ افتراضيًّا.")
+// ─── 4 جلسات: إظهار الصندوق + اسم + وقت (بساعة الإزاحة · افتراض توقيت الأردن) + لون + «كبرى» (للتلاقي/البوّابة) ───
+bool   sesShowA     = input.bool(true, "A", inline = "sesA", group = grpSes)
+string sesNameA     = input.string("New York", "", inline = "sesA", group = grpSes)
+string sesTimeA     = input.session("1630-0000", "", inline = "sesA", group = grpSes)
+color  sesColA      = input.color(#ff5d00, "", inline = "sesA", group = grpSes)
+bool   sesMajorA    = input.bool(true, "major", inline = "sesA", group = grpSes)
+bool   sesShowB     = input.bool(true, "B", inline = "sesB", group = grpSes)
+string sesNameB     = input.string("London", "", inline = "sesB", group = grpSes)
+string sesTimeB     = input.session("1000-1630", "", inline = "sesB", group = grpSes)
+color  sesColB      = input.color(#2157f3, "", inline = "sesB", group = grpSes)
+bool   sesMajorB    = input.bool(true, "major", inline = "sesB", group = grpSes)
+bool   sesShowC     = input.bool(false, "C", inline = "sesC", group = grpSes)
+string sesNameC     = input.string("Tokyo", "", inline = "sesC", group = grpSes)
+string sesTimeC     = input.session("0300-1200", "", inline = "sesC", group = grpSes)
+color  sesColC      = input.color(#e91e63, "", inline = "sesC", group = grpSes)
+bool   sesMajorC    = input.bool(false, "major", inline = "sesC", group = grpSes)
+bool   sesShowD     = input.bool(false, "D", inline = "sesD", group = grpSes)
+string sesNameD     = input.string("Sydney", "", inline = "sesD", group = grpSes)
+string sesTimeD     = input.session("0000-0900", "", inline = "sesD", group = grpSes)
+color  sesColD      = input.color(#ffeb3b, "", inline = "sesD", group = grpSes)
+bool   sesMajorD    = input.bool(false, "major", inline = "sesD", group = grpSes)
+bool   sesShowLbl   = input.bool(true, "Session name labels / أسماء الجلسات", group = grpSes)
+float  sesBoxTransp = input.float(90, "Session box transparency / شفافية صندوق الجلسة", minval = 0, maxval = 100, group = grpSes)
+
 // ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
 // يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
 [smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB, smcTrTop, smcTrTopB, smcTrBot, smcTrBotB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)   // [v2] +مستوى/بار النقطة المكسورة (للرسم) · [v6] +التطرّف الزاحف (قمّة/قاع) + بارَيهما (Strong/Weak = trailing extremes)
@@ -344,6 +382,47 @@ max_bars_back(momVwapDir, 500)
 max_bars_back(momRsiDir, 500)
 max_bars_back(momRsiOBst, 500)
 max_bars_back(momRsiOSst, 500)
+
+// ══════ [م-إش-3 · دفعة الجلسات] الجلسات (نطاقات · JW_Sessions · مصدر تلاقٍ سيولة لا مولّد) ══════
+// التوقيت مرجعٌ ثابت (UTC/البورصة) لا توقيت المستخدم. تُحسَب كلّ بار (حالة var متراكمة في المكتبة). المؤشّر يرسم الصناديق (كلّ بار) ويصوّت (حيّ).
+// هل المستوى (بِركة سيولة) داخل منطقة الدخول؟ (مساعد نقيّ عالميّ)
+f_lvlInZone(float lvl, float zt, float zb) => not na(lvl) and not na(zt) and not na(zb) and lvl <= zt and lvl >= zb
+// رسم صندوق جلسة واحدة (كلّ بار كـLuxAlgo · صندوق جديد عند بدء الجلسة، يُمدّ ما دامت نشطة · حارس ~12 لكلّ جلسة لحماية سقف الصناديق المشترَك 300)
+f_drawSesBox(array<box> boxes, array<label> lbls, bool show, bool showLbl, bool active, bool isStart, float sMax, float sMin, int startT, color col, string nm, float transp) =>
+    if show
+        if isStart and not na(sMax) and not na(startT)
+            box b = box.new(startT, sMax, startT, sMin, xloc = xloc.bar_time, bgcolor = color.new(col, int(transp)), border_color = col, border_style = line.style_dotted)
+            array.push(boxes, b)
+            if showLbl
+                array.push(lbls, label.new(startT, sMax, nm, xloc = xloc.bar_time, textcolor = col, style = label.style_label_down, color = color.new(color.white, 100), size = size.tiny))
+            if array.size(boxes) > 12
+                box.delete(array.shift(boxes))
+            if array.size(lbls) > 12
+                label.delete(array.shift(lbls))
+        else if active and array.size(boxes) > 0
+            box b = array.last(boxes)
+            box.set_top(b, sMax)
+            box.set_rightbottom(b, time, sMin)
+            if showLbl and array.size(lbls) > 0
+                label.set_xy(array.last(lbls), int(math.avg(box.get_left(b), time)), sMax)
+string sesTz = sesUseExch ? syminfo.timezone : "UTC" + (sesUtcOff >= 0 ? "+" : "-") + str.tostring(math.abs(sesUtcOff))
+[sesActA, sesMaxA, sesMinA, sesStA, sesPMaxA, sesPMinA, sesStTA] = jsess.f_sessionState(sesTimeA, sesTz)
+[sesActB, sesMaxB, sesMinB, sesStB, sesPMaxB, sesPMinB, sesStTB] = jsess.f_sessionState(sesTimeB, sesTz)
+[sesActC, sesMaxC, sesMinC, sesStC, sesPMaxC, sesPMinC, sesStTC] = jsess.f_sessionState(sesTimeC, sesTz)
+[sesActD, sesMaxD, sesMinD, sesStD, sesPMaxD, sesPMinD, sesStTD] = jsess.f_sessionState(sesTimeD, sesTz)
+bool sesMajorActive = (sesMajorA and sesActA) or (sesMajorB and sesActB) or (sesMajorC and sesActC) or (sesMajorD and sesActD)   // بوّابة النشاط: أيّ جلسة كبرى نشطة الآن
+var array<box>   sesBxA = array.new<box>()
+var array<label> sesLbA = array.new<label>()
+var array<box>   sesBxB = array.new<box>()
+var array<label> sesLbB = array.new<label>()
+var array<box>   sesBxC = array.new<box>()
+var array<label> sesLbC = array.new<label>()
+var array<box>   sesBxD = array.new<box>()
+var array<label> sesLbD = array.new<label>()
+f_drawSesBox(sesBxA, sesLbA, sesShowA, sesShowLbl, sesActA, sesStA, sesMaxA, sesMinA, sesStTA, sesColA, sesNameA, sesBoxTransp)
+f_drawSesBox(sesBxB, sesLbB, sesShowB, sesShowLbl, sesActB, sesStB, sesMaxB, sesMinB, sesStTB, sesColB, sesNameB, sesBoxTransp)
+f_drawSesBox(sesBxC, sesLbC, sesShowC, sesShowLbl, sesActC, sesStC, sesMaxC, sesMinC, sesStTC, sesColC, sesNameC, sesBoxTransp)
+f_drawSesBox(sesBxD, sesLbD, sesShowD, sesShowLbl, sesActD, sesStD, sesMaxD, sesMinD, sesStTD, sesColD, sesNameD, sesBoxTransp)
 
 // [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
 [smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
@@ -2100,6 +2179,17 @@ if barstate.islast
             if momRsiVeto and ((up and momRsiOBst) or ((not up) and momRsiOSst))   // شراء+تشبّع شرائيّ أو بيع+تشبّع بيعيّ ⇒ مطاردة تطرّف ⇒ صوت معاكس حرِج (⛔)
                 array.push(cfDir, -sigDirC)
                 array.push(cfStr, 2.0)
+                array.push(cfCrit, true)
+        if sesEnable                                                              // [دفعة الجلسات] تلاقي سيولة (قمّة/قاع جلسة كبرى سابقة داخل منطقة الدخول ⇒ +نجمة) + بوّابة نشاط
+            if sesLiqConfl and inZone and not na(zaTop) and not na(zaBot)
+                bool sLiqHit = (sesMajorA and (f_lvlInZone(sesPMaxA, zaTop, zaBot) or f_lvlInZone(sesPMinA, zaTop, zaBot))) or (sesMajorB and (f_lvlInZone(sesPMaxB, zaTop, zaBot) or f_lvlInZone(sesPMinB, zaTop, zaBot))) or (sesMajorC and (f_lvlInZone(sesPMaxC, zaTop, zaBot) or f_lvlInZone(sesPMinC, zaTop, zaBot))) or (sesMajorD and (f_lvlInZone(sesPMaxD, zaTop, zaBot) or f_lvlInZone(sesPMinD, zaTop, zaBot)))
+                if sLiqHit
+                    array.push(cfDir,  sigDirC)                                   // بِركة سيولة جلسة كبرى تتلاقى مع منطقة الدخول ⇒ صوت مؤيّد
+                    array.push(cfStr,  1.0)
+                    array.push(cfCrit, false)
+            if sesActGate and not sesMajorActive                                  // وقت ميّت (لا جلسة كبرى نشطة) ⇒ صوت معاكس حرِج (⛔ لا تتداول في الركود)
+                array.push(cfDir,  -sigDirC)
+                array.push(cfStr,  2.0)
                 array.push(cfCrit, true)
         [cfAgree, cfOpp, cfNeu, cfVeto] = jwconf.f_rate(sigDirC, cfDir, cfStr, cfCrit, confUseVeto)
         string starTx = (cfAgree > 0 ? str.repeat("★", cfAgree) : "") + (cfVeto ? "⛔" : "")   // [نموذج المالك] نجمة لكلّ مصدر موافق · بلا نجوم إن لا توافق · ⛔ veto — تُلحَق بعد ✦/⚠
