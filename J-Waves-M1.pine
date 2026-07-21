@@ -6,13 +6,15 @@ import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخط�
 import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] المناطق — f_pairZones (jaffar: بركة المتوسطة غير المغطّاة · sizeOk/merge/contain/tooBig · between) + [أ89] المرساة = الحاليّة+تاريخ التاريخ فقط (anchorMin) · التاريخ للاستعارة
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
-import Jassar_Mahmoud/JW_SMC/12 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
+import Jassar_Mahmoud/JW_SMC/13 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL + [v13] إصلاح انهيار MTF على bar 0 [array.slice]) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 import Jassar_Mahmoud/JW_Momentum/1 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · بيانات فقط، المؤشّر يرسم/يصوّت
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.84.1 [إصلاح انهيار — JW_SMC/13] — استيراد **JW_SMC/13**: إصلاح خطأ وقت تشغيل «array.slice Index 1 out of bounds» على bar 0 في `f_smcMtfLevel` (المستوى MTF يُحسَب بلا شرط حتّى لو المفتاح مطفأ). السبب: `binary_search_rightmost` قد يُرجِع فهرسًا خارج الحدود حين قيمة البحث أكبر من كلّ عناصر المصفوفة الصغيرة (bar 0) ⇒ قُيِّد leftIndex/rightIndex + حارس شريحة. ظهر على تطبيق TradingView لا المتصفّح. لا تغيّر سلوكيّ بعد التراكم. النواة/الزخم لا تُمَسّ. ═══
+// ═══ v2.84.0 [م-إش-3ج · نجوم الزخم على الإشارات التاريخيّة — تناظر الدفعتين] — أصوات الزخم (EMA/SMA/VWAP/RSI + veto تطرّف RSI) صارت تُلحِق ★ على الإشارات **التاريخيّة** (✦/⚠ عبر الشارت) كـSMC تمامًا: post-process يقرأ `momEmaDir[off]/…` **عند بار كلّ إشارة** (فهرسة زمنيّة، لا look-ahead) عبر `max_bars_back(...,500)` للسلاسل الستّ. الكتلة تعمل الآن لـ`smcEnable or momEnable` (كلّ مصدر خلف مفتاحه ⇒ A/B). كان الزخم يصوّت على الحيّة فقط. عرض بحت · jws يبقى مولّدًا نقيًّا · النواة لا تُمَسّ. ═══
 // ═══ v2.83.1 [م-إش-3 · الزخم في لوحة القرار — حسم المالك] — دُمِجت معلومات الزخم في **لوحة القرار** (صفّان: «الزخم RSI» قيمة+تشبّع · «المتوسّطات E·S·V» اتجاهات EMA/SMA/VWAP مجمَّعة ▲▼) بدل لوحة منفصلة (حُذِفت momTbl + مدخلا الموضع/الخلفيّة). خلف مفتاح `momShowPanel` مستقلّ (إخفاء بإطفائه · يتطلّب لوحة القرار). عرض بحت — النواة/الأصوات لا تُمَسّ. تحقُّق الزخم السابق: RSI مطابق (JW RSI 68.22 ≈ MOM 68.28 · فارق الشمعة الحيّة) · الأصوات الأربعة تعمل. ═══
 // ═══ v2.83.0 [م-إش-3 · دفعة الزخم Momentum — الهدف الأصليّ §8] — مصدر تلاقٍ ثانٍ: EMA/SMA/VWAP/RSI عبر **JW_Momentum/1** (`f_momentum` يُرجِع القيم+الاتجاهات+تشبّع RSI · المكتبة بيانات فقط). المؤشّر: (1) **رسم** خطوط EMA/SMA/VWAP على السعر — **مفتاح إظهار مستقلّ لكلّ مؤشّر** (حسم المالك) · (2) **لوحة زخم** (RSI + تشبّعه + الاتجاهات؛ بديل لوحة RSI السفليّة لأنّ المؤشّر overlay) · (3) **أصوات تلاقٍ حيّة**: كلّ مؤشّر يصوّت (نجمة لكلّ موافق) + تطرّف RSI (شراء+تشبّع↑ / بيع+تشبّع↓) = ⛔veto. مجموعة «🎚 الزخم / Momentum» أسفل SMC · التصويت خلف `momEnable` مطفأ (A/B). عرض/تقييم بحت · النواة لا تُمَسّ. (التاريخيّة تأخذ نجوم الزخم لاحقًا كـSMC-3ج.) ═══
 // ═══ v2.82.1 [م-إش-3 · تنظيم مدخلات SMC — حسم المالك] — مجموعة التلاقي أُعيدت تسميتها **«🧠 SMC / Smart Money Concepts»** ونُقِلت **أسفل مجموعة إليوت** (ترتيب داخليّ منطقيّ: تصويت/معايير عامّة ← بنية BOS/CHoCH ← EQH/EQL ← Strong/Weak ← Order Blocks ← FVG ← Premium/Discount ← MTF ← HH/HL/LH/LL). تنظيم/عرض بحت — صفر أثر على المنطق (نفس المتغيّرات/القيم/المفاتيح؛ تغيّر ترتيب التصريح ونصّ المجموعة فقط · لا إعادة نشر مكتبة). تحقُّق HH/HL السابق: التصنيف يطابق تسلسل المستويات حرفًا (8/8). ═══
@@ -336,6 +338,12 @@ plot(momEnable ? momEmaDir  : na, "MOM emaDir",  display = display.data_window)
 plot(momEnable ? momSmaDir  : na, "MOM smaDir",  display = display.data_window)
 plot(momEnable ? momVwapDir : na, "MOM vwapDir", display = display.data_window)
 plot(momEnable ? momRsiDir  : na, "MOM rsiDir",  display = display.data_window)
+max_bars_back(momEmaDir, 500)    // [م-إش-3ج] فهرسة زمنيّة لنجوم الزخم على الإشارات التاريخيّة (قراءة الاتّجاه/التشبّع عند بار كلّ إشارة، ضمن نافذة 500)
+max_bars_back(momSmaDir, 500)
+max_bars_back(momVwapDir, 500)
+max_bars_back(momRsiDir, 500)
+max_bars_back(momRsiOBst, 500)
+max_bars_back(momRsiOSst, 500)
 
 // [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
 [smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
@@ -2179,8 +2187,8 @@ if barstate.islast
         // [ت30/ب · G-S1] إشارات الكبيرة **عُطِّلت**: صفقة الكبيرة غير مصدريّة (L2-04: أعلى صفقة = المتوسطة) · xl خاملة للإشارات حتّى الأسبوعيّ (تأكّد=0 عبر US100·60/D/W · BTC·60/W). الكبيرة تبقى **مرجعَ N+1 للمتوسطة** (lgBar تُمرَّر لنداء المتوسطة).
         if showSigExit                                                                                                          // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
-        // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC وقتها، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط.
-        if smcEnable
+        // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
+        if smcEnable or momEnable                                                   // [م-إش-3ج] نجوم SMC و/أو الزخم على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
             int nSigLb = array.size(sigLabels)
             for li = 0 to (nSigLb > 0 ? nSigLb - 1 : 0)
                 if nSigLb > 0
@@ -2197,11 +2205,30 @@ if barstate.islast
                                 array<int>   hDir  = array.new<int>()
                                 array<float> hStr  = array.new<float>()
                                 array<bool>  hCrit = array.new<bool>()
-                                array.push(hDir,  int(smcSwBias[off]))               // صوت SMC عند بار الإشارة (تاريخيّ، لا look-ahead)
-                                array.push(hStr,  smcSwEv[off] != 0 ? 2.0 : 1.0)
-                                array.push(hCrit, smcCritical)
-                                [hAg, hOp, hNe, hVt] = jwconf.f_rate(sd, hDir, hStr, hCrit, confUseVeto)
-                                hStar := (hAg > 0 ? str.repeat("★", hAg) : "") + (hVt ? "⛔" : "")
+                                if smcEnable                                        // صوت SMC عند بار الإشارة (تاريخيّ، لا look-ahead)
+                                    array.push(hDir,  int(smcSwBias[off]))
+                                    array.push(hStr,  smcSwEv[off] != 0 ? 2.0 : 1.0)
+                                    array.push(hCrit, smcCritical)
+                                if momEnable                                        // [م-إش-3ج] أصوات الزخم عند بار الإشارة (كالحيّة: 4 اتجاهات + veto تطرّف RSI)
+                                    array.push(hDir,  int(momEmaDir[off]))
+                                    array.push(hStr,  1.0)
+                                    array.push(hCrit, false)
+                                    array.push(hDir,  int(momSmaDir[off]))
+                                    array.push(hStr,  1.0)
+                                    array.push(hCrit, false)
+                                    array.push(hDir,  int(momVwapDir[off]))
+                                    array.push(hStr,  1.0)
+                                    array.push(hCrit, false)
+                                    array.push(hDir,  int(momRsiDir[off]))
+                                    array.push(hStr,  1.0)
+                                    array.push(hCrit, false)
+                                    if momRsiVeto and ((sd == 1 and momRsiOBst[off]) or (sd == -1 and momRsiOSst[off]))   // شراء+تشبّع↑ أو بيع+تشبّع↓ ⇒ مطاردة تطرّف ⇒ صوت معاكس حرِج
+                                        array.push(hDir,  -sd)
+                                        array.push(hStr,  2.0)
+                                        array.push(hCrit, true)
+                                if array.size(hDir) > 0
+                                    [hAg, hOp, hNe, hVt] = jwconf.f_rate(sd, hDir, hStr, hCrit, confUseVeto)
+                                    hStar := (hAg > 0 ? str.repeat("★", hAg) : "") + (hVt ? "⛔" : "")
                         label.set_text(lb, (uiLang == "AR / عربيّة") ? (hStar + marker + body) : (body + marker + hStar))   // [حسم المالك] ترتيب حسب اللغة ⇒ ★ يمين الكلمة بصريًّا في الاثنتين (RTL يعكس السلسلة)
         // [م-إش-2ج · حسم المالك 2026-07-20] شبكة SL/TP = **الصفقة الحيّة** (liveActive): دخول **داخل المنطقة** (لا كسر متأخّر) · تبقى من بار الدخول حتّى بلوغ الوقف/الهدف الأخير ثمّ تُخفى تلقائيًّا (الوسوم ✦/⚠ التاريخيّة تبقى). الحالة تُحدَّث في كتلة اللوحة.
         for ln in sigLvLines

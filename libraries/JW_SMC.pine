@@ -16,7 +16,10 @@
 // البار الحاليّ) + [v9] فجوات القيمة العادلة (FVG · عدم توازن 3 شموع + عتبة تلقائيّة + إبطال بالردم)
 // + [v10] هندسة مناطق العلاوة/التوازن/الخصم (f_smcPdZones · حساب نقيّ من التطرّف الزاحف) + إخراج ta.cum من الـternary (ثبات)
 // + [v11] مستويات MTF (f_smcMtfLevel · قمّة/قاع الفترة الأعلى السابقة عبر request.security + تنقيح بار التطرّف + حارس الفريم)
-// + [v12] وسوم HH/HL/LH/LL (f_smcSwingHL · تصنيف نقطة السوينغ الجديدة مقابل سابقتها كـLuxAlgo getCurrentStructure) —
+// + [v12] وسوم HH/HL/LH/LL (f_smcSwingHL · تصنيف نقطة السوينغ الجديدة مقابل سابقتها كـLuxAlgo getCurrentStructure)
+// + [v13] 🔴 إصلاح انهيار f_smcMtfLevel على bar 0 (Error: array.slice Index 1 out of bounds): binary_search_rightmost قد
+//   يُرجِع فهرسًا = حجم المصفوفة (خارج الحدود) حين قيمة البحث أكبر من كلّ العناصر ⇒ تقييد leftIndex/rightIndex إلى [0..sz] +
+//   حارس شريحة غير فارغة. ظهر على تطبيق TradingView (لا المتصفّح) لاختلاف تقييم bar 0. عرض/سلوك مطابق بعد التراكم. —
 // المكتبة بيانات فقط، المؤشّر يرسم. (طبقة SMC مكتملة: بنية · EQH/EQL · Strong/Weak · OB · FVG · Premium/Discount · MTF · HH/HL.)
 // ============================================================================
 library("JW_SMC", overlay = true)
@@ -435,13 +438,17 @@ export f_smcMtfLevel(simple string tf) =>
     int   parsedTopTime    = time
     int   parsedBottomTime = time
     if not same
+        int sz = mtfTimes.size()
         int leftIndex  = mtfTimes.binary_search_rightmost(parsedLeftTime)                   // شريحة الشارت داخل الفترة السابقة
         int rightIndex = mtfTimes.binary_search_rightmost(parsedRightTime)
-        array<int>   timeArray   = mtfTimes.slice(leftIndex, rightIndex)
-        array<float> topArray    = mtfHighs.slice(leftIndex, rightIndex)
-        array<float> bottomArray = mtfLows.slice(leftIndex, rightIndex)
-        parsedTopTime    := timeArray.size() > 0 ? timeArray.get(topArray.indexof(topArray.max())) : time      // بار أعلى قمّة/أدنى قاع فعليًّا
-        parsedBottomTime := timeArray.size() > 0 ? timeArray.get(bottomArray.indexof(bottomArray.min())) : time
+        leftIndex  := math.max(0, math.min(leftIndex, sz))                                  // 🔴 [إصلاح حدّيّ] binary_search_rightmost قد يُرجِع sz (خارج الحدود) حين القيمة أكبر من كلّ العناصر (bar 0 · المصفوفة حجمها 1) ⇒ انهيار slice
+        rightIndex := math.max(0, math.min(rightIndex, sz))
+        if rightIndex > leftIndex                                                            // شريحة غير فارغة وضمن الحدود (from<to≤sz) — وإلّا يبقى parsedTopTime/BottomTime = time (السطران أعلاه)
+            array<int>   timeArray   = mtfTimes.slice(leftIndex, rightIndex)
+            array<float> topArray    = mtfHighs.slice(leftIndex, rightIndex)
+            array<float> bottomArray = mtfLows.slice(leftIndex, rightIndex)
+            parsedTopTime    := timeArray.size() > 0 ? timeArray.get(topArray.indexof(topArray.max())) : time      // بار أعلى قمّة/أدنى قاع فعليًّا
+            parsedBottomTime := timeArray.size() > 0 ? timeArray.get(bottomArray.indexof(bottomArray.min())) : time
     int  rTime = last_bar_time + 20 * (time - time[1])                                       // يمين الخطّ = آخر بار + 20 شمعة
     bool valid = not higher
     [valid, parsedTop, parsedTopTime, parsedBottom, parsedBottomTime, rTime]
