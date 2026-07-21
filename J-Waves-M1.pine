@@ -15,6 +15,7 @@ import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.87.0 [م-إش-3 · تعميق تقييم IDM — M-Waves + الجلسات مصوّتان — حسم المالك] — إشارة IDM كانت تُقيَّم بـSMC+الزخم فقط (per-bar). الآن **آخر إشارة IDM يُعاد تقييمها في `islast`** بعد جهوز حالة الدرجات، بإضافة: (1) صوت **M-Waves** (اتّجاه المستوى الكبير `bActVg` — المرساة الأثقل، وزن 2، بلا veto) · (2) صوت **سيولة الجلسات** (قمّة/قاع جلسة كبرى سابقة داخل نطاق الدخول↔الوقف ⇒ بِركة سيولة تعزّز الكنس). أصوات SMC/الزخم تُقرأ عند بار الإشارة عبر `[loff]` (تناظر الكتلة الحيّة، لا look-ahead، ضمن max_bars_back 500). ⇒ نجوم آخر IDM تعكس **كلّ المصادر** (M-Waves+SMC+الزخم+الجلسات). الإشارات التاريخيّة تبقى بنجوم SMC+الزخم (M-Waves لا سلسلة اتّجاه per-bar تاريخيّة — صادق لا تلفيق). عرض بحت · النواة/IDM لا يُمَسّان · A/B مطلق (خلف idmEnable). pine_check نظيف (0/0). ═══
 // ═══ v2.86.2 [م-إش-3 · قسم موحّد لإشارات الاستراتيجيّات — حسم المالك] — قسم مستقلّ **«🎛 إشارات الاستراتيجيّات»** (أعلى، بعد «عامّ»): (1) مفتاح رئيسيّ `showStrat` يُظهر/يُخفي الكلّ · (2) **مفتاح لكلّ استراتيجيّة** (نُقِل `idmEnable` إليه؛ إضافة استراتيجيّة = سطر واحد) · (3) **رسم مستويات الصفقة موحّد** `showStratLevels` + ألوان مشتركة (TP/SL/Entry) + امتداد — نفس الشكل لكلّ الاستراتيجيّات. مجموعة «🎯 الإغراء» صارت معاملات IDM التفصيليّة فقط. عرض/تنظيم بحت · صفر أثر على المنطق (النواة + A/B). pine_check نظيف (0/0). ═══
 // ═══ v2.86.1 [م-إش-3 · IDM بشكل الأصل — خيار — حسم المالك] — أُضيف مفتاح `idmFullDraw` (مطفأ): يرسم لآخر إشارة IDM **مستويات الصفقة كاملةً كالمؤشّر الأصليّ** (Inducement Engine): صناديق الوقف/الدخول/الأهداف بتدرّج شفافيّة + خطوط أفقيّة مسعّرة Entry/SL/TP1/2/3 عند الحافّة اليمنى + ألوان (TP/SL/Entry) + امتداد. صفقة واحدة نشطة (تُمسَح/تُعاد كلّ islast · لا زحام تاريخيّ). مطفأ ⇒ الشكل الحاليّ المقتضب (الوسم فقط) يبقى تمامًا. عرض بحت · النواة لا تُمَسّ (A/B). ═══
 // ═══ v2.86.0 [م-إش-3 · دفعة الإغراء IDM — التلاقي متعدّد الاستراتيجيّات] — أوّل **استراتيجيّة مُقيَّمة** عبر **JW_Inducement/1** (نقل «كنس الإغراء» Inducement Engine [MarkitTick] · بيانات فقط · © MarkitTick): (1) حساب إشارة IDM كلّ بار (اتّجاه/دخول/وقف/أهداف/موقف) · (2) **رسمها معنونةً «IDM شراء/بيع»** عند بار كنسها بمعلومات صفقتها هي (لا زون M-Waves) · (3) **تقييمها بنجوم SMC + الزخم** (per-bar عند بار الإشارة، jwconf.f_rate — IDM لا يصوّت على نفسه). مجموعة «🎯 الإغراء» خلف `idmEnable` مطفأ ⇒ **A/B مطلق** (النواة وتصويت M-Waves لم يُمَسّا). النموذج (حسم المالك): كلّ استراتيجيّة تُطلِق إشاراتها باسمها بأمانتها، والتقييم بالنجوم حسب بقيّة المصادر. (M-Waves/الجلسات كمصوّتَين على IDM + تاريخيّة IDM = دفعات تالية.) ═══
@@ -476,6 +477,7 @@ var float idmLastSl    = na
 var float idmLastTp1   = na
 var float idmLastTp2   = na
 var float idmLastTp3   = na
+var label idmLastLbl   = na    // [تعميق التقييم] مرجع وسم آخر إشارة IDM — يُعاد تقييمه في islast بعد جهوز حالة M-Waves/الجلسات
 if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0   // [القسم الموحّد] showStrat = المفتاح الرئيسيّ لكلّ إشارات الاستراتيجيّات
     bool idmUp = idmDir == 1
     idmLastBar   := bar_index                                   // خزّن آخر إشارة (تُرسَم مستوياتها كاملةً في كتلة islast أدناه)
@@ -516,7 +518,9 @@ if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0 
     string iTx   = (uiLang == "AR / عربيّة") ? (iStar + "IDM " + iWord) : ("IDM " + iWord + iStar)   // ★ يمين الكلمة بصريًّا (RTL يعكس)
     string iTip  = "IDM — Inducement sweep" + f_t("\nدخول: ", "\nEntry: ") + str.tostring(idmEntry, format.mintick) + f_t("\nوقف: ", "\nStop: ") + (na(idmSl) ? "—" : str.tostring(idmSl, format.mintick)) + "\nTP1: " + (na(idmTp1) ? "—" : str.tostring(idmTp1, format.mintick)) + "\nTP2: " + (na(idmTp2) ? "—" : str.tostring(idmTp2, format.mintick)) + "\nTP3: " + (na(idmTp3) ? "—" : str.tostring(idmTp3, format.mintick))
     color  iLc   = idmUp ? idmColBull : idmColBear
-    array.push(idmLabels, label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip))
+    label  iLbl  = label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip)
+    array.push(idmLabels, iLbl)
+    idmLastLbl := iLbl                                         // [تعميق التقييم] احفظ مرجع وسم آخر إشارة — يُعاد تقييمه في islast (M-Waves+الجلسات)
     while array.size(idmLabels) > 100                          // سقف علامات IDM (حماية سقف الوسوم المشترَك 500)
         label.delete(array.shift(idmLabels))
 
@@ -1797,6 +1801,52 @@ if barstate.islast
     bActVg := jwl.f_activeDir(lgBar, lgTop, lgEff, curWdir0, lvlBreakMode == "2 candles")   // [نقلة3] بذرة الـlatch = اتجاه السلسلة البنيويّ · [أ48/د] twoC وسيط
     mActVg := jwl.f_activeDir(mcBar, mcTop, mcEff, curWdir0, lvlBreakMode == "2 candles")
     sActVg := jwl.f_activeDir(scBar, scTop, scEff, curWdir0, lvlBreakMode == "2 candles")
+
+// [تعميق التقييم · م-إش-3] إعادة تقييم آخر إشارة IDM بعد جهوز حالة M-Waves: أُضيف صوت **M-Waves** (اتّجاه المستوى الكبير bActVg، المرساة الأثقل وزن 2) + **سيولة الجلسات** (بِركة جلسة كبرى داخل نطاق الدخول↔الوقف). أصوات SMC/الزخم تُقرأ عند بار الإشارة عبر [loff] (تناظر الكتلة الحيّة، لا look-ahead، ضمن max_bars_back 500). عرض بحت — النواة/IDM لا يُمَسّان؛ التاريخيّة تبقى بنجوم SMC+الزخم (M-Waves لا سلسلة اتّجاه per-bar تاريخيّة).
+if barstate.islast and idmEnable and showStrat and not na(idmLastLbl) and idmLastDir != 0
+    bool luUp = idmLastDir == 1
+    int  loff = bar_index - idmLastBar
+    if loff >= 0 and loff <= 500
+        array<int>   cfDirL  = array.new<int>()
+        array<float> cfStrL  = array.new<float>()
+        array<bool>  cfCritL = array.new<bool>()
+        if smcEnable                                            // SMC عند بار الإشارة (نفس أساس الكتلة الحيّة)
+            array.push(cfDirL,  smcSwBias[loff])
+            array.push(cfStrL,  smcSwEv[loff] != 0 ? 2.0 : 1.0)
+            array.push(cfCritL, smcCritical)
+        if momEnable                                            // الزخم عند بار الإشارة (EMA/SMA/VWAP/RSI + veto تطرّف)
+            array.push(cfDirL, momEmaDir[loff])
+            array.push(cfStrL, 1.0)
+            array.push(cfCritL, false)
+            array.push(cfDirL, momSmaDir[loff])
+            array.push(cfStrL, 1.0)
+            array.push(cfCritL, false)
+            array.push(cfDirL, momVwapDir[loff])
+            array.push(cfStrL, 1.0)
+            array.push(cfCritL, false)
+            array.push(cfDirL, momRsiDir[loff])
+            array.push(cfStrL, 1.0)
+            array.push(cfCritL, false)
+            if momRsiVeto and ((luUp and momRsiOBst[loff]) or ((not luUp) and momRsiOSst[loff]))
+                array.push(cfDirL, -idmLastDir)
+                array.push(cfStrL, 2.0)
+                array.push(cfCritL, true)
+        if bActVg != 0                                          // 🔴 M-Waves = المرساة الأثقل (اتّجاه المستوى الكبير) — وزن 2، بلا veto (تقييم عرضٍ لا حجب)
+            array.push(cfDirL, bActVg)
+            array.push(cfStrL, 2.0)
+            array.push(cfCritL, false)
+        if sesEnable and sesLiqConfl                            // سيولة الجلسات: قمّة/قاع جلسة كبرى سابقة داخل نطاق الدخول↔الوقف (بِركة سيولة تعزّز الكنس) ⇒ صوت مؤيّد
+            float hiB = math.max(idmLastEntry, idmLastSl)
+            float loB = math.min(idmLastEntry, idmLastSl)
+            bool  sHit = (sesMajorA and (f_lvlInZone(sesPMaxA, hiB, loB) or f_lvlInZone(sesPMinA, hiB, loB))) or (sesMajorB and (f_lvlInZone(sesPMaxB, hiB, loB) or f_lvlInZone(sesPMinB, hiB, loB))) or (sesMajorC and (f_lvlInZone(sesPMaxC, hiB, loB) or f_lvlInZone(sesPMinC, hiB, loB))) or (sesMajorD and (f_lvlInZone(sesPMaxD, hiB, loB) or f_lvlInZone(sesPMinD, hiB, loB)))
+            if sHit
+                array.push(cfDirL, idmLastDir)
+                array.push(cfStrL, 1.0)
+                array.push(cfCritL, false)
+        [lAg, lOp, lNe, lVt] = jwconf.f_rate(idmLastDir, cfDirL, cfStrL, cfCritL, confUseVeto)
+        string lStar = (lAg > 0 ? str.repeat("★", lAg) : "") + (lVt ? "⛔" : "")
+        string lWord = luUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
+        label.set_text(idmLastLbl, (uiLang == "AR / عربيّة") ? (lStar + "IDM " + lWord) : ("IDM " + lWord + lStar))
 
 var line bigLevelLine = na
 var line medLevelLine = na
