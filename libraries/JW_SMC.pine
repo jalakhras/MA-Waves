@@ -11,8 +11,9 @@
 // مكتبة Pine v6 (يتفادى فخّ الترجمة CE10237). الخوارزميّة نفسها حرفًا بحرف.
 //
 // النطاق: الاتّجاه (internal + swing) + [v2] بيانات رسم بنية BOS/CHoCH + [v3] كشف القمم/القيعان
-// المتساوية (EQH/EQL) + [v4] إصلاح تحذيرات ta + [v6] التطرّف الزاحف (Strong/Weak High/Low = trailing extremes) —
-// المكتبة بيانات فقط، المؤشّر يرسم. order blocks/FVG/premium دفعاتٍ لاحقة.
+// المتساوية (EQH/EQL) + [v4] إصلاح تحذيرات ta + [v6] التطرّف الزاحف (Strong/Weak High/Low = trailing extremes)
+// + [v8] كتل الطلب (Order Blocks) نقل 100% (سوينغ+داخليّة معًا · شرط internalHigh≠swingHigh · حدّ الشريحة يستبعد
+// البار الحاليّ) — المكتبة بيانات فقط، المؤشّر يرسم. FVG/premium/MTF دفعاتٍ لاحقة.
 // ============================================================================
 library("JW_SMC", overlay = true)
 
@@ -174,3 +175,144 @@ export f_smcEqual(simple int eqLen, float threshold, simple int atrLen) =>
         eqHighLvl := nHigh
         eqHighBar := nBar
     [eqhLvl, eqhFrom, eqhTo, eqlLvl, eqlFrom, eqlTo]
+
+// [v8] خزّن كتلة طلب: الشمعة الأكثر تطرّفًا بين نقطة السوينغ والكسر (LuxAlgo storeOrdeBlock).
+//   bias +1 صعوديّة (أدنى parsedLow) · -1 هبوطيّة (أعلى parsedHigh). الشريحة [pivotBar, bar_index) **تستبعد البار الحاليّ**.
+f_obStore(array<float> obT, array<float> obB, array<int> obL, array<int> obS, array<float> pHs, array<float> pLs, int pivotBar, int bias) =>
+    float ext    = na
+    int   extBar = na
+    for b = pivotBar to bar_index - 1
+        if b >= 0 and b < array.size(pHs)
+            float v = bias == 1 ? array.get(pLs, b) : array.get(pHs, b)
+            if na(ext) or (bias == 1 ? v < ext : v > ext)        // أوّل تطرّف (= indexof في LuxAlgo)
+                ext    := v
+                extBar := b
+    if not na(extBar)
+        array.unshift(obT, array.get(pHs, extBar))
+        array.unshift(obB, array.get(pLs, extBar))
+        array.unshift(obL, extBar)
+        array.unshift(obS, bias)
+        if array.size(obT) > 100                                 // سقف تخزين (LuxAlgo)
+            array.pop(obT)
+            array.pop(obB)
+            array.pop(obL)
+            array.pop(obS)
+
+// [v8] أبطِل الكتل التي اخترقها السعر (LuxAlgo deleteOrderBlocks).
+f_obMitigate(array<float> obT, array<float> obB, array<int> obL, array<int> obS, float mitBear, float mitBull) =>
+    if array.size(obT) > 0
+        int di = array.size(obT) - 1
+        while di >= 0
+            int bz = array.get(obS, di)
+            if (bz == -1 and mitBear > array.get(obT, di)) or (bz == 1 and mitBull < array.get(obB, di))
+                array.remove(obT, di)
+                array.remove(obB, di)
+                array.remove(obL, di)
+                array.remove(obS, di)
+            di -= 1
+
+// @function  [v8] كتل الطلب (Order Blocks) — نقل LuxAlgo **حرفيّ 100%** (getCurrentStructure + storeOrdeBlock + deleteOrderBlocks).
+//   يتتبّع **السوينغ والداخليّة معًا** (الداخليّة تشترط `internalHigh ≠ swingHigh` + فلتر الشمعة)، يخزّن كتلة عند
+//   كلّ كسر بنيويّ ثمّ يُبطلها حين يخترقها السعر. يُرجِع الطبقة المطلوبة.
+// @param swingSize       طول السوينغ (LuxAlgo = 50).
+// @param internalSize    طول الداخليّة (LuxAlgo = 5).
+// @param internal        الطبقة المُرجَعة: true داخليّة (كـLuxAlgo الظاهر) · false سوينغ.
+// @param confluenceFilter فلتر شكل الشمعة للكسور الداخليّة (LuxAlgo افتراض false).
+// @param filterMode      "ATR" أو "Range" — مرشّح التذبذب.
+// @param mitigationMode  "Close" أو "HighLow" — مصدر الإبطال (LuxAlgo = HighLow).
+// @param maxOB           أقصى عدد كتل نشطة تُرجَع (LuxAlgo = 5).
+// @returns [obTop, obBot, obLeft, obBias]  الأحدث أوّلًا · obLeft = بار المنشئ · obBias +1/-1.
+export f_smcOrderBlocks(simple int swingSize, simple int internalSize, bool internal, bool confluenceFilter, simple string filterMode, simple string mitigationMode, simple int maxOB) =>
+    // ===== نقاط السوينغ =====
+    var float swHigh  = na
+    var float swLow   = na
+    var int   swHiBar = na
+    var int   swLoBar = na
+    var bool  swHiX   = false
+    var bool  swLoX   = false
+    swChg = ta.change(f_leg(swingSize))
+    if swChg == +1
+        swLow   := low[swingSize]
+        swLoBar := bar_index - swingSize
+        swLoX   := false
+    else if swChg == -1
+        swHigh  := high[swingSize]
+        swHiBar := bar_index - swingSize
+        swHiX   := false
+    // ===== النقاط الداخليّة =====
+    var float inHigh  = na
+    var float inLow   = na
+    var int   inHiBar = na
+    var int   inLoBar = na
+    var bool  inHiX   = false
+    var bool  inLoX   = false
+    inChg = ta.change(f_leg(internalSize))
+    if inChg == +1
+        inLow   := low[internalSize]
+        inLoBar := bar_index - internalSize
+        inLoX   := false
+    else if inChg == -1
+        inHigh  := high[internalSize]
+        inHiBar := bar_index - internalSize
+        inHiX   := false
+    // ===== القيم المعالَجة بالتذبذب (parsedHighs/parsedLows) — مفهرَسة بـbar_index =====
+    float atr   = ta.atr(200)
+    float vol   = filterMode == "ATR" ? atr : ta.cum(ta.tr) / bar_index
+    bool  hiVol = (high - low) >= 2 * vol
+    var array<float> pHs = array.new<float>()
+    var array<float> pLs = array.new<float>()
+    array.push(pHs, hiVol ? low : high)
+    array.push(pLs, hiVol ? high : low)
+    // فلتر شكل الشمعة (LuxAlgo extraCondition للداخليّة)
+    bool bullBar = confluenceFilter ? (high - math.max(close, open) > math.min(close, open - low)) : true
+    bool bearBar = confluenceFilter ? (high - math.max(close, open) < math.min(close, open - low)) : true
+    // التقاطعات (كلّ بار بلا شرط · ثبات حالة ta)
+    bool swHiC = ta.crossover(close, swHigh)
+    bool swLoC = ta.crossunder(close, swLow)
+    bool inHiC = ta.crossover(close, inHigh)
+    bool inLoC = ta.crossunder(close, inLow)
+    // ===== تخزين كلّ طبقة على حدة =====
+    var array<float> iT = array.new<float>()
+    var array<float> iB = array.new<float>()
+    var array<int>   iL = array.new<int>()
+    var array<int>   iS = array.new<int>()
+    var array<float> sT = array.new<float>()
+    var array<float> sB = array.new<float>()
+    var array<int>   sL = array.new<int>()
+    var array<int>   sS = array.new<int>()
+    // كسور الداخليّة (LuxAlgo يعرضها أوّلًا · شرط internalHigh ≠ swingHigh + فلتر) ⇒ خزّن كتلة داخليّة
+    if not na(inHigh) and inHigh != swHigh and bullBar and inHiC and not inHiX
+        inHiX := true
+        f_obStore(iT, iB, iL, iS, pHs, pLs, inHiBar, 1)
+    if not na(inLow) and inLow != swLow and bearBar and inLoC and not inLoX
+        inLoX := true
+        f_obStore(iT, iB, iL, iS, pHs, pLs, inLoBar, -1)
+    // كسور السوينغ (extraCondition = true) ⇒ خزّن كتلة سوينغ
+    if not na(swHigh) and swHiC and not swHiX
+        swHiX := true
+        f_obStore(sT, sB, sL, sS, pHs, pLs, swHiBar, 1)
+    if not na(swLow) and swLoC and not swLoX
+        swLoX := true
+        f_obStore(sT, sB, sL, sS, pHs, pLs, swLoBar, -1)
+    // الإبطال (بعد التخزين كـLuxAlgo)
+    float mitBear = mitigationMode == "Close" ? close : high
+    float mitBull = mitigationMode == "Close" ? close : low
+    f_obMitigate(iT, iB, iL, iS, mitBear, mitBull)
+    f_obMitigate(sT, sB, sL, sS, mitBear, mitBull)
+    // ===== أرجِع الطبقة المطلوبة (أحدث maxOB) =====
+    array<float> RT = internal ? iT : sT
+    array<float> RB = internal ? iB : sB
+    array<int>   RL = internal ? iL : sL
+    array<int>   RS = internal ? iS : sS
+    array<float> rT = array.new<float>()
+    array<float> rB = array.new<float>()
+    array<int>   rL = array.new<int>()
+    array<int>   rS = array.new<int>()
+    int nOut = math.min(maxOB, array.size(RT))
+    for i = 0 to (nOut > 0 ? nOut - 1 : 0)
+        if i < array.size(RT)
+            array.push(rT, array.get(RT, i))
+            array.push(rB, array.get(RB, i))
+            array.push(rL, array.get(RL, i))
+            array.push(rS, array.get(RS, i))
+    [rT, rB, rL, rS]

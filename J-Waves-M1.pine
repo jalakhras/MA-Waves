@@ -6,12 +6,21 @@ import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخط�
 import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] المناطق — f_pairZones (jaffar: بركة المتوسطة غير المغطّاة · sizeOk/merge/contain/tooBig · between) + [أ89] المرساة = الحاليّة+تاريخ التاريخ فقط (anchorMin) · التاريخ للاستعارة
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
-import Jassar_Mahmoud/JW_SMC/6 as jsmc                        // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low = التطرّف الزاحف) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
+import Jassar_Mahmoud/JW_SMC/8 as jsmc                        // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100%) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.78.5 [م-إش-3 · ترفيع خطّ التلاقي] — عرض الخطّ الذهبيّ العابر صار **1 (أرفع)** بطلب المالك (كان 2). النجوم size.normal كما هي. ═══
+// ═══ v2.78.4 [م-إش-3 · رجوع خطّ التلاقي عبر المنطقة] — رجوعٌ لطريقة v2.78.2 (الخطّ يعبُر المنطقة بعرضها على الشموع، لا بادج في الفراغ — حسم المالك) مع إبقاء عرض 2 + نجوم size.normal ليبرز. ═══
+// ═══ v2.78.3 [م-إش-3 · إبراز بادج التلاقي — مرفوض] — بادج الخطّ+النجوم في الفراغ يمين المنطقة (رفضه المالك: عاد للخطّ العابر). ═══
+// ═══ v2.78.2 [م-إش-3 · خطّ+نجوم التلاقي] — المنطقة المتلاقية مع OB ⇒ **خطّ ذهبيّ متقطّع يعبُر المنطقة و★ في وسطه** (‪----★★★----‬ · نجمة لكلّ كتلة OB متراكبة، حدّ 3) بدل الوسم الجانبيّ ⬥ (حسم المالك: النجوم على خطّ أجمل). صندوق المنطقة يبقى كما هو. ═══
+// ═══ v2.78.1 [م-إش-3 · وسم تلاقي أنيق] — المنطقة المتلاقية مع OB ⇒ **⬥ ذهبيّ صغير عند الحافّة اليمنى + ★ لكلّ كتلة OB متراكبة** (قوّة التلاقي، حدّ 3) بدل الحدّ الذهبيّ السميك (كان غير جميل — حسم المالك). حدّ المنطقة يبقى كما هو · وسم واحد صغير لكلّ منطقة. حُذِف smcObZoneW. ═══
+// ═══ v2.78.0 [م-إش-3 · إبراز مناطق التلاقي — بلا زحام] — المنطقة المتلاقية مع OB (أيّ تراكب) تُبرَز **بحدّ ذهبيّ سميك على صندوقها نفسه** (box.set_border_* · صفر رسم جديد) بدل مستطيل رماديّ إضافيّ (أُسقِط). ★ القريبة على الإشارة تبقى. مدخلا لون/عرض الحدّ. حسم المالك: الأنظف للشارت. ═══
+// ═══ v2.77.0 [م-إش-3 · OB نقل 100%] — JW_SMC/**8**: f_smcOrderBlocks أُعيد نقلها **حرفيًّا** (سوينغ+داخليّة معًا · شرط internalHigh≠swingHigh + فلتر الشمعة للداخليّة · حدّ الشريحة يستبعد البار الحاليّ كـLuxAlgo). مفتاح «طبقة OB: داخليّة/سوينغ» (افتراض داخليّة = LuxAlgo الظاهر). التلاقي: تمييز مناطقنا المتلاقية فقط (رماديّ محتوى · ★ قريب). ═══
+// ═══ v2.76.1 [م-إش-3 · ضبط درجة OB] — طول بنية OB مدخلٌ مستقلّ `smcObSize` (افتراض **5 = الداخليّة**، يطابق رسم LuxAlgo الخام الظاهر) بدل تثبيته على السوينغ (50). التشخيص: LuxAlgo يرسم كتلًا داخليّة كثيرة صغيرة؛ نحن كنّا نرسم سوينغ قليلة كبيرة (مختلفة لا خاطئة). 5 للمطابقة · 50 للتلاقي الأوسع. ═══
+// ═══ v2.76.0 [م-إش-3 · دفعة Order Blocks — تلاقٍ لا زحام] — JW_SMC/**7** (f_smcOrderBlocks: كتل الطلب النشطة، نقل LuxAlgo storeOrdeBlock/deleteOrderBlocks). **الافتراض: لا رسم خام** — بدلًا: (1) كتلة **داخل منطقتنا** ⇒ مستطيل رماديّ صغير داخلها · (2) كتلة **متراكبة قريبة** ⇒ +★ على إشارة المنطقة (كصوت SMC ثانٍ). + مفتاح «رسم OB الخام» (مطفأ) + مرشّح/إبطال/عدد/ألوان. عرض بحت — النواة لا تُمَسّ. ═══
 // ═══ v2.75.2 [م-إش-3 · مطابقة موضع Strong/Weak] — الوسم عند **الحافّة اليمنى** (bar+20) + **خطّ** أفقيّ من التطرّف إليه (يطابق LuxAlgo drawHighLowSwings تمامًا؛ كان عند بار التطرّف). عرض بحت. ═══
 // ═══ v2.75.1 [م-إش-3 · إصلاح Strong/Weak] — Strong/Weak High/Low = **التطرّف الزاحف** لا نقطة السوينغ: JW_SMC/**6** (يطابق LuxAlgo updateTrailingExtremes — أعلى قمّة/أدنى قاع جاريان يُصفَّران لكلّ سوينغ جديد). كان v5 يُرجِع مستوى نقطة السوينغ (القمّة طابقت صدفةً؛ القاع انحرف: 29098 مقابل LuxAlgo 28218). عرض بحت. ═══
 // ═══ v2.75.0 [م-إش-3 · دفعة رسوم SMC/3] — Strong/Weak High/Low: JW_SMC/**5** (يُصدِّر قمّة/قاع السوينغ الحاليّ + بارَيهما؛ منطق f_smcStructure لم يُمَسّ) + مفتاح مستقلّ `smcDrawStrongWeak` (مفعّل) + كتلة رسم (وسمان حيّان يُحدَّثان كلّ بار على islast: Strong/Weak حسب swBias — قمّة قويّة إن الاتّجاه هابط، ضعيفة إن صاعد؛ وبالعكس للقاع). عرض بحت — النواة لا تُمَسّ. ═══
@@ -232,6 +241,16 @@ bool   smcDrawEqual    = input.bool(true, "Draw SMC equal H/L (EQH/EQL) / رسم
 int    smcEqualLen     = input.int(3, "SMC equal length / طول كشف التساوي SMC", minval = 1, group = grpConf, tooltip = "طول كشف نقاط التساوي (افتراض LuxAlgo = 3).")
 float  smcEqualThresh  = input.float(0.1, "SMC equal threshold (× ATR) / عتبة تساوي SMC (× ATR)", minval = 0.0, step = 0.05, group = grpConf, tooltip = "قمّتان/قاعان ضمن هذه النسبة × ATR(200) ⇒ متساويان (افتراض LuxAlgo = 0.1).")
 bool   smcDrawStrongWeak = input.bool(true, "Draw SMC Strong/Weak H/L / رسم قمم/قيعان SMC القويّة/الضعيفة", group = grpConf, tooltip = "[دفعة الرسوم · v5] وسم Strong/Weak High وStrong/Weak Low عند طرفَي السوينغ الحاليّين (يتحرّكان مع البنية): قمّة **قويّة** (bias هابط) صمدت ⇒ مقاومة · **ضعيفة** (bias صاعد) على الأرجح ستُكسَر؛ وبالمثل للقاع. زوج واحد حيّ يُحدَّث كلّ بار (لا تراكم تاريخيّ).")
+// ─── [م-إش-3 · دفعة OB · v7] كتل الطلب — تلاقٍ لا زحام: الافتراض يُبرِز مناطقنا فقط (لا صناديق OB عامّة) ───
+bool   smcObConfl   = input.bool(true, "OB↔zone confluence (highlight our zones) / تلاقي OB مع مناطقنا", group = grpConf, tooltip = "[دفعة OB] بلا زحام: عند تراكب كتلة طلب SMC مع منطقة استراتيجيّتنا ⇒ (1) كتلة **داخل** المنطقة تمامًا ⇒ مستطيل رماديّ صغير داخلها · (2) كتلة **متراكبة قريبة** (غير محتواة) ⇒ +★ على إشارة المنطقة (صوت تلاقٍ ثانٍ). لا صناديق OB عامّة.")
+bool   smcDrawOB    = input.bool(false, "Draw raw SMC order blocks (LuxAlgo) / رسم كتل OB الخام", group = grpConf, tooltip = "[دفعة OB · اختياريّ مطفأ] رسم كلّ كتلة طلب نشطة صندوقًا (كـLuxAlgo) — لمن أراد رؤيتها كاملةً. مطفأ افتراضيًّا (تجنّبًا للزحام). حدّ العدد بـ«عدد كتل OB».")
+int    smcObMax     = input.int(5, "Order blocks count / عدد كتل OB", minval = 1, maxval = 20, group = grpConf, tooltip = "أقصى عدد كتل طلب نشطة تُحسَب/تُرسَم (افتراض LuxAlgo = 5).")
+bool   smcObInternal = input.bool(true, "OB layer: Internal (else Swing) / طبقة OB: داخليّة (وإلّا سوينغ)", group = grpConf, tooltip = "[v8 · نقل 100%] الطبقة المُستعملة (رسمًا وتلاقيًا): **داخليّة** (طول SMC الداخليّ 5 — افتراض LuxAlgo الظاهر، كتل كثيرة صغيرة مطابِقة) · مطفأ ⇒ **سوينغ** (طول سوينغ 50 — كتل أقلّ أكبر، أنسب لتلاقي مناطقنا الأوسع). الفلتر يتبع «فلتر توافق SMC».")
+string smcObFilter  = input.string("ATR", "OB volatility filter / مرشّح تذبذب OB", options = ["ATR", "Range"], group = grpConf, tooltip = "طريقة استبعاد الكتل عالية التذبذب (LuxAlgo: ATR افتراضًا · Range = متوسّط المدى التراكميّ حين قلّة البيانات).")
+string smcObMitig   = input.string("HighLow", "OB mitigation source / مصدر إبطال OB", options = ["Close", "HighLow"], group = grpConf, tooltip = "متى تُبطَل الكتلة: الإغلاق خلفها (Close) أو ذيلها (HighLow — افتراض LuxAlgo).")
+color  smcColObBull = input.color(color.new(#1848cc, 80), "OB bullish (raw) / كتلة صعوديّة (خام)", inline = "smcob", group = grpConf)
+color  smcColObBear = input.color(color.new(#b22833, 80), "OB bearish (raw) / كتلة هبوطيّة (خام)", inline = "smcob", group = grpConf)
+color  smcColObZone = input.color(#FFD700, "OB confluence line+stars (gold) / خطّ+نجوم تلاقي OB (ذهبيّ)", group = grpConf, tooltip = "[v9.2] لون الخطّ الذهبيّ المتقطّع الذي يعبُر المنطقة المتلاقية مع OB + النجوم ★ في وسطه (نجمة لكلّ كتلة متراكبة، حدّ 3) — شكل ‪----★★★----‬، بلا زحام.")
 
 // ══════════════════════════ وصفيّ · 🌊 إليوت / Elliott ══════════════════════════
 string grpEW       = "وصفيّ · 🌊 إليوت / Elliott"
@@ -257,6 +276,9 @@ plot(smcEnable ? smcSwEv   : na, "SMC swingEvent",    display = display.data_win
 plot(smcEnable ? smcInEv   : na, "SMC internalEvent", display = display.data_window)
 max_bars_back(smcSwBias, 500)   // [م-إش-3ج] الفهرسة الزمنيّة المتغيّرة (قراءة الاتّجاه عند بار الإشارة التاريخيّة، ضمن نافذة الإشارات 500)
 max_bars_back(smcSwEv, 500)
+
+// [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
+[smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
 
 // [م-إش-3 · دفعة الرسوم] رسم بنية BOS/CHoCH عند كلّ كسر (خلف مفاتيح مطفأة · على الشمعة المُغلَقة فقط ⇒ لا وميض · حارس ~50 لكلّ نوع لحماية سقف الرسم المشترَك 500)
 var array<line>  smcSwLn = array.new<line>()
@@ -324,6 +346,19 @@ if barstate.islast
             string loTx = smcSwBias == 1 ? "Strong Low" : "Weak Low"       // اتّجاه صاعد ⇒ قاع صمد (قويّ) · هابط ⇒ سيُكسَر (ضعيف)
             smcSwkLoLn := line.new(smcTrBotB, smcTrBot, swkRB, smcTrBot, xloc = xloc.bar_index, color = smcColBull, width = 1)
             smcSwkLoLb := label.new(swkRB, smcTrBot, loTx, xloc = xloc.bar_index, color = color(na), textcolor = smcColBull, style = label.style_label_up, size = size.tiny)
+
+// [م-إش-3 · v7] رسم كتل OB الخام (اختياريّ مطفأ · لا زحام) — صندوق لكلّ كتلة نشطة من بار منشئها لليمين، بلون الاتّجاه
+var array<box> smcObBoxes = array.new<box>()
+if barstate.islast
+    for bx in smcObBoxes
+        box.delete(bx)
+    array.clear(smcObBoxes)
+    if smcDrawOB
+        int nRawOb = array.size(smcObT)
+        for i = 0 to (nRawOb > 0 ? nRawOb - 1 : 0)
+            if nRawOb > 0
+                color oc = array.get(smcObS, i) == 1 ? smcColObBull : smcColObBear
+                array.push(smcObBoxes, box.new(array.get(smcObL, i), array.get(smcObT, i), bar_index + 10, array.get(smcObB, i), xloc = xloc.bar_index, border_color = color.new(oc, 40), bgcolor = oc))
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة عبر waveMode (تلقائيّ/يدويّ/دمج).
@@ -1510,6 +1545,41 @@ if barstate.islast
                     array.push(zBot, cB)
                     array.push(zoneBoxes, box.new(leftTm2, cT, rightTm2, cB, xloc = xloc.bar_time, border_color = cZoneBorder, border_width = 1, bgcolor = zf))
 
+// [م-إش-3 · v9.4 · تلاقٍ] المنطقة المتلاقية مع OB ⇒ **خطّ ذهبيّ متقطّع يعبُر المنطقة بعرضها + ★ في وسطه** (نجمة لكلّ كتلة OB متراكبة، حدّ 3) — شكل ‪----★★★----‬
+//   الخطّ عبر الشموع بعرض المنطقة نفسها (رجوع عن بادج الفراغ) · عرض 2 ليبرز · نجوم size.normal. صندوق المنطقة يبقى كما هو. من أراد الـOB بدقّة ⇒ رسم OB الخام.
+var array<label> smcObZoneMarks = array.new<label>()
+var array<line>  smcObZoneLines = array.new<line>()
+if barstate.islast
+    for mk in smcObZoneMarks
+        label.delete(mk)
+    array.clear(smcObZoneMarks)
+    for ln in smcObZoneLines
+        line.delete(ln)
+    array.clear(smcObZoneLines)
+    if smcObConfl and smcEnable
+        int nZob = array.size(zTop)
+        int nObc = array.size(smcObT)
+        int nZbx = array.size(zoneBoxes)
+        int rTm  = time + zoneExtend * timeframe.in_seconds() * 1000               // يمين الخطّ = نهاية امتداد المنطقة (كصندوقها)
+        for zi = 0 to (nZob > 0 ? nZob - 1 : 0)
+            if nZob > 0 and zi < nZbx
+                float zt = array.get(zTop, zi)
+                float zb = array.get(zBot, zi)
+                int   obCnt = 0
+                for oi = 0 to (nObc > 0 ? nObc - 1 : 0)
+                    if nObc > 0
+                        float ot = array.get(smcObT, oi)
+                        float ob = array.get(smcObB, oi)
+                        if ot >= zb and ob <= zt   // أيّ تراكب بين مدى الكتلة ومدى المنطقة ⇒ ★ إضافيّة
+                            obCnt += 1
+                if obCnt > 0
+                    float mid = 0.5 * (zt + zb)                                    // منتصف المنطقة سعريًّا ⇒ الخطّ يعبُرها
+                    int   lTm = box.get_left(array.get(zoneBoxes, zi))            // يسار صندوق المنطقة (زمن) — الخطّ بعرض المنطقة نفسها
+                    int   cTm = int(0.5 * (lTm + rTm))                            // منتصف الخطّ ⇒ موضع النجوم
+                    array.push(smcObZoneLines, line.new(lTm, mid, rTm, mid, xloc = xloc.bar_time, color = smcColObZone, width = 1, style = line.style_dashed))
+                    string mkTx = str.repeat("★", math.min(obCnt, 3))            // ★ لكلّ كتلة متراكبة (حدّ 3)
+                    array.push(smcObZoneMarks, label.new(cTm, mid, mkTx, xloc = xloc.bar_time, color = color(na), textcolor = smcColObZone, style = label.style_label_center, size = size.normal))
+
 // [م-إش-2ب] f_sigLvl ⇐ نُقلت إلى JW_Signals (jws.f_sigLvl، sigLvlExt وسيطًا أخيرًا) — v2.68.0 حُذِف الجسم المحلّيّ
 
 // ─── [درس09/م1 → 10] لوحة الاستنتاجات (تصميم القديم): اتجاه السيولة = توافق الكبيرة+المتوسطة (تعارض ⇒ عرضيّ) + سيولة كلّ درجة ───
@@ -1841,6 +1911,20 @@ if barstate.islast
             array.push(cfDir,  smcSwBias)                                         // صوت بنية السوق (swing) — +1/-1/0
             array.push(cfStr,  smcSwEv != 0 ? 2.0 : 1.0)                          // كسر BOS/CHoCH طازج هذه الشمعة ⇒ أقوى
             array.push(cfCrit, smcCritical)
+        if smcObConfl                                                             // [v9] كتلة OB متراكبة (أيّ تراكب) مع منطقة الدخول ⇒ صوت تلاقٍ ثانٍ (★) — متّسق مع إبراز المنطقة الذهبيّ
+            int obDir = 0
+            if inZone and not na(zaTop) and not na(zaBot)
+                int nObv = array.size(smcObT)
+                for oi = 0 to (nObv > 0 ? nObv - 1 : 0)
+                    if nObv > 0
+                        float ot = array.get(smcObT, oi)
+                        float ob = array.get(smcObB, oi)
+                        if ot >= zaBot and ob <= zaTop                           // أيّ تراكب بين الكتلة ومنطقة الدخول
+                            obDir := array.get(smcObS, oi)
+            if obDir != 0
+                array.push(cfDir,  obDir)
+                array.push(cfStr,  1.0)
+                array.push(cfCrit, false)
         [cfAgree, cfOpp, cfNeu, cfVeto] = jwconf.f_rate(sigDirC, cfDir, cfStr, cfCrit, confUseVeto)
         string starTx = (cfAgree > 0 ? str.repeat("★", cfAgree) : "") + (cfVeto ? "⛔" : "")   // [نموذج المالك] نجمة لكلّ مصدر موافق · بلا نجوم إن لا توافق · ⛔ veto — تُلحَق بعد ✦/⚠
         string sigTx = ((uiLang == "AR / عربيّة") ? (starTx + (isBas ? "✦" : "⚠") + (up ? "شراء" : "بيع")) : ((up ? "Buy" : "Sell") + (isBas ? "✦" : "⚠") + starTx)) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [حسم المالك] ترتيب حسب اللغة ليظهر ★ **يمين** الكلمة في الاثنتين: عربيّ RTL ⇒ سلسلة ★✦كلمة (تُرندَر كلمة✦★) · إنجليزيّ LTR ⇒ كلمة✦★
