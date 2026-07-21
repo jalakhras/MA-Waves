@@ -10,8 +10,9 @@
 // أُعيدت صياغته بحالة سلاسل صرفة (بلا «UDT محلّيّ + method») ليكون آمنًا داخل
 // مكتبة Pine v6 (يتفادى فخّ الترجمة CE10237). الخوارزميّة نفسها حرفًا بحرف.
 //
-// النطاق: الاتّجاه (internal + swing) + [v2] بيانات رسم بنية BOS/CHoCH (المستوى المكسور
-// وبار النقطة) — المكتبة بيانات فقط، المؤشّر يرسم. order blocks/FVG/EQH/premium دفعاتٍ لاحقة.
+// النطاق: الاتّجاه (internal + swing) + [v2] بيانات رسم بنية BOS/CHoCH + [v3] كشف القمم/القيعان
+// المتساوية (EQH/EQL) + [v4] إصلاح تحذيرات ta + [v6] التطرّف الزاحف (Strong/Weak High/Low = trailing extremes) —
+// المكتبة بيانات فقط، المؤشّر يرسم. order blocks/FVG/premium دفعاتٍ لاحقة.
 // ============================================================================
 library("JW_SMC", overlay = true)
 
@@ -30,12 +31,15 @@ f_leg(simple int size) =>
 // @param swingSize     طول سوينغ الموجة الكبرى (افتراضيّ LuxAlgo = 50).
 // @param internalSize  طول البنية الداخليّة (افتراضيّ LuxAlgo = 5).
 // @param confluenceFilter  فلتر «التوافق» للكسور الداخليّة (افتراضيّ LuxAlgo = false).
-// @returns  [swingBias, internalBias, swingEvent, internalEvent, swLvl, swPivBar, inLvl, inPivBar]
+// @returns  [swingBias, internalBias, swingEvent, internalEvent, swLvl, swPivBar, inLvl, inPivBar, swHigh, swHighBar, swLow, swLowBar]
 //   bias   : +1 صعود · -1 هبوط · 0 لا شيء
 //   event  : حدث هذه الشمعة — +2 CHoCH صعوديّ · +1 BOS صعوديّ · 0 لا شيء ·
 //            -1 BOS هبوطيّ · -2 CHoCH هبوطيّ
 //   [v2] swLvl/swPivBar · inLvl/inPivBar : مستوى النقطة المكسورة وبار تكوّنها عند وقوع كسر
 //            (na إن لا كسر هذه الشمعة) — يرسم المؤشّر خطًّا من swPivBar إلى الشمعة الحاليّة عند swLvl.
+//   [v6] trailTop/trailTopBar · trailBot/trailBotBar : التطرّف الزاحف (أعلى قمّة/أدنى قاع جاريان، يُصفَّران لكلّ نقطة
+//            سوينغ جديدة — LuxAlgo updateTrailingExtremes) + بارهما. للرسم Strong/Weak: قمّة قويّة (Strong High) إن
+//            swingBias هابط، ضعيفة (Weak High) إن صاعد؛ وبالعكس للقاع. (v5 كان يُرجِع نقطة السوينغ ذاتها — خطأ نقل صُحِّح.)
 export f_smcStructure(simple int swingSize, simple int internalSize, bool confluenceFilter) =>
     // ===== نقاط السوينغ (الكبرى) =====
     var float swHigh    = na
@@ -45,15 +49,31 @@ export f_smcStructure(simple int swingSize, simple int internalSize, bool conflu
     var bool  swHighX   = false
     var bool  swLowX    = false
     var int   swBias    = 0
+    // [v6] التطرّفات الزاحفة (Strong/Weak High/Low — LuxAlgo updateTrailingExtremes): أعلى قمّة/أدنى قاع جاريان
+    //   يُدفَعان كلّ بار، ويُصفَّران لمستوى كلّ نقطة سوينغ جديدة (نقطة السوينغ = حدّ أدنى، والزحف يتجاوزها حيًّا).
+    var float trailTop    = na
+    var int   trailTopBar = na
+    var float trailBot    = na
+    var int   trailBotBar = na
+    if na(trailTop) or high > trailTop    // زحف القمّة لأعلى (max الجاري)
+        trailTop    := high
+        trailTopBar := bar_index
+    if na(trailBot) or low < trailBot     // زحف القاع لأسفل (min الجاري)
+        trailBot    := low
+        trailBotBar := bar_index
     swChg = ta.change(f_leg(swingSize))
     if swChg == +1                    // بدء leg صعوديّ ⇒ تأكّد قاع سوينغ قبل swingSize شمعة
         swLow     := low[swingSize]
         swLowBar  := bar_index - swingSize
         swLowX    := false
+        trailBot    := low[swingSize]     // [v6] تصفير القاع الزاحف لقاع السوينغ الجديد (كـLuxAlgo getCurrentStructure)
+        trailBotBar := bar_index - swingSize
     else if swChg == -1               // بدء leg هبوطيّ ⇒ تأكّد قمّة سوينغ
         swHigh    := high[swingSize]
         swHighBar := bar_index - swingSize
         swHighX   := false
+        trailTop    := high[swingSize]    // [v6] تصفير القمّة الزاحفة لقمّة السوينغ الجديدة
+        trailTopBar := bar_index - swingSize
     // ===== النقاط الداخليّة =====
     var float inHigh    = na
     var float inLow     = na
@@ -74,17 +94,22 @@ export f_smcStructure(simple int swingSize, simple int internalSize, bool conflu
     // فلتر شكل الشمعة للكسور الداخليّة — يطابق تعبير LuxAlgo حرفًا
     bullishBar = confluenceFilter ? (high - math.max(close, open) > math.min(close, open - low)) : true
     bearishBar = confluenceFilter ? (high - math.max(close, open) < math.min(close, open - low)) : true
+    // [v4 · إصلاح تحذير ta] احسب التقاطعات **كلّ بار بلا شرط** لثبات حالة ta (كان short-circuit قد يتخطّاها في سلسلة and) ثمّ استعملها في الشروط
+    bool inHiCross = ta.crossover(close, inHigh)
+    bool inLoCross = ta.crossunder(close, inLow)
+    bool swHiCross = ta.crossover(close, swHigh)
+    bool swLoCross = ta.crossunder(close, swLow)
     // ===== قلب الاتّجاه الداخليّ (LuxAlgo يعرضه أوّلًا) =====
     int   inEvent  = 0
     float inLvl    = na               // [v2] مستوى النقطة المكسورة + بارها (للرسم عند الكسر)
     int   inPivBar = na
-    if not na(inHigh) and inHigh != swHigh and bullishBar and ta.crossover(close, inHigh) and not inHighX
+    if not na(inHigh) and inHigh != swHigh and bullishBar and inHiCross and not inHighX
         inEvent  := inBias == -1 ? +2 : +1
         inLvl    := inHigh
         inPivBar := inHighBar
         inHighX  := true
         inBias   := 1
-    if not na(inLow) and inLow != swLow and bearishBar and ta.crossunder(close, inLow) and not inLowX
+    if not na(inLow) and inLow != swLow and bearishBar and inLoCross and not inLowX
         inEvent  := inBias == 1 ? -2 : -1
         inLvl    := inLow
         inPivBar := inLowBar
@@ -94,17 +119,58 @@ export f_smcStructure(simple int swingSize, simple int internalSize, bool conflu
     int   swEvent  = 0
     float swLvl    = na               // [v2] مستوى نقطة السوينغ المكسورة + بارها (للرسم)
     int   swPivBar = na
-    if not na(swHigh) and ta.crossover(close, swHigh) and not swHighX
+    if not na(swHigh) and swHiCross and not swHighX
         swEvent  := swBias == -1 ? +2 : +1
         swLvl    := swHigh
         swPivBar := swHighBar
         swHighX  := true
         swBias   := 1
-    if not na(swLow) and ta.crossunder(close, swLow) and not swLowX
+    if not na(swLow) and swLoCross and not swLowX
         swEvent  := swBias == 1 ? -2 : -1
         swLvl    := swLow
         swPivBar := swLowBar
         swLowX   := true
         swBias   := -1
     // [v2] +مستوى/بار النقطة المكسورة لكلّ طبقة (na ما لم يقع كسر هذه الشمعة) — يرسمها المؤشّر
-    [swBias, inBias, swEvent, inEvent, swLvl, swPivBar, inLvl, inPivBar]
+    // [v6] +التطرّف الزاحف (قمّة/قاع) + بارَيهما (Strong/Weak High/Low = trailing extremes كـLuxAlgo — التصنيف بـswBias في المؤشّر)
+    [swBias, inBias, swEvent, inEvent, swLvl, swPivBar, inLvl, inPivBar, trailTop, trailTopBar, trailBot, trailBotBar]
+
+// @function  [v3] كشف القمم/القيعان المتساوية (EQH/EQL) — نقطة جديدة ضمن عتبة × ATR من سابقتها (LuxAlgo).
+// @param eqLen      طول كشف نقاط التساوي (افتراضيّ LuxAlgo = 3).
+// @param threshold  عتبة التساوي (× ATR · افتراضيّ LuxAlgo = 0.1).
+// @param atrLen     طول ATR (افتراضيّ LuxAlgo = 200).
+// @returns [eqhLvl, eqhFrom, eqhTo, eqlLvl, eqlFrom, eqlTo]
+//   عند رصد تساوٍ هذه الشمعة: مستوى النقطة الجديدة + بار السابقة (From) + بار الجديدة (To) — يرسم المؤشّر
+//   خطًّا منقّطًا من From إلى To عند المستوى. na إن لا تساوي هذه الشمعة.
+export f_smcEqual(simple int eqLen, float threshold, simple int atrLen) =>
+    float atr = ta.atr(atrLen)
+    var float eqHighLvl = na          // آخر قمّة تساوٍ (المستوى + بارها)
+    var int   eqHighBar = na
+    var float eqLowLvl  = na
+    var int   eqLowBar  = na
+    float eqhLvl  = na
+    int   eqhFrom = na
+    int   eqhTo   = na
+    float eqlLvl  = na
+    int   eqlFrom = na
+    int   eqlTo   = na
+    eqChg = ta.change(f_leg(eqLen))
+    if eqChg == +1                    // نقطة قاع جديدة
+        float nLow = low[eqLen]
+        int   nBar = bar_index - eqLen
+        if not na(eqLowLvl) and math.abs(eqLowLvl - nLow) < threshold * atr
+            eqlLvl  := nLow
+            eqlFrom := eqLowBar
+            eqlTo   := nBar
+        eqLowLvl := nLow
+        eqLowBar := nBar
+    else if eqChg == -1               // نقطة قمّة جديدة
+        float nHigh = high[eqLen]
+        int   nBar  = bar_index - eqLen
+        if not na(eqHighLvl) and math.abs(eqHighLvl - nHigh) < threshold * atr
+            eqhLvl  := nHigh
+            eqhFrom := eqHighBar
+            eqhTo   := nBar
+        eqHighLvl := nHigh
+        eqHighBar := nBar
+    [eqhLvl, eqhFrom, eqhTo, eqlLvl, eqlFrom, eqlTo]

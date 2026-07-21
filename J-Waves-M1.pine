@@ -6,12 +6,18 @@ import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخط�
 import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] المناطق — f_pairZones (jaffar: بركة المتوسطة غير المغطّاة · sizeOk/merge/contain/tooBig · between) + [أ89] المرساة = الحاليّة+تاريخ التاريخ فقط (anchorMin) · التاريخ للاستعارة
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
-import Jassar_Mahmoud/JW_SMC/2 as jsmc                        // [م-إش-3 · تلاقٍ] بنية SMC (BOS/CHoCH ⇒ اتّجاه + [v2] بيانات رسم البنية) — مصدر تلاقٍ لا مولّد (منقول عن LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
+import Jassar_Mahmoud/JW_SMC/6 as jsmc                        // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low = التطرّف الزاحف) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.75.2 [م-إش-3 · مطابقة موضع Strong/Weak] — الوسم عند **الحافّة اليمنى** (bar+20) + **خطّ** أفقيّ من التطرّف إليه (يطابق LuxAlgo drawHighLowSwings تمامًا؛ كان عند بار التطرّف). عرض بحت. ═══
+// ═══ v2.75.1 [م-إش-3 · إصلاح Strong/Weak] — Strong/Weak High/Low = **التطرّف الزاحف** لا نقطة السوينغ: JW_SMC/**6** (يطابق LuxAlgo updateTrailingExtremes — أعلى قمّة/أدنى قاع جاريان يُصفَّران لكلّ سوينغ جديد). كان v5 يُرجِع مستوى نقطة السوينغ (القمّة طابقت صدفةً؛ القاع انحرف: 29098 مقابل LuxAlgo 28218). عرض بحت. ═══
+// ═══ v2.75.0 [م-إش-3 · دفعة رسوم SMC/3] — Strong/Weak High/Low: JW_SMC/**5** (يُصدِّر قمّة/قاع السوينغ الحاليّ + بارَيهما؛ منطق f_smcStructure لم يُمَسّ) + مفتاح مستقلّ `smcDrawStrongWeak` (مفعّل) + كتلة رسم (وسمان حيّان يُحدَّثان كلّ بار على islast: Strong/Weak حسب swBias — قمّة قويّة إن الاتّجاه هابط، ضعيفة إن صاعد؛ وبالعكس للقاع). عرض بحت — النواة لا تُمَسّ. ═══
+// ═══ v2.74.0 [م-إش-3 · تفعيل رسوم SMC افتراضيًّا — حسم المالك] — smcDrawSwing/smcDrawInternal/smcDrawEqual/smcCritical صارت **مفعّلة افتراضيًّا** (لمقارنة مباشرة مع LuxAlgo بلا تبديل يدويّ)؛ **الفلتر (smcConfFilt) وحده يبقى مطفأً** (تفعيله يغيّر البنية الداخليّة كما شُخِّص). عرض بحت — النواة/الإشارة لا تُمَسّ (A/B عند smcEnable=false). ═══
+// ═══ v2.73.1 [إصلاح] — استيراد JW_SMC/**4** (حساب ta.crossover/crossunder كلّ بار بلا شرط ⇒ صفر تحذير «ta داخل شرط»؛ كانت متأخّرة في سلسلة and فقد يتخطّاها short-circuit). لا تغيّر سلوك. ═══
+// ═══ v2.73.0 [م-إش-3 · دفعة رسوم SMC/2] — EQH/EQL: JW_SMC/**3** (f_smcEqual — قمّتان/قاعان ضمن عتبة × ATR كـLuxAlgo) + مفتاح مستقلّ مطفأ + طول/عتبة + كتلة رسم (خطّ منقّط + وسم EQH/EQL · حارس ~50). تشخيص: فروق البنية الداخليّة سببها «فلتر التوافق» (افتراضنا مطفأ = يطابق LuxAlgo) لا خطأ نقل. ═══
 // ═══ v2.72.0 [م-إش-3 · دفعة رسوم SMC] — بنية BOS/CHoCH على الشارت: JW_SMC/**2** (يُرجِع مستوى+بار النقطة المكسورة) + مفاتيح مستقلّة مطفأة (رسم السوينغ/الداخليّة + ألوان) + كتلة رسم في المؤشّر (خطّ من النقطة إلى الكسر + وسم · على المُغلَقة فقط · حارس ~50). النواة لا تُمَسّ. ═══
 // ═══ v2.71.3 [م-إش-3ج·تحسين] — قلب النجمة: ترتيب **حسب اللغة** ليظهر ★ **يمين الكلمة** بصريًّا في العربيّة والإنجليزيّة معًا (RTL يعكس السلسلة ⇒ العربيّة تُبنى ★✦كلمة فتُرندَر كلمة✦★ · الإنجليزيّة كلمة✦★). حسم المالك. ═══
 // ═══ v2.71.2 [م-إش-3ج·تحسين] — ترتيب الوسم: **الكلمة ثمّ ✦/⚠ ثمّ النجوم** (`Sell✦★` · عربيًّا يُرندَر `★✦بيع` من سلسلة `بيع✦★` بالـRTL) لاتّساق ثنائيّ اللغة (حسم المالك). نُقِل ✦/⚠ من بادئة إلى بعد الكلمة في الحيّة + إعادة تشكيل التاريخيّة (str.substring). ═══
@@ -215,13 +221,17 @@ bool   smcEnable   = input.bool(true, "Enable SMC structure vote (LuxAlgo) / ت�
 int    smcSwingLen = input.int(50, "SMC swing length / طول سوينغ SMC", minval = 10, group = grpConf, tooltip = "طول اكتشاف نقاط السوينغ الكبرى (افتراض LuxAlgo = 50).")
 int    smcIntLen   = input.int(5,  "SMC internal length / طول SMC الداخليّ", minval = 3, group = grpConf, tooltip = "طول البنية الداخليّة قصيرة المدى (افتراض LuxAlgo = 5).")
 bool   smcConfFilt = input.bool(false, "SMC confluence filter / فلتر توافق SMC", group = grpConf, tooltip = "فلتر شكل الشمعة للكسور الداخليّة (يطابق LuxAlgo · افتراض مطفأ).")
-bool   smcCritical = input.bool(false, "SMC opposition = veto / معارضة SMC القويّة تُلغي", group = grpConf, tooltip = "[م-إش-3ب] إن فُعّل: إشارة يعارضها اتّجاه SMC القويّ (BOS/CHoCH طازج معاكس) ⇒ تُوسَم ⛔veto. عرض فقط في هذه المرحلة (لا تُلغى الإشارة تلقائيًّا). مطفأ = SMC صوت عاديّ.")
+bool   smcCritical = input.bool(true, "SMC opposition = veto / معارضة SMC القويّة تُلغي", group = grpConf, tooltip = "[م-إش-3ب] إن فُعّل: إشارة يعارضها اتّجاه SMC القويّ (BOS/CHoCH طازج معاكس) ⇒ تُوسَم ⛔veto. عرض فقط في هذه المرحلة (لا تُلغى الإشارة تلقائيًّا). مطفأ = SMC صوت عاديّ.")
 bool   confUseVeto = input.bool(true,  "Enable veto mark (critical sources) / تفعيل علامة الـveto", group = grpConf, tooltip = "[م-إش-3ب] يحسب علامة ⛔ حين يعارض مصدرٌ حاسم الإشارةَ بقوّة. عرض فقط — لا يغيّر إطلاق الإشارة.")
 // ─── [م-إش-3 · دفعة رسوم SMC] رسم بنية BOS/CHoCH — كلّ نوع بمفتاح مستقلّ، مطفأ افتراضيًّا (لا زحام) ───
-bool   smcDrawSwing    = input.bool(false, "Draw SMC swing structure (BOS/CHoCH) / رسم بنية SMC السوينغ", group = grpConf, tooltip = "[دفعة الرسوم] خطّ أفقيّ + وسم BOS/CHoCH عند كسر بنية السوينغ (الكبرى). مطفأ افتراضيًّا. حدّ ~50 خطًّا (حماية سقف الرسم المشترَك).")
-bool   smcDrawInternal = input.bool(false, "Draw SMC internal structure / رسم بنية SMC الداخليّة", group = grpConf, tooltip = "[دفعة الرسوم] بنية BOS/CHoCH الداخليّة (قصيرة المدى، خطّ متقطّع). مطفأ افتراضيًّا. حدّ ~50 خطًّا.")
+bool   smcDrawSwing    = input.bool(true, "Draw SMC swing structure (BOS/CHoCH) / رسم بنية SMC السوينغ", group = grpConf, tooltip = "[دفعة الرسوم] خطّ أفقيّ + وسم BOS/CHoCH عند كسر بنية السوينغ (الكبرى). مطفأ افتراضيًّا. حدّ ~50 خطًّا (حماية سقف الرسم المشترَك).")
+bool   smcDrawInternal = input.bool(true, "Draw SMC internal structure / رسم بنية SMC الداخليّة", group = grpConf, tooltip = "[دفعة الرسوم] بنية BOS/CHoCH الداخليّة (قصيرة المدى، خطّ متقطّع). مطفأ افتراضيًّا. حدّ ~50 خطًّا.")
 color  smcColBull      = input.color(#089981, "SMC bullish structure / بنية SMC صعوديّة", inline = "smcstr", group = grpConf)
 color  smcColBear      = input.color(#F23645, "SMC bearish structure / بنية SMC هبوطيّة", inline = "smcstr", group = grpConf)
+bool   smcDrawEqual    = input.bool(true, "Draw SMC equal H/L (EQH/EQL) / رسم قمم/قيعان SMC المتساوية", group = grpConf, tooltip = "[دفعة الرسوم · v3] خطّ منقّط + وسم EQH/EQL عند قمّتين/قاعين متقاربين ضمن العتبة (× ATR). مطفأ افتراضيًّا. حدّ ~50.")
+int    smcEqualLen     = input.int(3, "SMC equal length / طول كشف التساوي SMC", minval = 1, group = grpConf, tooltip = "طول كشف نقاط التساوي (افتراض LuxAlgo = 3).")
+float  smcEqualThresh  = input.float(0.1, "SMC equal threshold (× ATR) / عتبة تساوي SMC (× ATR)", minval = 0.0, step = 0.05, group = grpConf, tooltip = "قمّتان/قاعان ضمن هذه النسبة × ATR(200) ⇒ متساويان (افتراض LuxAlgo = 0.1).")
+bool   smcDrawStrongWeak = input.bool(true, "Draw SMC Strong/Weak H/L / رسم قمم/قيعان SMC القويّة/الضعيفة", group = grpConf, tooltip = "[دفعة الرسوم · v5] وسم Strong/Weak High وStrong/Weak Low عند طرفَي السوينغ الحاليّين (يتحرّكان مع البنية): قمّة **قويّة** (bias هابط) صمدت ⇒ مقاومة · **ضعيفة** (bias صاعد) على الأرجح ستُكسَر؛ وبالمثل للقاع. زوج واحد حيّ يُحدَّث كلّ بار (لا تراكم تاريخيّ).")
 
 // ══════════════════════════ وصفيّ · 🌊 إليوت / Elliott ══════════════════════════
 string grpEW       = "وصفيّ · 🌊 إليوت / Elliott"
@@ -240,7 +250,7 @@ float  ewOffset    = input.float(0.06, "Label offset from pivot (× range) / إ�
 
 // ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
 // يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
-[smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)   // [v2] +مستوى/بار النقطة المكسورة (للرسم)
+[smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB, smcTrTop, smcTrTopB, smcTrBot, smcTrBotB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)   // [v2] +مستوى/بار النقطة المكسورة (للرسم) · [v6] +التطرّف الزاحف (قمّة/قاع) + بارَيهما (Strong/Weak = trailing extremes)
 plot(smcEnable ? smcSwBias : na, "SMC swingBias",     display = display.data_window)
 plot(smcEnable ? smcInBias : na, "SMC internalBias",  display = display.data_window)
 plot(smcEnable ? smcSwEv   : na, "SMC swingEvent",    display = display.data_window)
@@ -267,6 +277,53 @@ if barstate.isconfirmed and smcDrawInternal and smcInEv != 0 and not na(smcInLvl
     if array.size(smcInLn) > 50
         line.delete(array.shift(smcInLn))
         label.delete(array.shift(smcInLb))
+
+// [م-إش-3 · v3] رسم القمم/القيعان المتساوية (EQH/EQL) — خطّ منقّط + وسم، خلف مفتاح مطفأ · على المُغلَقة · حارس ~50
+[smcEqhLvl, smcEqhFrom, smcEqhTo, smcEqlLvl, smcEqlFrom, smcEqlTo] = jsmc.f_smcEqual(smcEqualLen, smcEqualThresh, 200)
+var array<line>  smcEqLn = array.new<line>()
+var array<label> smcEqLb = array.new<label>()
+if barstate.isconfirmed and smcDrawEqual and not na(smcEqhLvl)
+    array.push(smcEqLn, line.new(smcEqhFrom, smcEqhLvl, smcEqhTo, smcEqhLvl, xloc = xloc.bar_index, color = smcColBear, width = 1, style = line.style_dotted))
+    array.push(smcEqLb, label.new(math.round(0.5 * (smcEqhFrom + smcEqhTo)), smcEqhLvl, "EQH", xloc = xloc.bar_index, color = color(na), textcolor = smcColBear, style = label.style_label_down, size = size.tiny))
+    if array.size(smcEqLn) > 50
+        line.delete(array.shift(smcEqLn))
+        label.delete(array.shift(smcEqLb))
+if barstate.isconfirmed and smcDrawEqual and not na(smcEqlLvl)
+    array.push(smcEqLn, line.new(smcEqlFrom, smcEqlLvl, smcEqlTo, smcEqlLvl, xloc = xloc.bar_index, color = smcColBull, width = 1, style = line.style_dotted))
+    array.push(smcEqLb, label.new(math.round(0.5 * (smcEqlFrom + smcEqlTo)), smcEqlLvl, "EQL", xloc = xloc.bar_index, color = color(na), textcolor = smcColBull, style = label.style_label_up, size = size.tiny))
+    if array.size(smcEqLn) > 50
+        line.delete(array.shift(smcEqLn))
+        label.delete(array.shift(smcEqLb))
+
+// [م-إش-3 · v6] رسم Strong/Weak High/Low — عند **التطرّف الزاحف** (أعلى قمّة/أدنى قاع، كـLuxAlgo)، زوج حيّ واحد يُحدَّث كلّ بار (على islast · حذف/إعادة إنشاء · لا تراكم)
+//   [مطابقة LuxAlgo drawHighLowSwings] الوسم عند **الحافّة اليمنى** (bar_index + 20 = last_bar + 20 شمعة) + **خطّ** أفقيّ من بار التطرّف إليه.
+var label smcSwkHiLb = na
+var label smcSwkLoLb = na
+var line  smcSwkHiLn = na
+var line  smcSwkLoLn = na
+if barstate.islast
+    if not na(smcSwkHiLb)
+        label.delete(smcSwkHiLb)
+    if not na(smcSwkLoLb)
+        label.delete(smcSwkLoLb)
+    if not na(smcSwkHiLn)
+        line.delete(smcSwkHiLn)
+    if not na(smcSwkLoLn)
+        line.delete(smcSwkLoLn)
+    smcSwkHiLb := na
+    smcSwkLoLb := na
+    smcSwkHiLn := na
+    smcSwkLoLn := na
+    int swkRB = bar_index + 20   // الحافّة اليمنى (= last_bar_time + 20 شمعة عند LuxAlgo)
+    if smcDrawStrongWeak
+        if not na(smcTrTop) and not na(smcTrTopB)
+            string hiTx = smcSwBias == -1 ? "Strong High" : "Weak High"   // اتّجاه هابط ⇒ قمّة صمدت (قويّة) · صاعد ⇒ ستُكسَر (ضعيفة)
+            smcSwkHiLn := line.new(smcTrTopB, smcTrTop, swkRB, smcTrTop, xloc = xloc.bar_index, color = smcColBear, width = 1)
+            smcSwkHiLb := label.new(swkRB, smcTrTop, hiTx, xloc = xloc.bar_index, color = color(na), textcolor = smcColBear, style = label.style_label_down, size = size.tiny)
+        if not na(smcTrBot) and not na(smcTrBotB)
+            string loTx = smcSwBias == 1 ? "Strong Low" : "Weak Low"       // اتّجاه صاعد ⇒ قاع صمد (قويّ) · هابط ⇒ سيُكسَر (ضعيف)
+            smcSwkLoLn := line.new(smcTrBotB, smcTrBot, swkRB, smcTrBot, xloc = xloc.bar_index, color = smcColBull, width = 1)
+            smcSwkLoLb := label.new(swkRB, smcTrBot, loTx, xloc = xloc.bar_index, color = color(na), textcolor = smcColBull, style = label.style_label_up, size = size.tiny)
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة عبر waveMode (تلقائيّ/يدويّ/دمج).
