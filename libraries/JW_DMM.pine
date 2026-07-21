@@ -1,0 +1,93 @@
+//@version=6
+// ============================================================================
+// JW_DMM — «المقاييس الديناميّة» (AlphaTrend + MFI حجميّ + تقلّب) كمصدر استراتيجيّة مُقيَّمة لـM-Waves
+// ----------------------------------------------------------------------------
+// منطق الإشارة منقول عن:
+//   "Dynamic Market Metrics [MarkitTick]"  © MarkitTick
+//   (محرّك AlphaTrend الأصل: © KivancOzbilgic — مبدأ متتبِّع القاع/القمّة بقيادة MFI)
+// اقتباس شخصيّ غير تجاريّ؛ النسب لأصحابه محفوظ.
+//
+// 🔴 المبدأ (م-إش-3 · نموذج المالك): كلّ استراتيجيّة تُطلِق إشاراتها **باسمها** بأمانتها؛
+//    M-Waves تضيف لها **تقييمًا** (نجوم توافق المصادر). هذه المكتبة «تحسب فقط» إشارة DMM
+//    (اتّجاه + دخول/وقف/أهداف + موقف) + **بُعدَيها الجديدين**: MFI (تدفّق نقد حجميّ) وحالة
+//    التقلّب (توسّع/انكماش) — بيانات صرفة. المؤشّر يرسمها معنونةً «DMM» ويقيّمها. لا رسم/لوحة هنا.
+//
+// العقد: بيانات كقيمة · **بلا «UDT محلّيّ + method»** (فخّ الترجمة CE10237) ⇒ TradeState +
+//    calcRiskTargets نُقِلا إلى **حساب صرف** داخل الدالّة (كنمط JW_Inducement). لا HTF/سحابة/لوحة/webhook.
+//
+// جوهر AlphaTrend (نقل حرفيّ): ATR=SMA(TR[1]) · نطاقان upT=low[1]−ATR×mult · downT=high[1]+ATR×mult.
+//   الخطّ يتتبّع: MFI≥50 (تدفّق صاعد) ⇒ يرقّي القاع (upT، لا يهبط) · وإلّا ⇒ يخفض القمّة (downT، لا يصعد).
+//   الاتّجاه من ميل الخطّ · الكسر بالزخم يغلب · عدّاد O/K يمنع التذبذب السريع (تكرار الإشارة).
+//   الإشارة = حافّة صاعدة لـvalidLong/validShort · الدخول=close[1] · الوقف=AlphaTrend[1] · TP بالـR:R.
+//   لا look-ahead (كلّ القرارات على الشمعة المُغلَقة [1]).
+// ============================================================================
+library("JW_DMM", overlay = true)
+
+// @function   إشارة DMM لهذه الشمعة (بيانات صرفة · نقل منطق Dynamic Market Metrics).
+// @param atrLen    طول ATR/MFI (افتراض الأصل = 14).
+// @param atrMult   مضاعِف ATR لنطاقَي المتتبِّع (افتراض 1.0).
+// @param boOverride  تفعيل كسر الزخم (يغلب اتّجاه المتتبِّع عند حركة قويّة · افتراض true).
+// @param boSens    حساسيّة كسر الزخم (|تغيّر الإغلاق| > ATR×هذا ⇒ كسر · افتراض 2.0).
+// @returns [dir, entry, sl, tp1, tp2, tp3, trigger, stance, mfi, volExp]
+//   dir: +1 شراء · -1 بيع · 0 لا إشارة (حافّة صاعدة لإشارة صالحة) · trigger: هل أُطلِقت الآن؟
+//   stance: اتّجاه AlphaTrend المطلق (+1/-1) — للتصويت على إشارات المصادر الأخرى.
+//   mfi: تدفّق النقد 0..100 (بُعد الحجم الجديد) · volExp: توسّع تقلّب (ATR>SMA(ATR,50)) — بُعد التقلّب الجديد.
+export f_dynMetrics(simple int atrLen, float atrMult, simple bool boOverride, float boSens) =>
+    // ── محرّك AlphaTrend (نقل حرفيّ · سلاسل صرفة) ──
+    float atrV   = ta.sma(ta.tr[1], atrLen)
+    float upT    = low[1]  - atrV * atrMult
+    float downT  = high[1] + atrV * atrMult
+    float mfiVal = ta.mfi(hlc3, atrLen)[1]                    // MFI حجميّ (بُعد جديد) — على الشمعة المُغلَقة
+    float alphaT = 0.0
+    alphaT := mfiVal >= 50 ? (upT < nz(alphaT[1]) ? nz(alphaT[1]) : upT) : (downT > nz(alphaT[1]) ? nz(alphaT[1]) : downT)
+    // ── الاتّجاه (ميل الخطّ) + كسر الزخم يغلب ──
+    var int dirn = 1
+    if alphaT[1] > alphaT[3]
+        dirn := 1
+    else if alphaT[1] < alphaT[3]
+        dirn := -1
+    bool isCrossUp = close[1] > alphaT[1] and close[2] <= nz(alphaT[2])
+    bool isCrossDn = close[1] < alphaT[1] and close[2] >= nz(alphaT[2])
+    bool boMom     = boOverride and (math.abs(close[1] - close[2]) > atrV[1] * boSens)
+    if boMom and isCrossUp
+        dirn := 1
+    else if boMom and isCrossDn
+        dirn := -1
+    // ── إشارتا الشراء/البيع + عدّاد الإبطال (يمنع التذبذب السريع) ──
+    bool isTrendCrossUp = alphaT[1] > alphaT[3] and nz(alphaT[2]) <= nz(alphaT[4])
+    bool isTrendCrossDn = alphaT[1] < alphaT[3] and nz(alphaT[2]) >= nz(alphaT[4])
+    bool buySig  = isTrendCrossUp or (boMom and isCrossUp)
+    bool sellSig = isTrendCrossDn or (boMom and isCrossDn)
+    var int K1 = 0
+    var int K2 = 0
+    var int O1 = 0
+    var int O2 = 0
+    O1 := buySig[1]  ? 0 : O1 + 1
+    O2 := sellSig[1] ? 0 : O2 + 1
+    K1 := buySig[1]  ? 0 : K1 + 1
+    K2 := sellSig[1] ? 0 : K2 + 1
+    bool validLong  = buySig  and O1 > K2
+    bool validShort = sellSig and O2 > K1
+    // ── الحافّة الصاعدة = إشارة جديدة (نقل _risingLong/_risingShort) ──
+    bool risingLong  = bar_index >= 4 and validLong  and not validLong[1]
+    bool risingShort = bar_index >= 4 and validShort and not validShort[1]
+    int  dir = risingLong ? 1 : risingShort ? -1 : 0
+    // ── مستويات الصفقة (نقل calcRiskTargets: دخول=close[1] · وقف=AlphaTrend[1] · risk=max(|دخول−وقف|,mintick×10)) ──
+    float entryOut = na
+    float slOut    = na
+    float tp1Out   = na
+    float tp2Out   = na
+    float tp3Out   = na
+    if dir != 0
+        float e    = close[1]
+        float slL  = alphaT[1]
+        float risk = math.max(math.abs(e - slL), syminfo.mintick * 10)
+        entryOut := e
+        slOut    := slL
+        tp1Out   := dir == 1 ? e + risk        : e - risk
+        tp2Out   := dir == 1 ? e + (risk * 2)  : e - (risk * 2)
+        tp3Out   := dir == 1 ? e + (risk * 3)  : e - (risk * 3)
+    // ── البُعد الجديد الثاني: حالة التقلّب (توسّع إن ATR فوق متوسّطه) ──
+    float atrSma = ta.sma(atrV, 50)
+    bool  volExp = atrV > atrSma
+    [dir, entryOut, slOut, tp1Out, tp2Out, tp3Out, dir != 0, dirn, mfiVal, volExp]
