@@ -1,0 +1,110 @@
+//@version=6
+// ============================================================================
+// JW_SMC — بنية السوق (Smart Money Concepts) كمصدر تلاقٍ لـM-Waves
+// ----------------------------------------------------------------------------
+// منطق الاتّجاه البنيويّ (BOS / CHoCH ⇒ اتّجاه) منقول عن:
+//   "Smart Money Concepts [LuxAlgo]"  © LuxAlgo  —  CC BY-NC-SA 4.0
+//   https://creativecommons.org/licenses/by-nc-sa/4.0/
+// اقتباس شخصيّ غير تجاريّ؛ النسب لـLuxAlgo محفوظ وفق الرخصة (Attribution).
+//
+// أُعيدت صياغته بحالة سلاسل صرفة (بلا «UDT محلّيّ + method») ليكون آمنًا داخل
+// مكتبة Pine v6 (يتفادى فخّ الترجمة CE10237). الخوارزميّة نفسها حرفًا بحرف.
+//
+// النطاق: الاتّجاه (internal + swing) + [v2] بيانات رسم بنية BOS/CHoCH (المستوى المكسور
+// وبار النقطة) — المكتبة بيانات فقط، المؤشّر يرسم. order blocks/FVG/EQH/premium دفعاتٍ لاحقة.
+// ============================================================================
+library("JW_SMC", overlay = true)
+
+// اتّجاه الـleg خلال `size` شمعة — 1 صعوديّ، 0 هبوطيّ (LuxAlgo: BULLISH_LEG/BEARISH_LEG)
+f_leg(simple int size) =>
+    var int lg = 0
+    newLegHigh = high[size] > ta.highest(size)
+    newLegLow  = low[size]  < ta.lowest(size)
+    if newLegHigh
+        lg := 0
+    else if newLegLow
+        lg := 1
+    lg
+
+// @function            اتّجاه بنية السوق من كسور BOS/CHoCH (swing + internal).
+// @param swingSize     طول سوينغ الموجة الكبرى (افتراضيّ LuxAlgo = 50).
+// @param internalSize  طول البنية الداخليّة (افتراضيّ LuxAlgo = 5).
+// @param confluenceFilter  فلتر «التوافق» للكسور الداخليّة (افتراضيّ LuxAlgo = false).
+// @returns  [swingBias, internalBias, swingEvent, internalEvent, swLvl, swPivBar, inLvl, inPivBar]
+//   bias   : +1 صعود · -1 هبوط · 0 لا شيء
+//   event  : حدث هذه الشمعة — +2 CHoCH صعوديّ · +1 BOS صعوديّ · 0 لا شيء ·
+//            -1 BOS هبوطيّ · -2 CHoCH هبوطيّ
+//   [v2] swLvl/swPivBar · inLvl/inPivBar : مستوى النقطة المكسورة وبار تكوّنها عند وقوع كسر
+//            (na إن لا كسر هذه الشمعة) — يرسم المؤشّر خطًّا من swPivBar إلى الشمعة الحاليّة عند swLvl.
+export f_smcStructure(simple int swingSize, simple int internalSize, bool confluenceFilter) =>
+    // ===== نقاط السوينغ (الكبرى) =====
+    var float swHigh    = na
+    var float swLow     = na
+    var int   swHighBar = na          // [v2] بار تكوّن النقطة — للرسم (خطّ من النقطة إلى الكسر)
+    var int   swLowBar  = na
+    var bool  swHighX   = false
+    var bool  swLowX    = false
+    var int   swBias    = 0
+    swChg = ta.change(f_leg(swingSize))
+    if swChg == +1                    // بدء leg صعوديّ ⇒ تأكّد قاع سوينغ قبل swingSize شمعة
+        swLow     := low[swingSize]
+        swLowBar  := bar_index - swingSize
+        swLowX    := false
+    else if swChg == -1               // بدء leg هبوطيّ ⇒ تأكّد قمّة سوينغ
+        swHigh    := high[swingSize]
+        swHighBar := bar_index - swingSize
+        swHighX   := false
+    // ===== النقاط الداخليّة =====
+    var float inHigh    = na
+    var float inLow     = na
+    var int   inHighBar = na          // [v2] بار تكوّن النقطة الداخليّة — للرسم
+    var int   inLowBar  = na
+    var bool  inHighX   = false
+    var bool  inLowX    = false
+    var int   inBias    = 0
+    inChg = ta.change(f_leg(internalSize))
+    if inChg == +1
+        inLow     := low[internalSize]
+        inLowBar  := bar_index - internalSize
+        inLowX    := false
+    else if inChg == -1
+        inHigh    := high[internalSize]
+        inHighBar := bar_index - internalSize
+        inHighX   := false
+    // فلتر شكل الشمعة للكسور الداخليّة — يطابق تعبير LuxAlgo حرفًا
+    bullishBar = confluenceFilter ? (high - math.max(close, open) > math.min(close, open - low)) : true
+    bearishBar = confluenceFilter ? (high - math.max(close, open) < math.min(close, open - low)) : true
+    // ===== قلب الاتّجاه الداخليّ (LuxAlgo يعرضه أوّلًا) =====
+    int   inEvent  = 0
+    float inLvl    = na               // [v2] مستوى النقطة المكسورة + بارها (للرسم عند الكسر)
+    int   inPivBar = na
+    if not na(inHigh) and inHigh != swHigh and bullishBar and ta.crossover(close, inHigh) and not inHighX
+        inEvent  := inBias == -1 ? +2 : +1
+        inLvl    := inHigh
+        inPivBar := inHighBar
+        inHighX  := true
+        inBias   := 1
+    if not na(inLow) and inLow != swLow and bearishBar and ta.crossunder(close, inLow) and not inLowX
+        inEvent  := inBias == 1 ? -2 : -1
+        inLvl    := inLow
+        inPivBar := inLowBar
+        inLowX   := true
+        inBias   := -1
+    // ===== قلب اتّجاه السوينغ =====
+    int   swEvent  = 0
+    float swLvl    = na               // [v2] مستوى نقطة السوينغ المكسورة + بارها (للرسم)
+    int   swPivBar = na
+    if not na(swHigh) and ta.crossover(close, swHigh) and not swHighX
+        swEvent  := swBias == -1 ? +2 : +1
+        swLvl    := swHigh
+        swPivBar := swHighBar
+        swHighX  := true
+        swBias   := 1
+    if not na(swLow) and ta.crossunder(close, swLow) and not swLowX
+        swEvent  := swBias == 1 ? -2 : -1
+        swLvl    := swLow
+        swPivBar := swLowBar
+        swLowX   := true
+        swBias   := -1
+    // [v2] +مستوى/بار النقطة المكسورة لكلّ طبقة (na ما لم يقع كسر هذه الشمعة) — يرسمها المؤشّر
+    [swBias, inBias, swEvent, inEvent, swLvl, swPivBar, inLvl, inPivBar]

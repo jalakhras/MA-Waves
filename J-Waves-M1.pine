@@ -6,10 +6,19 @@ import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخط�
 import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] المناطق — f_pairZones (jaffar: بركة المتوسطة غير المغطّاة · sizeOk/merge/contain/tooBig · between) + [أ89] المرساة = الحاليّة+تاريخ التاريخ فقط (anchorMin) · التاريخ للاستعارة
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
+import Jassar_Mahmoud/JW_SMC/2 as jsmc                        // [م-إش-3 · تلاقٍ] بنية SMC (BOS/CHoCH ⇒ اتّجاه + [v2] بيانات رسم البنية) — مصدر تلاقٍ لا مولّد (منقول عن LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
+import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.72.0 [م-إش-3 · دفعة رسوم SMC] — بنية BOS/CHoCH على الشارت: JW_SMC/**2** (يُرجِع مستوى+بار النقطة المكسورة) + مفاتيح مستقلّة مطفأة (رسم السوينغ/الداخليّة + ألوان) + كتلة رسم في المؤشّر (خطّ من النقطة إلى الكسر + وسم · على المُغلَقة فقط · حارس ~50). النواة لا تُمَسّ. ═══
+// ═══ v2.71.3 [م-إش-3ج·تحسين] — قلب النجمة: ترتيب **حسب اللغة** ليظهر ★ **يمين الكلمة** بصريًّا في العربيّة والإنجليزيّة معًا (RTL يعكس السلسلة ⇒ العربيّة تُبنى ★✦كلمة فتُرندَر كلمة✦★ · الإنجليزيّة كلمة✦★). حسم المالك. ═══
+// ═══ v2.71.2 [م-إش-3ج·تحسين] — ترتيب الوسم: **الكلمة ثمّ ✦/⚠ ثمّ النجوم** (`Sell✦★` · عربيًّا يُرندَر `★✦بيع` من سلسلة `بيع✦★` بالـRTL) لاتّساق ثنائيّ اللغة (حسم المالك). نُقِل ✦/⚠ من بادئة إلى بعد الكلمة في الحيّة + إعادة تشكيل التاريخيّة (str.substring). ═══
+// ═══ v2.71.1 [م-إش-3ج·تحسين] — موضع النجمة: **بعد كلمة بيع/شراء مباشرةً** (لا بعد RR) لاتّساق ثنائيّ اللغة عربيّ/إنجليزيّ (حسم المالك). التاريخيّة كانت كذلك أصلًا؛ وُحِّدت الحيّة. ═══
+// ═══ v2.71.0 [م-إش-3ج] — النجوم على الإشارات التاريخيّة (jws): post-process في المؤشّر (label.get_text/set_text) يحسب توافق المصادر **عند بار كلّ إشارة** ⇒ يُلحِق ★. jws يبقى نقيًّا (لا يُمَسّ/يُنشَر) · +max_bars_back للفهرسة الزمنيّة. ═══
+// ═══ v2.70.0 [م-إش-3ب] — النجوم: تقييم التلاقي على الإشارة الحيّة (jwconf.f_rate ⇒ ★ نجمة لكلّ مصدر موافق فقط، بلا نجوم إن لا توافق، + ⛔veto مُلحَقة بوسم ✦/⚠) + مدخلا smcCritical/confUseVeto. smcEnable افتراضه true (حسم المالك). عرض فقط · A/B عند الإطفاء (لا نجوم = الوسم كما كان). إشارات jws التاريخيّة تأخذ نجومها في 3ج. ═══
+// ═══ v2.69.0 [م-إش-3أ] — طبقة التلاقي (بدء): استيراد JW_SMC/1 + JW_Confluence/1 + قسم إعدادات مستقلّ «التلاقي» (grpConf · smcEnable مطفأ افتراضيًّا) + حساب صوت بنية SMC (قيم في Data Window). إضافيّ بحت · النواة لا تُمَسّ (ضمان A/B عند الإطفاء) · العرض/التقييم بالنجوم في 3ب. ═══
 // ═══ v2.68.0 — تنظيف الفصل: حُذِفت الأجسام المحلّيّة الميّتة الثلاث (f_emitDegSignals/f_emitExit/f_sigLvl) بعد نقلها لـJW_Signals/1 والتحقّق (A/B مطابق US100·60: ✦بيع RR 1.67/1.65/2.72). المؤشّر يستدعي jws.* حصرًا · مساعد f_covArr يبقى (قناع التغطية). ═══
 // ═══ v2.67.0 — فصل طبقة الإشارات ⇒ JW_Signals/1 (حسم المالك 2026-07-20): استيراد jws + استبدال نداءات f_emitDegSignals/f_emitExit/f_sigLvl بـjws.* (تكافؤ حرفيّ · التغطية بقناع f_covArr · اللغة/المناطق/المدخلات وسائط). ═══
 // ═══ v2.66.0 — تنظيف: رجوعٌ لنواة الاستراتيجية (حسم المالك 2026-07-20 · قبل فصل مكتبة JW_Signals): حُذِف **كلّ ما خارج النواة** — التشخيص (showSigDiag/ewDbg/dbgCov + عدّادات القمع cInZ/cCnf/cEmt) + التدقيق الذاتيّ (أ93/أ96: السجلّ tBar..tOut + الجداول) + المؤشّرات الأجنبيّة (أ95: EMA/SMA/RSI/VWAP) + حارس الوقف (أ94 minStopR). بقيت الإشارات النقيّة (f_emitDegSignals/f_emitExit/f_sigLvl + الصفقة الحيّة) + minRR + أ97 (ظهور لحظة التأكيد). التقييم/المؤشّرات يُعادان في طبقة الاستراتيجية (م-إش-3). ═══
@@ -199,6 +208,21 @@ bool   showSigS     = input.bool(true, "small / الصغيرة", inline = "sigde
 bool   showSigExit  = input.bool(true, "Exit signals (break+retest) / إشارات الخروج (كسر+إعادة اختبار)", group = grpSig, tooltip = "«الفرصة الثالثة» (الخروج) بنمط **الكسر ثمّ إعادة الاختبار ثمّ الارتداد** (v2.4.0): (1) السعر يكسر المنطقة بتأكيد (شمعة على >15د · شمعتان على ≤15د). (2) يعود ويلمس الحافّة المكسورة ثمّ يُغلِق ثانيةً خلفها (ارتداد). (3) ✦ **مرّة واحدة** لكلّ منطقة، عند شمعة الارتداد المُغلَقة. لا تكرار بعده. منفصلة عن إشارات الدرجات.")
 // [تنظيف v2.66.0 · حسم المالك 2026-07-20] حُذِفت مدخلات **خارج النواة**: showSigDiag (تشخيص) · showSigStats/showSigNotes (تدقيق) · minStopR (أ94) · EMA/SMA/RSI (مؤشّرات أجنبيّة أ95). التقييم الكمّيّ والمؤشّرات يُعادان في طبقة لاحقة (م-إش-3/الاستراتيجية).
 
+// ═════════════════ 🔗 التلاقي / Confluence [م-إش-3] ═════════════════
+// قسم مستقلّ لمصادر التلاقي. كلّ مصدر خلف مفتاح تفعيل خاصّ (مطفأ افتراضيًّا) ⇒ صفر أثر على النواة ما لم يُفعَّل.
+string grpConf     = "🔗 التلاقي / Confluence"
+bool   smcEnable   = input.bool(true, "Enable SMC structure vote (LuxAlgo) / تفعيل صوت بنية SMC", group = grpConf, tooltip = "[م-إش-3 · حسم المالك: مفعّل افتراضيًّا] اتّجاه بنية السوق (BOS/CHoCH من SMC) يصوّت على إشارة M-Waves — لا يولّدها. عرض فقط (نجوم على الوسم) · لا يمسّ توليد الإشارة (A/B: أطفئه ⇒ الوسم بلا نجوم كما كان).")
+int    smcSwingLen = input.int(50, "SMC swing length / طول سوينغ SMC", minval = 10, group = grpConf, tooltip = "طول اكتشاف نقاط السوينغ الكبرى (افتراض LuxAlgo = 50).")
+int    smcIntLen   = input.int(5,  "SMC internal length / طول SMC الداخليّ", minval = 3, group = grpConf, tooltip = "طول البنية الداخليّة قصيرة المدى (افتراض LuxAlgo = 5).")
+bool   smcConfFilt = input.bool(false, "SMC confluence filter / فلتر توافق SMC", group = grpConf, tooltip = "فلتر شكل الشمعة للكسور الداخليّة (يطابق LuxAlgo · افتراض مطفأ).")
+bool   smcCritical = input.bool(false, "SMC opposition = veto / معارضة SMC القويّة تُلغي", group = grpConf, tooltip = "[م-إش-3ب] إن فُعّل: إشارة يعارضها اتّجاه SMC القويّ (BOS/CHoCH طازج معاكس) ⇒ تُوسَم ⛔veto. عرض فقط في هذه المرحلة (لا تُلغى الإشارة تلقائيًّا). مطفأ = SMC صوت عاديّ.")
+bool   confUseVeto = input.bool(true,  "Enable veto mark (critical sources) / تفعيل علامة الـveto", group = grpConf, tooltip = "[م-إش-3ب] يحسب علامة ⛔ حين يعارض مصدرٌ حاسم الإشارةَ بقوّة. عرض فقط — لا يغيّر إطلاق الإشارة.")
+// ─── [م-إش-3 · دفعة رسوم SMC] رسم بنية BOS/CHoCH — كلّ نوع بمفتاح مستقلّ، مطفأ افتراضيًّا (لا زحام) ───
+bool   smcDrawSwing    = input.bool(false, "Draw SMC swing structure (BOS/CHoCH) / رسم بنية SMC السوينغ", group = grpConf, tooltip = "[دفعة الرسوم] خطّ أفقيّ + وسم BOS/CHoCH عند كسر بنية السوينغ (الكبرى). مطفأ افتراضيًّا. حدّ ~50 خطًّا (حماية سقف الرسم المشترَك).")
+bool   smcDrawInternal = input.bool(false, "Draw SMC internal structure / رسم بنية SMC الداخليّة", group = grpConf, tooltip = "[دفعة الرسوم] بنية BOS/CHoCH الداخليّة (قصيرة المدى، خطّ متقطّع). مطفأ افتراضيًّا. حدّ ~50 خطًّا.")
+color  smcColBull      = input.color(#089981, "SMC bullish structure / بنية SMC صعوديّة", inline = "smcstr", group = grpConf)
+color  smcColBear      = input.color(#F23645, "SMC bearish structure / بنية SMC هبوطيّة", inline = "smcstr", group = grpConf)
+
 // ══════════════════════════ وصفيّ · 🌊 إليوت / Elliott ══════════════════════════
 string grpEW       = "وصفيّ · 🌊 إليوت / Elliott"
 bool   showEW      = input.bool(false, "Elliott wave-count labels / ترقيم موجات إليوت", group = grpEW, tooltip = "طبقة وصفيّة: ترقيم (1)-(5) دفعة على النقاط الفعّالة لكلّ درجة، فقط إن حقّقت قواعد إليوت الثلاث القطعيّة (فروست/بريكتر). الدرجات متعشّشة (كبيرة⊃متوسطة⊃صغيرة). عرض فقط — لا يمسّ الدرجات/الإشارات/القرار. (a-b-c لاحقًا ⑥-ب.)")
@@ -213,6 +237,36 @@ int    ewMaxSets   = input.int(0, "Max wave-sets (0=all history) / أقصى دف
 bool   ewStrict    = input.bool(false, "Strict no-overlap (else allow diagonals) / صارم بلا تراكب (وإلّا يسمح بالقطريّة)", group = grpEW, tooltip = "مطفأ (موصى): يسمح بتراكب الموجة4/الموجة1 = المثلّث القطريّ (Diagonal) — نمط إليوت صحيح (فروست/بريكتر §4-د) ⇒ تظهر الكبيرة والترندات المتراكبة. مفعّل: يفرض ق3 (لا تراكب) ⇒ دفعات دافعة نقيّة فقط (أندر).")
 float  ewOffset    = input.float(0.06, "Label offset from pivot (× range) / إزاحة الوسم عن النقطة (× النطاق)", minval = 0.0, step = 0.01, group = grpEW, tooltip = "يرفع الوسم فوق القمّة/تحت القاع بمقدار = هذه النسبة × نطاق سعريّ أصيل، لتفادي تداخله مع الدوائر. كلّ درجة تُزاح خطوة أبعد (تتكدّس النقاط المتقاطعة تحت بعضها بألوانها).")
 // [تنظيف v2.66.0] ewDbg (تشخيص أعداد نقاط/وسوم إليوت) حُذِف.
+
+// ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
+// يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
+[smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)   // [v2] +مستوى/بار النقطة المكسورة (للرسم)
+plot(smcEnable ? smcSwBias : na, "SMC swingBias",     display = display.data_window)
+plot(smcEnable ? smcInBias : na, "SMC internalBias",  display = display.data_window)
+plot(smcEnable ? smcSwEv   : na, "SMC swingEvent",    display = display.data_window)
+plot(smcEnable ? smcInEv   : na, "SMC internalEvent", display = display.data_window)
+max_bars_back(smcSwBias, 500)   // [م-إش-3ج] الفهرسة الزمنيّة المتغيّرة (قراءة الاتّجاه عند بار الإشارة التاريخيّة، ضمن نافذة الإشارات 500)
+max_bars_back(smcSwEv, 500)
+
+// [م-إش-3 · دفعة الرسوم] رسم بنية BOS/CHoCH عند كلّ كسر (خلف مفاتيح مطفأة · على الشمعة المُغلَقة فقط ⇒ لا وميض · حارس ~50 لكلّ نوع لحماية سقف الرسم المشترَك 500)
+var array<line>  smcSwLn = array.new<line>()
+var array<label> smcSwLb = array.new<label>()
+var array<line>  smcInLn = array.new<line>()
+var array<label> smcInLb = array.new<label>()
+if barstate.isconfirmed and smcDrawSwing and smcSwEv != 0 and not na(smcSwLvl) and not na(smcSwPivB)
+    color cS = smcSwEv > 0 ? smcColBull : smcColBear
+    array.push(smcSwLn, line.new(smcSwPivB, smcSwLvl, bar_index, smcSwLvl, xloc = xloc.bar_index, color = cS, width = 1))
+    array.push(smcSwLb, label.new(math.round(0.5 * (smcSwPivB + bar_index)), smcSwLvl, math.abs(smcSwEv) == 2 ? "CHoCH" : "BOS", xloc = xloc.bar_index, color = color(na), textcolor = cS, style = smcSwEv > 0 ? label.style_label_down : label.style_label_up, size = size.tiny))
+    if array.size(smcSwLn) > 50
+        line.delete(array.shift(smcSwLn))
+        label.delete(array.shift(smcSwLb))
+if barstate.isconfirmed and smcDrawInternal and smcInEv != 0 and not na(smcInLvl) and not na(smcInPivB)
+    color cI = smcInEv > 0 ? smcColBull : smcColBear
+    array.push(smcInLn, line.new(smcInPivB, smcInLvl, bar_index, smcInLvl, xloc = xloc.bar_index, color = cI, width = 1, style = line.style_dashed))
+    array.push(smcInLb, label.new(math.round(0.5 * (smcInPivB + bar_index)), smcInLvl, math.abs(smcInEv) == 2 ? "CHoCH" : "BOS", xloc = xloc.bar_index, color = color(na), textcolor = cI, style = smcInEv > 0 ? label.style_label_down : label.style_label_up, size = size.tiny))
+    if array.size(smcInLn) > 50
+        line.delete(array.shift(smcInLn))
+        label.delete(array.shift(smcInLb))
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة عبر waveMode (تلقائيّ/يدويّ/دمج).
@@ -1721,7 +1775,18 @@ if barstate.islast
         float  rr    = (not na(sStp) and not na(sTgt) and close != sStp) ? math.abs(sTgt - close) / math.abs(close - sStp) : na
         bool   rrOk  = minRR <= 0 or (not na(rr) and rr >= minRR)   // [بوّابة RR اختياريّة] إن minRR>0: لا وسم/تنبيه إن RR<الحدّ
         string sTyp  = isBas ? f_t("أساسية", "Basic") : f_t("مخاطرة ⚠", "High-risk ⚠")   // للـtooltip/التنبيه (وصفيّ)
-        string sigTx = (isBas ? "✦" : "⚠") + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [توحيد] رمز ✦/⚠ كالإشارات التاريخيّة (النجوم/القوّة ⇒ م3)
+        // [م-إش-3ب · التلاقي] نجوم توافق المصادر على الإشارة الحيّة (عرض فقط — لا يغيّر إطلاقها · A/B مضمون عند الإطفاء)
+        int sigDirC = up ? 1 : -1
+        array<int>   cfDir  = array.new<int>()
+        array<float> cfStr  = array.new<float>()
+        array<bool>  cfCrit = array.new<bool>()
+        if smcEnable                                                              // SMC = أوّل مصدر؛ التالي يُضاف بنفس النمط (push للمصفوفات)
+            array.push(cfDir,  smcSwBias)                                         // صوت بنية السوق (swing) — +1/-1/0
+            array.push(cfStr,  smcSwEv != 0 ? 2.0 : 1.0)                          // كسر BOS/CHoCH طازج هذه الشمعة ⇒ أقوى
+            array.push(cfCrit, smcCritical)
+        [cfAgree, cfOpp, cfNeu, cfVeto] = jwconf.f_rate(sigDirC, cfDir, cfStr, cfCrit, confUseVeto)
+        string starTx = (cfAgree > 0 ? str.repeat("★", cfAgree) : "") + (cfVeto ? "⛔" : "")   // [نموذج المالك] نجمة لكلّ مصدر موافق · بلا نجوم إن لا توافق · ⛔ veto — تُلحَق بعد ✦/⚠
+        string sigTx = ((uiLang == "AR / عربيّة") ? (starTx + (isBas ? "✦" : "⚠") + (up ? "شراء" : "بيع")) : ((up ? "Buy" : "Sell") + (isBas ? "✦" : "⚠") + starTx)) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [حسم المالك] ترتيب حسب اللغة ليظهر ★ **يمين** الكلمة في الاثنتين: عربيّ RTL ⇒ سلسلة ★✦كلمة (تُرندَر كلمة✦★) · إنجليزيّ LTR ⇒ كلمة✦★
         // [م-إش-2أ] سلّم الأهداف في الـtooltip (الحيّة داخل المنطقة) + تطرّف داخل المنطقة (مرجع التأمين 2ج — يُبقي inZlow/inZhigh حيّين)
         string tpLad = ""
         if not isBrk and array.size(tps) > 0
@@ -1805,6 +1870,30 @@ if barstate.islast
         // [ت30/ب · G-S1] إشارات الكبيرة **عُطِّلت**: صفقة الكبيرة غير مصدريّة (L2-04: أعلى صفقة = المتوسطة) · xl خاملة للإشارات حتّى الأسبوعيّ (تأكّد=0 عبر US100·60/D/W · BTC·60/W). الكبيرة تبقى **مرجعَ N+1 للمتوسطة** (lgBar تُمرَّر لنداء المتوسطة).
         if showSigExit                                                                                                          // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
+        // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC وقتها، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط.
+        if smcEnable
+            int nSigLb = array.size(sigLabels)
+            for li = 0 to (nSigLb > 0 ? nSigLb - 1 : 0)
+                if nSigLb > 0
+                    label lb  = array.get(sigLabels, li)
+                    string tx = label.get_text(lb)
+                    if str.startswith(tx, "✦") or str.startswith(tx, "⚠")   // إشارة حقيقيّة (✦/⚠ بادئة jws) — تُتخطّى RR/م٣/T3
+                        string marker = str.substring(tx, 0, 1)              // ✦ أو ⚠
+                        string body   = str.substring(tx, 1)                 // الكلمة (بيع/شراء/Sell/Buy)
+                        int sd = (str.contains(tx, "بيع") or str.contains(tx, "Sell")) ? -1 : (str.contains(tx, "شراء") or str.contains(tx, "Buy")) ? 1 : 0
+                        string hStar = ""
+                        if sd != 0
+                            int off = bar_index - label.get_x(lb)
+                            if off >= 0 and off <= 500
+                                array<int>   hDir  = array.new<int>()
+                                array<float> hStr  = array.new<float>()
+                                array<bool>  hCrit = array.new<bool>()
+                                array.push(hDir,  int(smcSwBias[off]))               // صوت SMC عند بار الإشارة (تاريخيّ، لا look-ahead)
+                                array.push(hStr,  smcSwEv[off] != 0 ? 2.0 : 1.0)
+                                array.push(hCrit, smcCritical)
+                                [hAg, hOp, hNe, hVt] = jwconf.f_rate(sd, hDir, hStr, hCrit, confUseVeto)
+                                hStar := (hAg > 0 ? str.repeat("★", hAg) : "") + (hVt ? "⛔" : "")
+                        label.set_text(lb, (uiLang == "AR / عربيّة") ? (hStar + marker + body) : (body + marker + hStar))   // [حسم المالك] ترتيب حسب اللغة ⇒ ★ يمين الكلمة بصريًّا في الاثنتين (RTL يعكس السلسلة)
         // [م-إش-2ج · حسم المالك 2026-07-20] شبكة SL/TP = **الصفقة الحيّة** (liveActive): دخول **داخل المنطقة** (لا كسر متأخّر) · تبقى من بار الدخول حتّى بلوغ الوقف/الهدف الأخير ثمّ تُخفى تلقائيًّا (الوسوم ✦/⚠ التاريخيّة تبقى). الحالة تُحدَّث في كتلة اللوحة.
         for ln in sigLvLines
             line.delete(ln)
