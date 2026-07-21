@@ -1,0 +1,186 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════════════════
+// JW_Signals — ط4-ج / م-إش: طبقة إصدار الإشارات (نقل حرفيّ من J-Waves-M1 v2.66.0)
+//   3 دوالّ مُصدَّرة:
+//     • f_emitDegSignals — إشارات الدرجات (تطرّف داخل منطقة + تأكيد كسر N+1 + بوّابة المرحلة) ⇒ ✦/⚠ + RR
+//     • f_emitExit       — الفرصة الثالثة (كسر ثمّ إعادة اختبار ثمّ ارتداد) ⇒ ✦
+//     • f_sigLvl         — شبكة الوقف/الأهداف الحيّة (خطّ متقطّع + وسم مسعّر)
+//   🔴 تكافؤ سلوكيّ صارم مع المؤشّر (v2.66.0): الرسم داخل المكتبة (كـJW_Zones/JW_Lines)، الحالة/المدخلات تُمرَّر وسائط.
+//   الاعتماديّات المُعمَّمة (كانت عالميّة في المؤشّر):
+//     zTop/zBot (مصفوفتا المناطق) · sigLabels (مخرَج، تُدفَع فيه الوسوم) · confWin/minRR/maxTradesL2/useDistrib/sigLvlExt (قيَم)
+//     · isAR (اللغة، بدل f_t) · aCov (تغطية **مُحسَبة مسبقًا** في المؤشّر بـf_coveredAt — بدل تكرار قانون التغطية هنا).
+//   يستورد JW_Conclusions لبوّابة المرحلة عند التطرّف (jwc.f_phaseAt). لا نمط «UDT محلّيّ + method» ⇒ آمن من فخّ ترجمة المكتبات.
+//   OHLC/bar_index/barstate/timeframe/format.mintick تعمل على سياق المؤشّر المستدعِي (v6).
+// ════════════════════════════════════════════════════════════════════════════
+library("JW_Signals", overlay = true)
+import Jassar_Mahmoud/JW_Conclusions/13 as jwc
+
+// مبدِّل لغة داخليّ (بديل f_t المؤشّر — عرض بحت)
+lt(bool isAR, string ar, string en) => isAR ? ar : en
+
+// ─── [م-إش-2ب · الشكل] خطّ متقطّع ممتدّ يمينًا + وسم مسعّر عند مستوى — يدفع لـlns/mks (تنظيفهما في المؤشّر) ───
+export f_sigLvl(array<line> lns, array<label> mks, int bx, float price, string glyph, string name, color col, int sigLvlExt) =>
+    int rightX = bar_index + sigLvlExt                                                                                                                     // الطرف الأيمن = الشمعة الأخيرة + الامتداد — لا امتداد لا نهائيّ
+    array.push(lns, line.new(bx, price, rightX, price, xloc = xloc.bar_index, color = col, width = 1, style = line.style_dashed))                            // قطعة متقطّعة من الدخول (bx) إلى rightX
+    array.push(mks, label.new(rightX, price, glyph + " " + name + "  " + str.tostring(price, format.mintick), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_left, color = col, textcolor = color.white, size = size.small))
+
+// ─── [ط4-ج] إشارات الدرجات: تطرّف فعّال غير مُغطّى داخل منطقة بالاتجاه ⇒ شراء/بيع (✦أساسية/⚠مخاطرة) + RR + tooltip. الهدف = منطقة الدرجة التالية ⇒ التدرّج تلقائيّ ───
+//   aCov = قناع التغطية لكلّ نقطة (مُحسَب في المؤشّر بـf_coveredAt) · upBar/upTop/upPrc/upEff = الدرجة N+1 (مرجع تأكيد الكسر) · يُرجِع آخر إشارة غير مؤجّلة (للشبكة الحيّة).
+export f_emitDegSignals(array<int> aBar, array<bool> aTop, array<float> aPrc, array<bool> aEff, array<bool> aCov, int sigDir, int hL1, string degNm, int wdirDeg, array<int> upBar, array<bool> upTop, array<float> upPrc, array<bool> upEff, array<float> zTop, array<float> zBot, array<label> sigLabels, int confWin, float minRR, int maxTradesL2, bool useDistrib, bool isAR) =>
+    int  nps = array.size(aBar)
+    int  nzs = array.size(zTop)
+    bool wantBot = sigDir == 1
+    int  gLo = math.max(hL1, bar_index - 500)                                                        // [2-ب] حدّ أداء: البوّابة/التأكيد لآخر ≤500 بار (كـf_emitExit)
+    int  emitOrder = 0                                                                                // [G-S3] ترتيب الإشارة ضمن الموجة الجارية (الحلقة من hL1=segLefts[0] ⇒ تصفير بنيويّ عند التجدّد) — الثالثة+ مؤجّلة
+    int   lastEmB  = -1                                                                               // [م-إش-2ب · أ74] آخر إشارة **غير مؤجّلة** مُطلَقة (لشبكة SL/TP التي تتبع آخر إشارة)
+    float lastEmE  = na
+    float lastEmZT = na
+    float lastEmZB = na
+    int   lastEmUp = 0
+    for si = 0 to (nps > 0 ? nps - 1 : 0)
+        if nps > 0 and array.get(aEff, si) and array.get(aBar, si) >= hL1 and not array.get(aCov, si)   // فعّال + غير مُغطّى (aCov مُحسَبة في المؤشّر بـf_coveredAt — اتّساق مع المناطق/خطوط m.A)
+            float pp   = array.get(aPrc, si)
+            bool  isT  = array.get(aTop, si)
+            int   sBar = array.get(aBar, si)
+            int   ob   = bar_index - sBar
+            if ((wantBot and not isT) or ((not wantBot) and isT)) and ob >= 0 and sBar >= gLo
+                float zbC = na
+                float ztC = na
+                for zi = 0 to nzs - 1
+                    if pp <= array.get(zTop, zi) and pp >= array.get(zBot, zi)
+                        ztC := array.get(zTop, zi)
+                        zbC := array.get(zBot, zi)
+                if not na(zbC)
+                    // [G-S1 · شرط الانعكاس L2-04 س34] مرجع التأكيد = آخر قمّة/قاع فعّالة من الدرجة **N+1** (upBar) قبل التطرّف — لا نفس الدرجة. شراء⇒آخر قمّة N+1 «في الهبوط» · بيع⇒آخر قاع N+1.
+                    float refPx = na
+                    int   nUp = array.size(upBar)
+                    if nUp > 0
+                        for uj = nUp - 1 to 0
+                            if array.get(upEff, uj) and array.get(upBar, uj) < sBar and array.get(upTop, uj) == wantBot
+                                refPx := array.get(upPrc, uj)
+                                break
+                    // [2-ب · شروط الانعكاس] شمعة التأكيد cB = أوّل إغلاق **مُغلَق** (ok≥1، لا وميض) يكسر refPx باتجاه الصفقة بعد التطرّف (خلال confWin)
+                    int cB   = -1
+                    int kEnd = math.min(bar_index, sBar + confWin)
+                    if not na(refPx) and kEnd >= sBar + 1
+                        for k = sBar + 1 to kEnd
+                            int ok = bar_index - k
+                            if (ok >= 1 or (ok == 0 and barstate.isconfirmed)) and cB < 0 and (wantBot ? (close[ok] > refPx) : (close[ok] < refPx))   // [أ97] يقبل الشمعة الجاريّة **المُغلَقة** (isconfirmed) ⇒ الإشارة تظهر لحظة تأكيد الكسر لا بعده بشمعة · الشمعة غير المُغلَقة تبقى مُستبعَدة (لا وميض)
+                                cB := k
+                    if cB >= 0
+                        int  phAt  = jwc.f_phaseAt(aBar, aTop, aEff, wdirDeg, sBar, useDistrib)                       // [2-ب · بوّابة G2] المرحلة عند **التطرّف** (عمق التصحيح) — لا عند الكسر (فالكسر = مشاركة مستأنَفة)
+                        bool okPh  = phAt >= 1                                                         // [توحيد] تصحيح فعليّ فقط {ذعر1·يأس2·تجميع3·تصريف4} — يتخطّى المشاركة(0) الترند و«لا سيولة»(-1)
+                        bool basic = phAt >= 2                                                        // يأس/تجميع/تصريف (نضج ≥2) ⇒ ✦أساسيّة · ذعر(1) ⇒ ⚠مخاطرة (المشاركة 0 مُستبعَدة بـokPh)
+                        if okPh
+                            int    cOff = bar_index - cB
+                            float  eC   = close[cOff]                                                 // الدخول = إغلاق شمعة الكسر (لا التطرّف)
+                            string mk   = basic ? "✦" : "⚠"
+                            if wantBot
+                                float e = eC
+                                float s = pp                                                          // [G4] الوقف = التطرّف (أحدث قاع داخل المنطقة، لا حافّة الصندوق)
+                                float t = na
+                                for zi = 0 to nzs - 1
+                                    if array.get(zBot, zi) > e
+                                        t := na(t) or array.get(zBot, zi) < t ? array.get(zBot, zi) : t
+                                float  rr = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
+                                string tp = lt(isAR, "درجة: ", "Degree: ") + degNm + lt(isAR, " · نوع: ", " · Type: ") + (basic ? lt(isAR, "أساسية", "Basic") : lt(isAR, "عالية مخاطرة", "High-risk")) + lt(isAR, "\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + lt(isAR, "\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + lt(isAR, "\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+                                if not na(t) and e > s and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · الدخول فوق الوقف (شراء) · [بوّابة RR]
+                                    emitOrder := emitOrder + 1
+                                    bool dfr = emitOrder > maxTradesL2                                    // [G-S3] الثالثة+ في الموجة الجارية ⇒ مؤجّلة (L2-04: لا ثالثة في م2)
+                                    if not dfr                                                           // [م-إش-2ب · أ74] تتبّع آخر إشارة غير مؤجّلة (الحلقة تصاعديّة ⇒ آخر إسناد = الأحدث)
+                                        lastEmB := cB
+                                        lastEmE := e
+                                        lastEmZT := ztC
+                                        lastEmZB := zbC
+                                        lastEmUp := 1
+                                    array.push(sigLabels, label.new(cB, e, (dfr ? lt(isAR, "م٣", "T3") : mk) + lt(isAR, "شراء", "Buy") + (dfr ? lt(isAR, " مؤجّل", " def") : ""), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = dfr ? color.new(#787B86, 20) : (basic ? #089981 : #66BB6A), textcolor = color.white, size = size.small, tooltip = tp))
+                                    if not na(rr)
+                                        color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
+                                        array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
+                            else
+                                float e = eC
+                                float s = pp                                                          // [G4] الوقف = التطرّف (أحدث قمّة داخل المنطقة، لا حافّة الصندوق)
+                                float t = na
+                                for zi = 0 to nzs - 1
+                                    if array.get(zTop, zi) < e
+                                        t := na(t) or array.get(zTop, zi) > t ? array.get(zTop, zi) : t
+                                float  rr = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
+                                string tp = lt(isAR, "درجة: ", "Degree: ") + degNm + lt(isAR, " · نوع: ", " · Type: ") + (basic ? lt(isAR, "أساسية", "Basic") : lt(isAR, "عالية مخاطرة", "High-risk")) + lt(isAR, "\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + lt(isAR, "\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + lt(isAR, "\nالهدف: ", "\nTarget: ") + (na(t) ? "—" : str.tostring(t, format.mintick)) + "\nR:R = " + (na(rr) ? "—" : str.tostring(rr, "#.##"))
+                                if not na(t) and s > e and (minRR <= 0 or (not na(rr) and rr >= minRR))   // 🔴 لا إشارة بلا هدف · الوقف فوق الدخول (بيع) · [بوّابة RR]
+                                    emitOrder := emitOrder + 1
+                                    bool dfr = emitOrder > maxTradesL2                                    // [G-S3] الثالثة+ ⇒ مؤجّلة
+                                    if not dfr                                                           // [م-إش-2ب · أ74] تتبّع آخر إشارة غير مؤجّلة
+                                        lastEmB := cB
+                                        lastEmE := e
+                                        lastEmZT := ztC
+                                        lastEmZB := zbC
+                                        lastEmUp := -1
+                                    array.push(sigLabels, label.new(cB, e, (dfr ? lt(isAR, "م٣", "T3") : mk) + lt(isAR, "بيع", "Sell") + (dfr ? lt(isAR, " مؤجّل", " def") : ""), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = dfr ? color.new(#787B86, 20) : (basic ? #F23645 : #E57373), textcolor = color.white, size = size.small, tooltip = tp))
+                                    if not na(rr)
+                                        color rc = rr >= 2 ? #089981 : rr >= 1 ? #FF9800 : #F23645
+                                        array.push(sigLabels, label.new(cB, e, "RR " + str.tostring(rr, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rc, textcolor = color.white, size = size.tiny, tooltip = tp))
+    [lastEmB, lastEmE, lastEmZT, lastEmZB, lastEmUp]                                                  // [م-إش-2ب] آخر إشارة (بار·دخول·حافّتا المنطقة·اتجاه)
+
+// ─── [ط4-ج — الفرصة الثالثة] إشارة الخروج: كسر مؤكَّد خلف منطقة ثمّ إعادة اختبار الحافّة ثمّ ارتداد ⇒ ✦ خروج (مرّة واحدة لكلّ منطقة) ───
+export f_emitExit(int sigDir, int fromBar, array<float> zTop, array<float> zBot, array<label> sigLabels, float minRR, bool isAR) =>
+    int  nzx = array.size(zTop)
+    bool oneBarE = timeframe.in_seconds() >= 900
+    if nzx > 0 and sigDir != 0
+        for z = 0 to nzx - 1
+            float zt = array.get(zTop, z)
+            float zb = array.get(zBot, z)
+            // [خروج · المرحلة1 · الكسر] bBrk = أوّل كسر مؤكَّد خلف المنطقة (شمعة صحيحة على >15د · شمعتان على ≤15د، مُغلَقة)
+            int bBrk = -1
+            for b = fromBar to bar_index - 1
+                int o = bar_index - b
+                if o >= 1 and o + 1 <= bar_index and bBrk < 0
+                    bool vR  = close[o] < open[o] and (open[o] - close[o]) >= (high[o] - open[o]) and (open[o] - close[o]) >= (close[o] - low[o])
+                    bool vG  = close[o] > open[o] and (close[o] - open[o]) >= (high[o] - close[o]) and (close[o] - open[o]) >= (open[o] - low[o])
+                    bool vR1 = close[o+1] < open[o+1] and (open[o+1] - close[o+1]) >= (high[o+1] - open[o+1]) and (open[o+1] - close[o+1]) >= (close[o+1] - low[o+1])
+                    bool vG1 = close[o+1] > open[o+1] and (close[o+1] - open[o+1]) >= (high[o+1] - close[o+1]) and (close[o+1] - open[o+1]) >= (open[o+1] - low[o+1])
+                    bool redN2 = oneBarE ? vR : (vR and vR1)
+                    bool grnN2 = oneBarE ? vG : (vG and vG1)
+                    if sigDir == -1 and redN2 and (high[o] >= zb or high[o+1] >= zb) and close[o] < zb and (oneBarE or close[o+1] < zb)   // كسر تحت المنطقة (بيع)
+                        bBrk := b
+                    if sigDir == 1 and grnN2 and (low[o] <= zt or low[o+1] <= zt) and close[o] > zt and (oneBarE or close[o+1] > zt)      // كسر فوق المنطقة (شراء)
+                        bBrk := b
+            // [خروج · المرحلة2 · إعادة اختبار+ارتداد] بعد الكسر: أوّل شمعة مُغلَقة يلمس ذيلها الحافّة المكسورة وتُغلِق ثانيةً خلفها ⇒ إشارة **واحدة**
+            if bBrk >= 0 and bBrk + 1 <= bar_index - 1
+                int bRj = -1
+                for b = bBrk + 1 to bar_index - 1
+                    int o = bar_index - b
+                    if o >= 1 and bRj < 0
+                        if sigDir == -1 and high[o] >= zb and close[o] < zb                                                             // بيع: لمس zb (صارت مقاومة) ثمّ إغلاق تحته (ارتداد)
+                            bRj := b
+                        if sigDir == 1 and low[o] <= zt and close[o] > zt                                                               // شراء: لمس zt (صار دعمًا) ثمّ إغلاق فوقه (ارتداد)
+                            bRj := b
+                if bRj >= 0
+                    int oj = bar_index - bRj
+                    if sigDir == -1
+                        float t = na
+                        for z2 = 0 to nzx - 1
+                            if array.get(zTop, z2) < close[oj]
+                                t := na(t) or array.get(zTop, z2) > t ? array.get(zTop, z2) : t
+                        float e   = close[oj]                                  // الدخول = إغلاق شمعة الارتداد
+                        float s   = zt                                         // الوقف = أعلى المنطقة المكسورة
+                        float rrx = (not na(t) and s > e and e > t) ? (e - t) / (s - e) : na
+                        if not na(t) and s > e and (minRR <= 0 or (not na(rrx) and rrx >= minRR))   // [بوّابة RR]
+                            string tpx = lt(isAR, "خروج بيع (كسر+ارتداد)", "Exit Sell (break+retest)") + lt(isAR, "\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + lt(isAR, "\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + lt(isAR, "\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
+                            array.push(sigLabels, label.new(bRj, e, "✦" + lt(isAR, "بيع", "Sell"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = #F23645, textcolor = color.white, size = size.small, tooltip = tpx))
+                            if not na(rrx)
+                                color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
+                                array.push(sigLabels, label.new(bRj, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
+                    else
+                        float t = na
+                        for z2 = 0 to nzx - 1
+                            if array.get(zBot, z2) > close[oj]
+                                t := na(t) or array.get(zBot, z2) < t ? array.get(zBot, z2) : t
+                        float e   = close[oj]                                  // الدخول = إغلاق شمعة الارتداد
+                        float s   = zb                                         // الوقف = أسفل المنطقة المكسورة
+                        float rrx = (not na(t) and t > e and e > s) ? (t - e) / (e - s) : na
+                        if not na(t) and t > e and (minRR <= 0 or (not na(rrx) and rrx >= minRR))   // [بوّابة RR]
+                            string tpx = lt(isAR, "خروج شراء (كسر+ارتداد)", "Exit Buy (break+retest)") + lt(isAR, "\nالهدف: ", "\nTarget: ") + str.tostring(t, format.mintick) + lt(isAR, "\nالدخول: ", "\nEntry: ") + str.tostring(e, format.mintick) + lt(isAR, "\nالوقف: ", "\nStop: ") + str.tostring(s, format.mintick) + "\nR:R = " + (na(rrx) ? "—" : str.tostring(rrx, "#.##"))
+                            array.push(sigLabels, label.new(bRj, e, "✦" + lt(isAR, "شراء", "Buy"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_up, color = #089981, textcolor = color.white, size = size.small, tooltip = tpx))
+                            if not na(rrx)
+                                color rcx = rrx >= 2 ? #089981 : rrx >= 1 ? #FF9800 : #F23645
+                                array.push(sigLabels, label.new(bRj, e, "RR " + str.tostring(rrx, "#.##"), xloc = xloc.bar_index, yloc = yloc.price, style = label.style_label_down, color = rcx, textcolor = color.white, size = size.tiny, tooltip = tpx))
