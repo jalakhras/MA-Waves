@@ -15,51 +15,14 @@ import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.88.0 [م-إش-3 · كبح نموّ الملفّ — حسم المالك] — سؤال المالك «لماذا يكبر الملفّ ونحن نشطر طبقات؟»: الحساب في المكتبات (رقيق)، لكنّ طبقة العرض/التوصيل (مدخلات+رسم+تنبيه) **مؤشّريّة بالضرورة** (المكتبة بيانات فقط). خطوتان: (1) **تقليم سجلّ التغييرات** (v2.85.2→v1.09 مطويّ، محفوظ في git log) −39 سطرًا · (2) **تعميم رسم مستويات الاستراتيجيّات** في `f_drawStratLevels` (مصفوفات handle كنمط f_drawSesBox) بدل 14 مقبضًا مكرّرًا −40 سطرًا ⇒ **إضافة استراتيجيّة = 3 مصفوفات + نداء** (نموّ مستقبليّ شبه ثابت). المجموع 2632→2553 سطرًا. سلوك/مظهر مطابق حرفيًّا (نفس الصناديق/الخطوط/الشفافيّات/الترتيب) · pine_check نظيف (0/0). ═══
 // ═══ v2.87.1 [م-إش-3 · مفاتيح إظهار/إخفاء خاصّة بكلّ استراتيجيّة — حسم المالك] — تحكّم كامل بالازدحام: بدل مفتاحَي «الوسوم/المستويات» العامَّين، صار **لكلّ استراتيجيّة صفّها الثلاثيّ** في القسم الموحّد: **تفعيل + وسوم + مستويات** (inline). IDM: `idmEnable` + `idmShowMarks` (إظهار الوسوم — الاسم/الاتّجاه/النجوم) + `idmShowLevels` (إظهار مستويات الصفقة Entry/SL/TP). **مستقلّان**: تُخفى الوسوم مع إبقاء المستويات أو العكس (حالة IDM تُخزَّن دائمًا ⇒ المستويات تعمل حتّى مع إخفاء الوسوم). المظهر (ألوان TP/SL/Entry + الامتداد) يبقى **موحّدًا** لكلّ الاستراتيجيّات. إضافة استراتيجيّة = صفّ ثلاثيّ مماثل. عرض/تنظيم بحت · النواة/التقييم لا يُمَسّان · A/B مطلق · pine_check نظيف (0/0). ملاحظة: إشارات M-Waves الأصليّة لها تحكّمها المكافئ أصلًا (showSigMain/showSigSub للوسوم · showSigLevels للمستويات). ═══
 // ═══ v2.87.0 [م-إش-3 · تعميق تقييم IDM — M-Waves + الجلسات مصوّتان — حسم المالك] — إشارة IDM كانت تُقيَّم بـSMC+الزخم فقط (per-bar). الآن **آخر إشارة IDM يُعاد تقييمها في `islast`** بعد جهوز حالة الدرجات، بإضافة: (1) صوت **M-Waves** (اتّجاه المستوى الكبير `bActVg` — المرساة الأثقل، وزن 2، بلا veto) · (2) صوت **سيولة الجلسات** (قمّة/قاع جلسة كبرى سابقة داخل نطاق الدخول↔الوقف ⇒ بِركة سيولة تعزّز الكنس). أصوات SMC/الزخم تُقرأ عند بار الإشارة عبر `[loff]` (تناظر الكتلة الحيّة، لا look-ahead، ضمن max_bars_back 500). ⇒ نجوم آخر IDM تعكس **كلّ المصادر** (M-Waves+SMC+الزخم+الجلسات). الإشارات التاريخيّة تبقى بنجوم SMC+الزخم (M-Waves لا سلسلة اتّجاه per-bar تاريخيّة — صادق لا تلفيق). عرض بحت · النواة/IDM لا يُمَسّان · A/B مطلق (خلف idmEnable). pine_check نظيف (0/0). ═══
 // ═══ v2.86.2 [م-إش-3 · قسم موحّد لإشارات الاستراتيجيّات — حسم المالك] — قسم مستقلّ **«🎛 إشارات الاستراتيجيّات»** (أعلى، بعد «عامّ»): (1) مفتاح رئيسيّ `showStrat` يُظهر/يُخفي الكلّ · (2) **مفتاح لكلّ استراتيجيّة** (نُقِل `idmEnable` إليه؛ إضافة استراتيجيّة = سطر واحد) · (3) **رسم مستويات الصفقة موحّد** `showStratLevels` + ألوان مشتركة (TP/SL/Entry) + امتداد — نفس الشكل لكلّ الاستراتيجيّات. مجموعة «🎯 الإغراء» صارت معاملات IDM التفصيليّة فقط. عرض/تنظيم بحت · صفر أثر على المنطق (النواة + A/B). pine_check نظيف (0/0). ═══
 // ═══ v2.86.1 [م-إش-3 · IDM بشكل الأصل — خيار — حسم المالك] — أُضيف مفتاح `idmFullDraw` (مطفأ): يرسم لآخر إشارة IDM **مستويات الصفقة كاملةً كالمؤشّر الأصليّ** (Inducement Engine): صناديق الوقف/الدخول/الأهداف بتدرّج شفافيّة + خطوط أفقيّة مسعّرة Entry/SL/TP1/2/3 عند الحافّة اليمنى + ألوان (TP/SL/Entry) + امتداد. صفقة واحدة نشطة (تُمسَح/تُعاد كلّ islast · لا زحام تاريخيّ). مطفأ ⇒ الشكل الحاليّ المقتضب (الوسم فقط) يبقى تمامًا. عرض بحت · النواة لا تُمَسّ (A/B). ═══
 // ═══ v2.86.0 [م-إش-3 · دفعة الإغراء IDM — التلاقي متعدّد الاستراتيجيّات] — أوّل **استراتيجيّة مُقيَّمة** عبر **JW_Inducement/1** (نقل «كنس الإغراء» Inducement Engine [MarkitTick] · بيانات فقط · © MarkitTick): (1) حساب إشارة IDM كلّ بار (اتّجاه/دخول/وقف/أهداف/موقف) · (2) **رسمها معنونةً «IDM شراء/بيع»** عند بار كنسها بمعلومات صفقتها هي (لا زون M-Waves) · (3) **تقييمها بنجوم SMC + الزخم** (per-bar عند بار الإشارة، jwconf.f_rate — IDM لا يصوّت على نفسه). مجموعة «🎯 الإغراء» خلف `idmEnable` مطفأ ⇒ **A/B مطلق** (النواة وتصويت M-Waves لم يُمَسّا). النموذج (حسم المالك): كلّ استراتيجيّة تُطلِق إشاراتها باسمها بأمانتها، والتقييم بالنجوم حسب بقيّة المصادر. (M-Waves/الجلسات كمصوّتَين على IDM + تاريخيّة IDM = دفعات تالية.) ═══
 // ═══ v2.85.3 [م-إش-3 · تنبيه مقتضَب — حسم المالك] — رسالة `alert()` أُعيد تنسيقها: **الاسم + القوّة + معلومات الصفقة المهمّة فقط** (M-Waves شراء/بيع ✦/⚠ ★★★ [⛔] · دخول · وقف · هدف · RR). حُذِف الحشو؛ أُبقيت العناصر التنفيذيّة للصفقة بطلب المالك («أضِف المعلومات المهمّة للصفقة»). عرض بحت · لا نشر مكتبة · النواة لا تُمَسّ. ═══
-// ═══ v2.85.2 [م-إش-3 · أوقات الجلسات النهائيّة (الأردن · US100) — حسم المالك] — ثُبِّتت افتراضات المالك: **نيويورك 16:30–00:00** (= فتح الناسداك 09:30 ET بتوقيت الأردن، صيف أمريكا · شتاءً يُزاح +1 ⇒ 17:30) · **لندن 10:00–16:30** (تسليم نظيف لنيويورك) · طوكيو 03:00–12:00 · سيدني 00:00–09:00. تشخيص الجذر (لقطة المالك): «Use exchange timezone» كان مفعّلًا فيتجاهل إزاحة +3 ⇒ الصناديق مُزاحة؛ إطفاؤه حلّها. لا إعادة نشر مكتبة (مدخلات فقط). ═══
-// ═══ v2.85.1 [م-إش-3 · الجلسات بتوقيت الأردن افتراضًا — حسم المالك] — أوقات الجلسات الافتراضيّة حُوِّلت لتوقيت الأردن UTC+3 (نيويورك 1600-0100 · لندن 1000-1900 · طوكيو 0300-1200 · سيدني 0000-0900) + إزاحة UTC الافتراضيّة صارت +3 ⇒ الأرقام في الإعدادات تُقرأ بساعة المالك مباشرةً. 🔴 **المواضع لم تتغيّر** (الإزاحة+الأوقات معًا تحفظان نفس اللحظات المطلقة = 13-22 UTC…): الجلسات كانت صحيحة أصلًا؛ التغيير عرضيّ (أرقام مقروءة) لا موضعيّ. لا إعادة نشر مكتبة. ═══
-// ═══ v2.85.0 [م-إش-3 · دفعة الجلسات Sessions — فرع m3/confluence-sources] — مصدر تلاقٍ ثالث عبر **JW_Sessions/1** (نقل LuxAlgo Sessions · f_sessionState يُرجِع حالة الجلسة+مداها · بيانات فقط · © LuxAlgo CC BY-NC-SA). المؤشّر: (1) **رسم صناديق مدى** 4 جلسات (نيويورك/لندن/طوكيو/سيدني · مفتاح إظهار + اسم + وقت UTC + لون + «كبرى» لكلٍّ) · (2) **تلاقي سيولة**: قمّة/قاع جلسة كبرى **سابقة** (بِركة سيولة مؤرّخة) داخل منطقة الدخول ⇒ +نجمة (المميّز غير المكرّر · كتلاقي OB) · (3) **بوّابة نشاط** اختياريّة: إشارة في الوقت الميّت (لا جلسة كبرى نشطة) ⇒ ⛔veto. 🔴 التوقيت مرجعٌ ثابت (UTC افتراضًا / أو توقيت البورصة) لا توقيت المستخدم. مجموعة «🕐 الجلسات» أسفل الزخم · التصويت خلف `sesEnable` مطفأ (A/B). عرض/تقييم بحت · النواة لا تُمَسّ. (الحيّة أوّلًا · التاريخيّة لاحقًا كـSMC/الزخم.) ═══
-// ═══ v2.84.1 [إصلاح انهيار — JW_SMC/13] — استيراد **JW_SMC/13**: إصلاح خطأ وقت تشغيل «array.slice Index 1 out of bounds» على bar 0 في `f_smcMtfLevel` (المستوى MTF يُحسَب بلا شرط حتّى لو المفتاح مطفأ). السبب: `binary_search_rightmost` قد يُرجِع فهرسًا خارج الحدود حين قيمة البحث أكبر من كلّ عناصر المصفوفة الصغيرة (bar 0) ⇒ قُيِّد leftIndex/rightIndex + حارس شريحة. ظهر على تطبيق TradingView لا المتصفّح. لا تغيّر سلوكيّ بعد التراكم. النواة/الزخم لا تُمَسّ. ═══
-// ═══ v2.84.0 [م-إش-3ج · نجوم الزخم على الإشارات التاريخيّة — تناظر الدفعتين] — أصوات الزخم (EMA/SMA/VWAP/RSI + veto تطرّف RSI) صارت تُلحِق ★ على الإشارات **التاريخيّة** (✦/⚠ عبر الشارت) كـSMC تمامًا: post-process يقرأ `momEmaDir[off]/…` **عند بار كلّ إشارة** (فهرسة زمنيّة، لا look-ahead) عبر `max_bars_back(...,500)` للسلاسل الستّ. الكتلة تعمل الآن لـ`smcEnable or momEnable` (كلّ مصدر خلف مفتاحه ⇒ A/B). كان الزخم يصوّت على الحيّة فقط. عرض بحت · jws يبقى مولّدًا نقيًّا · النواة لا تُمَسّ. ═══
-// ═══ v2.83.1 [م-إش-3 · الزخم في لوحة القرار — حسم المالك] — دُمِجت معلومات الزخم في **لوحة القرار** (صفّان: «الزخم RSI» قيمة+تشبّع · «المتوسّطات E·S·V» اتجاهات EMA/SMA/VWAP مجمَّعة ▲▼) بدل لوحة منفصلة (حُذِفت momTbl + مدخلا الموضع/الخلفيّة). خلف مفتاح `momShowPanel` مستقلّ (إخفاء بإطفائه · يتطلّب لوحة القرار). عرض بحت — النواة/الأصوات لا تُمَسّ. تحقُّق الزخم السابق: RSI مطابق (JW RSI 68.22 ≈ MOM 68.28 · فارق الشمعة الحيّة) · الأصوات الأربعة تعمل. ═══
-// ═══ v2.83.0 [م-إش-3 · دفعة الزخم Momentum — الهدف الأصليّ §8] — مصدر تلاقٍ ثانٍ: EMA/SMA/VWAP/RSI عبر **JW_Momentum/1** (`f_momentum` يُرجِع القيم+الاتجاهات+تشبّع RSI · المكتبة بيانات فقط). المؤشّر: (1) **رسم** خطوط EMA/SMA/VWAP على السعر — **مفتاح إظهار مستقلّ لكلّ مؤشّر** (حسم المالك) · (2) **لوحة زخم** (RSI + تشبّعه + الاتجاهات؛ بديل لوحة RSI السفليّة لأنّ المؤشّر overlay) · (3) **أصوات تلاقٍ حيّة**: كلّ مؤشّر يصوّت (نجمة لكلّ موافق) + تطرّف RSI (شراء+تشبّع↑ / بيع+تشبّع↓) = ⛔veto. مجموعة «🎚 الزخم / Momentum» أسفل SMC · التصويت خلف `momEnable` مطفأ (A/B). عرض/تقييم بحت · النواة لا تُمَسّ. (التاريخيّة تأخذ نجوم الزخم لاحقًا كـSMC-3ج.) ═══
-// ═══ v2.82.1 [م-إش-3 · تنظيم مدخلات SMC — حسم المالك] — مجموعة التلاقي أُعيدت تسميتها **«🧠 SMC / Smart Money Concepts»** ونُقِلت **أسفل مجموعة إليوت** (ترتيب داخليّ منطقيّ: تصويت/معايير عامّة ← بنية BOS/CHoCH ← EQH/EQL ← Strong/Weak ← Order Blocks ← FVG ← Premium/Discount ← MTF ← HH/HL/LH/LL). تنظيم/عرض بحت — صفر أثر على المنطق (نفس المتغيّرات/القيم/المفاتيح؛ تغيّر ترتيب التصريح ونصّ المجموعة فقط · لا إعادة نشر مكتبة). تحقُّق HH/HL السابق: التصنيف يطابق تسلسل المستويات حرفًا (8/8). ═══
-// ═══ v2.82.0 [م-إش-3 · دفعة HH/HL/LH/LL — طبقة SMC مكتملة] — وسوم بنية السوق (Higher-High/Lower-High/Higher-Low/Lower-Low): **كلّ التصنيف في JW_SMC/12** (`f_smcSwingHL` — نقل LuxAlgo getCurrentStructure: قاع جديد أدنى⇒LL وإلّا HL · قمّة أعلى⇒HH وإلّا LH · على آلة f_leg نفسها، تحفظ المستوى السابق)؛ المؤشّر **يرسم فقط** (وسم عند كلّ نقطة سوينغ، خلف مفتاح مطفأ · حارس ~50). **بهذا تكتمل طبقة تلاقي SMC**: بنية BOS/CHoCH · EQH/EQL · Strong/Weak · OB · FVG · Premium/Discount · MTF · HH/HL — كلّها في JW_SMC، المؤشّر يرسم. عرض بحت · النواة لا تُمَسّ. تحقُّق MTF السابق: PDH/PDL·PWH/PWL مطابق للبيانات الحقيقيّة حرفًا. ═══
-// ═══ v2.81.0 [م-إش-3 · دفعة MTF Levels] — مستويات الفريم الأعلى (قمّة/قاع اليوم/الأسبوع/الشهر السابق): **كلّ المنطق في JW_SMC/11** (`f_smcMtfLevel` — request.security lookahead_on لا إعادة رسم + تنقيح بار التطرّف بالبحث الثنائيّ + حارس «الفريم أعلى»)؛ المؤشّر **يرسم فقط** (خطّان + وسما PDH/PDL لكلّ فريم، خلف 3 مفاتيح مطفأة + نمط/لون). عرض بحت · النواة لا تُمَسّ. تحقُّق P/D السابق: مطابق حسابيًّا (علاوة 29780.834 · توازن 29081.998/28999.782 · خصم 28300.946). ═══
-// ═══ v2.80.1 [م-إش-3 · Premium/Discount ⇐ المكتبة] — **كلّ حساب P/D نُقِل إلى JW_SMC/10** (`f_smcPdZones` نقيّة: هندسة المناطق الثلاث من التطرّف الزاحف + الحارس) ⇒ المؤشّر **يرسم فقط** (حسم المالك: لا منطق SMC في الأساسيّ). + إصلاح تحذير `ta.cum` (إخراجه من الـternary في f_smcFVG ⇒ ثبات ta). سلوك P/D مطابق لـv2.80.0. النواة لا تُمَسّ. ═══
-// ═══ v2.80.0 [م-إش-3 · دفعة Premium/Discount] — مناطق العلاوة/التوازن/الخصم: نقل LuxAlgo drawPremiumDiscountZones حرفيًّا **من التطرّف الزاحف** (smcTrTop/Bot الذي تحسبه JW_SMC أصلًا — لا حساب/نشر جديد؛ الرسم في المؤشّر كـStrong/Weak). 3 مناطق (علاوة أعلى 5% · توازن وسط 5% · خصم أسفل 5%) خلف مفتاح `smcDrawPD` مطفأ + 3 ألوان. عرض بحت · النواة لا تُمَسّ. تحقُّق FVG السابق: مطابق للبيانات الخام (فجوتان 28808/28882 · 28655/28663). ═══
-// ═══ v2.79.0 [م-إش-3 · دفعة FVG] — فجوات القيمة العادلة: الكشف/الإبطال/العتبة في **JW_SMC/9** (`f_smcFVG` — كلّ منطق SMC في المكتبة، لا فوضى في الأساسيّ · نقل LuxAlgo حرفيًّا: عدم توازن 3 شموع + عتبة تلقائيّة `متوسط|تغيّر الجسم%|×2` + إبطال بالردم)؛ المؤشّر يرسم فقط (صندوقان نصفان) خلف مفتاح `smcDrawFVG` مطفأ + عتبة/عدد/امتداد/ألوان. عرض بحت · النواة لا تُمَسّ. ═══
-// ═══ v2.78.4 [م-إش-3 · رجوع خطّ التلاقي عبر المنطقة] — رجوعٌ لطريقة v2.78.2 (الخطّ يعبُر المنطقة بعرضها على الشموع، لا بادج في الفراغ — حسم المالك) مع إبقاء عرض 2 + نجوم size.normal ليبرز. ═══
-// ═══ v2.78.3 [م-إش-3 · إبراز بادج التلاقي — مرفوض] — بادج الخطّ+النجوم في الفراغ يمين المنطقة (رفضه المالك: عاد للخطّ العابر). ═══
-// ═══ v2.78.2 [م-إش-3 · خطّ+نجوم التلاقي] — المنطقة المتلاقية مع OB ⇒ **خطّ ذهبيّ متقطّع يعبُر المنطقة و★ في وسطه** (‪----★★★----‬ · نجمة لكلّ كتلة OB متراكبة، حدّ 3) بدل الوسم الجانبيّ ⬥ (حسم المالك: النجوم على خطّ أجمل). صندوق المنطقة يبقى كما هو. ═══
-// ═══ v2.78.1 [م-إش-3 · وسم تلاقي أنيق] — المنطقة المتلاقية مع OB ⇒ **⬥ ذهبيّ صغير عند الحافّة اليمنى + ★ لكلّ كتلة OB متراكبة** (قوّة التلاقي، حدّ 3) بدل الحدّ الذهبيّ السميك (كان غير جميل — حسم المالك). حدّ المنطقة يبقى كما هو · وسم واحد صغير لكلّ منطقة. حُذِف smcObZoneW. ═══
-// ═══ v2.78.0 [م-إش-3 · إبراز مناطق التلاقي — بلا زحام] — المنطقة المتلاقية مع OB (أيّ تراكب) تُبرَز **بحدّ ذهبيّ سميك على صندوقها نفسه** (box.set_border_* · صفر رسم جديد) بدل مستطيل رماديّ إضافيّ (أُسقِط). ★ القريبة على الإشارة تبقى. مدخلا لون/عرض الحدّ. حسم المالك: الأنظف للشارت. ═══
-// ═══ v2.77.0 [م-إش-3 · OB نقل 100%] — JW_SMC/**8**: f_smcOrderBlocks أُعيد نقلها **حرفيًّا** (سوينغ+داخليّة معًا · شرط internalHigh≠swingHigh + فلتر الشمعة للداخليّة · حدّ الشريحة يستبعد البار الحاليّ كـLuxAlgo). مفتاح «طبقة OB: داخليّة/سوينغ» (افتراض داخليّة = LuxAlgo الظاهر). التلاقي: تمييز مناطقنا المتلاقية فقط (رماديّ محتوى · ★ قريب). ═══
-// ═══ v2.76.1 [م-إش-3 · ضبط درجة OB] — طول بنية OB مدخلٌ مستقلّ `smcObSize` (افتراض **5 = الداخليّة**، يطابق رسم LuxAlgo الخام الظاهر) بدل تثبيته على السوينغ (50). التشخيص: LuxAlgo يرسم كتلًا داخليّة كثيرة صغيرة؛ نحن كنّا نرسم سوينغ قليلة كبيرة (مختلفة لا خاطئة). 5 للمطابقة · 50 للتلاقي الأوسع. ═══
-// ═══ v2.76.0 [م-إش-3 · دفعة Order Blocks — تلاقٍ لا زحام] — JW_SMC/**7** (f_smcOrderBlocks: كتل الطلب النشطة، نقل LuxAlgo storeOrdeBlock/deleteOrderBlocks). **الافتراض: لا رسم خام** — بدلًا: (1) كتلة **داخل منطقتنا** ⇒ مستطيل رماديّ صغير داخلها · (2) كتلة **متراكبة قريبة** ⇒ +★ على إشارة المنطقة (كصوت SMC ثانٍ). + مفتاح «رسم OB الخام» (مطفأ) + مرشّح/إبطال/عدد/ألوان. عرض بحت — النواة لا تُمَسّ. ═══
-// ═══ v2.75.2 [م-إش-3 · مطابقة موضع Strong/Weak] — الوسم عند **الحافّة اليمنى** (bar+20) + **خطّ** أفقيّ من التطرّف إليه (يطابق LuxAlgo drawHighLowSwings تمامًا؛ كان عند بار التطرّف). عرض بحت. ═══
-// ═══ v2.75.1 [م-إش-3 · إصلاح Strong/Weak] — Strong/Weak High/Low = **التطرّف الزاحف** لا نقطة السوينغ: JW_SMC/**6** (يطابق LuxAlgo updateTrailingExtremes — أعلى قمّة/أدنى قاع جاريان يُصفَّران لكلّ سوينغ جديد). كان v5 يُرجِع مستوى نقطة السوينغ (القمّة طابقت صدفةً؛ القاع انحرف: 29098 مقابل LuxAlgo 28218). عرض بحت. ═══
-// ═══ v2.75.0 [م-إش-3 · دفعة رسوم SMC/3] — Strong/Weak High/Low: JW_SMC/**5** (يُصدِّر قمّة/قاع السوينغ الحاليّ + بارَيهما؛ منطق f_smcStructure لم يُمَسّ) + مفتاح مستقلّ `smcDrawStrongWeak` (مفعّل) + كتلة رسم (وسمان حيّان يُحدَّثان كلّ بار على islast: Strong/Weak حسب swBias — قمّة قويّة إن الاتّجاه هابط، ضعيفة إن صاعد؛ وبالعكس للقاع). عرض بحت — النواة لا تُمَسّ. ═══
-// ═══ v2.74.0 [م-إش-3 · تفعيل رسوم SMC افتراضيًّا — حسم المالك] — smcDrawSwing/smcDrawInternal/smcDrawEqual/smcCritical صارت **مفعّلة افتراضيًّا** (لمقارنة مباشرة مع LuxAlgo بلا تبديل يدويّ)؛ **الفلتر (smcConfFilt) وحده يبقى مطفأً** (تفعيله يغيّر البنية الداخليّة كما شُخِّص). عرض بحت — النواة/الإشارة لا تُمَسّ (A/B عند smcEnable=false). ═══
-// ═══ v2.73.1 [إصلاح] — استيراد JW_SMC/**4** (حساب ta.crossover/crossunder كلّ بار بلا شرط ⇒ صفر تحذير «ta داخل شرط»؛ كانت متأخّرة في سلسلة and فقد يتخطّاها short-circuit). لا تغيّر سلوك. ═══
-// ═══ v2.73.0 [م-إش-3 · دفعة رسوم SMC/2] — EQH/EQL: JW_SMC/**3** (f_smcEqual — قمّتان/قاعان ضمن عتبة × ATR كـLuxAlgo) + مفتاح مستقلّ مطفأ + طول/عتبة + كتلة رسم (خطّ منقّط + وسم EQH/EQL · حارس ~50). تشخيص: فروق البنية الداخليّة سببها «فلتر التوافق» (افتراضنا مطفأ = يطابق LuxAlgo) لا خطأ نقل. ═══
-// ═══ v2.72.0 [م-إش-3 · دفعة رسوم SMC] — بنية BOS/CHoCH على الشارت: JW_SMC/**2** (يُرجِع مستوى+بار النقطة المكسورة) + مفاتيح مستقلّة مطفأة (رسم السوينغ/الداخليّة + ألوان) + كتلة رسم في المؤشّر (خطّ من النقطة إلى الكسر + وسم · على المُغلَقة فقط · حارس ~50). النواة لا تُمَسّ. ═══
-// ═══ v2.71.3 [م-إش-3ج·تحسين] — قلب النجمة: ترتيب **حسب اللغة** ليظهر ★ **يمين الكلمة** بصريًّا في العربيّة والإنجليزيّة معًا (RTL يعكس السلسلة ⇒ العربيّة تُبنى ★✦كلمة فتُرندَر كلمة✦★ · الإنجليزيّة كلمة✦★). حسم المالك. ═══
-// ═══ v2.71.2 [م-إش-3ج·تحسين] — ترتيب الوسم: **الكلمة ثمّ ✦/⚠ ثمّ النجوم** (`Sell✦★` · عربيًّا يُرندَر `★✦بيع` من سلسلة `بيع✦★` بالـRTL) لاتّساق ثنائيّ اللغة (حسم المالك). نُقِل ✦/⚠ من بادئة إلى بعد الكلمة في الحيّة + إعادة تشكيل التاريخيّة (str.substring). ═══
-// ═══ v2.71.1 [م-إش-3ج·تحسين] — موضع النجمة: **بعد كلمة بيع/شراء مباشرةً** (لا بعد RR) لاتّساق ثنائيّ اللغة عربيّ/إنجليزيّ (حسم المالك). التاريخيّة كانت كذلك أصلًا؛ وُحِّدت الحيّة. ═══
-// ═══ v2.71.0 [م-إش-3ج] — النجوم على الإشارات التاريخيّة (jws): post-process في المؤشّر (label.get_text/set_text) يحسب توافق المصادر **عند بار كلّ إشارة** ⇒ يُلحِق ★. jws يبقى نقيًّا (لا يُمَسّ/يُنشَر) · +max_bars_back للفهرسة الزمنيّة. ═══
-// ═══ v2.70.0 [م-إش-3ب] — النجوم: تقييم التلاقي على الإشارة الحيّة (jwconf.f_rate ⇒ ★ نجمة لكلّ مصدر موافق فقط، بلا نجوم إن لا توافق، + ⛔veto مُلحَقة بوسم ✦/⚠) + مدخلا smcCritical/confUseVeto. smcEnable افتراضه true (حسم المالك). عرض فقط · A/B عند الإطفاء (لا نجوم = الوسم كما كان). إشارات jws التاريخيّة تأخذ نجومها في 3ج. ═══
-// ═══ v2.69.0 [م-إش-3أ] — طبقة التلاقي (بدء): استيراد JW_SMC/1 + JW_Confluence/1 + قسم إعدادات مستقلّ «التلاقي» (grpConf · smcEnable مطفأ افتراضيًّا) + حساب صوت بنية SMC (قيم في Data Window). إضافيّ بحت · النواة لا تُمَسّ (ضمان A/B عند الإطفاء) · العرض/التقييم بالنجوم في 3ب. ═══
-// ═══ v2.68.0 — تنظيف الفصل: حُذِفت الأجسام المحلّيّة الميّتة الثلاث (f_emitDegSignals/f_emitExit/f_sigLvl) بعد نقلها لـJW_Signals/1 والتحقّق (A/B مطابق US100·60: ✦بيع RR 1.67/1.65/2.72). المؤشّر يستدعي jws.* حصرًا · مساعد f_covArr يبقى (قناع التغطية). ═══
-// ═══ v2.67.0 — فصل طبقة الإشارات ⇒ JW_Signals/1 (حسم المالك 2026-07-20): استيراد jws + استبدال نداءات f_emitDegSignals/f_emitExit/f_sigLvl بـjws.* (تكافؤ حرفيّ · التغطية بقناع f_covArr · اللغة/المناطق/المدخلات وسائط). ═══
-// ═══ v2.66.0 — تنظيف: رجوعٌ لنواة الاستراتيجية (حسم المالك 2026-07-20 · قبل فصل مكتبة JW_Signals): حُذِف **كلّ ما خارج النواة** — التشخيص (showSigDiag/ewDbg/dbgCov + عدّادات القمع cInZ/cCnf/cEmt) + التدقيق الذاتيّ (أ93/أ96: السجلّ tBar..tOut + الجداول) + المؤشّرات الأجنبيّة (أ95: EMA/SMA/RSI/VWAP) + حارس الوقف (أ94 minStopR). بقيت الإشارات النقيّة (f_emitDegSignals/f_emitExit/f_sigLvl + الصفقة الحيّة) + minRR + أ97 (ظهور لحظة التأكيد). التقييم/المؤشّرات يُعادان في طبقة الاستراتيجية (م-إش-3). ═══
-// ═══ v2.65.0 — تدقيق الإشارات + التلاقي (أ93→أ97 · أُزيلت في v2.66): تدقيق متراكم + حارس وقف + VWAP/SMA/EMA/RSI + ظهور لحظة التأكيد + minRR 1.5 ═══
-// ═══ v2.64.1 — إصلاح المناطق (Z1+Z2+Z3 · أمانة L2-02): Z2 إقصاء المُغطّى (المؤشّر) + Z1 المرساة=الموجة الحاليّة + Z3 استرجاع between · [أ81] استيراد JW_Zones/**7** (النسخة التي فيها between؛ /6 كان بائتًا ⇒ 7977ن) · النوع لا يُمَسّ · [م-إش-2ب شبكة أ74/أ75 · غير مُودَع] ═══
+// ═══ (سجلّ v2.85.2 → v1.09 مطويّ — محفوظ كاملًا في git log · لا يُكرَّر) ═══
 //   [2أ] الوقف = حافّة المنطقة ± slBufPts×mintick · سلّم TP خارج منطقة الدخول (zMaLevels تعريض eLvl).
 //   🔴 السجلّ التاريخيّ الكامل (v1.09 → v2.54) محفوظ في **git log** — لا يُكرَّر هنا (رسائل commit عربيّة بنمط `vX.Y.Z مN-K: وصف`).
 //   المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد · WORK_STATE · GAPS_TODO) — يُقرأ قبل أيّ تعديل.
@@ -527,91 +490,50 @@ if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0 
         while array.size(idmLabels) > 100                      // سقف علامات IDM (حماية سقف الوسوم المشترَك 500)
             label.delete(array.shift(idmLabels))
 
-// [الشكل الموحّد · خلف مفتاح IDM الخاصّ idmShowLevels] رسم مستويات آخر صفقة IDM كاملةً (صناديق الوقف/الدخول/الأهداف + خطوط مسعّرة بألوان مشتركة stratCol*) — صفقة واحدة، تُمسَح وتُعاد كلّ islast. النمط نفسه لكلّ استراتيجيّة مستقبليّة.
-var box   idmBxSl = na
-var box   idmBxT1 = na
-var box   idmBxT2 = na
-var box   idmBxT3 = na
-var line  idmLnE  = na
-var line  idmLnS  = na
-var line  idmLnT1 = na
-var line  idmLnT2 = na
-var line  idmLnT3 = na
-var label idmLbE  = na
-var label idmLbS  = na
-var label idmLbT1 = na
-var label idmLbT2 = na
-var label idmLbT3 = na
+// [الشكل الموحّد · معمّم — حسم المالك «عمّم الرسم لكبح نموّ الملفّ»] دالّة رسم مستويات صفقة **أيّ** استراتيجيّة كاملةً (صناديق الوقف/الدخول/الأهداف + خطوط مسعّرة + وسومها)
+//   بمصفوفات handle تُمرَّر (كنمط f_drawSesBox) ⇒ تُمسَح/تُعاد كلّ islast. **إضافة استراتيجيّة = 3 مصفوفات + نداء** بدل 14 مقبضًا مكرّرًا. المظهر (ألوان/امتداد) وسائط ⇒ موحّد. سلوك مطابق حرفيًّا للنسخة السابقة (نفس الصناديق/الخطوط/الشفافيّات/الترتيب).
+f_drawStratLevels(array<box> boxes, array<line> lines, array<label> lbls, bool show, int lastBar, int dir, float e, float sl, float tp1, float tp2, float tp3, color colTp, color colSl, color colEntry, int lvlOff) =>
+    for b in boxes
+        box.delete(b)
+    array.clear(boxes)
+    for ln in lines
+        line.delete(ln)
+    array.clear(lines)
+    for l in lbls
+        label.delete(l)
+    array.clear(lbls)
+    if show and not na(lastBar) and dir != 0 and not na(e)
+        int rB = lastBar + lvlOff                                            // امتداد المستويات يمينًا (موحّد)
+        // صناديق: الوقف (SL↔الدخول) · TP1 (الدخول↔TP1) · TP2 · TP3 — تدرّج شفافيّة كالأصل (68/68/82/90)
+        if not na(sl)
+            array.push(boxes, box.new(lastBar, math.max(sl, e), rB, math.min(sl, e), xloc = xloc.bar_index, bgcolor = color.new(colSl, 68), border_color = color(na)))
+        if not na(tp1)
+            array.push(boxes, box.new(lastBar, math.max(e, tp1), rB, math.min(e, tp1), xloc = xloc.bar_index, bgcolor = color.new(colTp, 68), border_color = color(na)))
+        if not na(tp1) and not na(tp2)
+            array.push(boxes, box.new(lastBar, math.max(tp1, tp2), rB, math.min(tp1, tp2), xloc = xloc.bar_index, bgcolor = color.new(colTp, 82), border_color = color(na)))
+        if not na(tp2) and not na(tp3)
+            array.push(boxes, box.new(lastBar, math.max(tp2, tp3), rB, math.min(tp2, tp3), xloc = xloc.bar_index, bgcolor = color.new(colTp, 90), border_color = color(na)))
+        // خطوط أفقيّة مسعّرة عند الحافّة اليمنى + وسومها (Entry صلب · SL/TP1 متقطّع · TP2/TP3 منقّط · شفافيّة الوسم 78/78/78/83/88)
+        array.push(lines, line.new(lastBar, e, rB, e, xloc = xloc.bar_index, color = colEntry, width = 1))
+        array.push(lbls,  label.new(rB, e, "Entry " + str.tostring(e, format.mintick), xloc = xloc.bar_index, color = color.new(colEntry, 78), textcolor = color.white, style = label.style_label_left, size = size.small))
+        if not na(sl)
+            array.push(lines, line.new(lastBar, sl, rB, sl, xloc = xloc.bar_index, color = colSl, width = 1, style = line.style_dashed))
+            array.push(lbls,  label.new(rB, sl, "SL " + str.tostring(sl, format.mintick), xloc = xloc.bar_index, color = color.new(colSl, 78), textcolor = color.white, style = label.style_label_left, size = size.small))
+        if not na(tp1)
+            array.push(lines, line.new(lastBar, tp1, rB, tp1, xloc = xloc.bar_index, color = colTp, width = 1, style = line.style_dashed))
+            array.push(lbls,  label.new(rB, tp1, "TP1 " + str.tostring(tp1, format.mintick), xloc = xloc.bar_index, color = color.new(colTp, 78), textcolor = color.white, style = label.style_label_left, size = size.small))
+        if not na(tp2)
+            array.push(lines, line.new(lastBar, tp2, rB, tp2, xloc = xloc.bar_index, color = colTp, width = 1, style = line.style_dotted))
+            array.push(lbls,  label.new(rB, tp2, "TP2 " + str.tostring(tp2, format.mintick), xloc = xloc.bar_index, color = color.new(colTp, 83), textcolor = color.white, style = label.style_label_left, size = size.small))
+        if not na(tp3)
+            array.push(lines, line.new(lastBar, tp3, rB, tp3, xloc = xloc.bar_index, color = colTp, width = 1, style = line.style_dotted))
+            array.push(lbls,  label.new(rB, tp3, "TP3 " + str.tostring(tp3, format.mintick), xloc = xloc.bar_index, color = color.new(colTp, 88), textcolor = color.white, style = label.style_label_left, size = size.small))
+// [IDM] 3 مصفوفات handle + نداء واحد — النمط نفسه لكلّ استراتيجيّة مستقبليّة (صفّ من ثلاثة أسطر)
+var array<box>   idmBoxes   = array.new<box>()
+var array<line>  idmLines   = array.new<line>()
+var array<label> idmLevLbls = array.new<label>()
 if barstate.islast
-    if not na(idmBxSl)
-        box.delete(idmBxSl)
-    if not na(idmBxT1)
-        box.delete(idmBxT1)
-    if not na(idmBxT2)
-        box.delete(idmBxT2)
-    if not na(idmBxT3)
-        box.delete(idmBxT3)
-    if not na(idmLnE)
-        line.delete(idmLnE)
-    if not na(idmLnS)
-        line.delete(idmLnS)
-    if not na(idmLnT1)
-        line.delete(idmLnT1)
-    if not na(idmLnT2)
-        line.delete(idmLnT2)
-    if not na(idmLnT3)
-        line.delete(idmLnT3)
-    if not na(idmLbE)
-        label.delete(idmLbE)
-    if not na(idmLbS)
-        label.delete(idmLbS)
-    if not na(idmLbT1)
-        label.delete(idmLbT1)
-    if not na(idmLbT2)
-        label.delete(idmLbT2)
-    if not na(idmLbT3)
-        label.delete(idmLbT3)
-    idmBxSl := na
-    idmBxT1 := na
-    idmBxT2 := na
-    idmBxT3 := na
-    idmLnE  := na
-    idmLnS  := na
-    idmLnT1 := na
-    idmLnT2 := na
-    idmLnT3 := na
-    idmLbE  := na
-    idmLbS  := na
-    idmLbT1 := na
-    idmLbT2 := na
-    idmLbT3 := na
-    if idmEnable and showStrat and idmShowLevels and not na(idmLastBar) and idmLastDir != 0   // [مفاتيح IDM الخاصّة] رسم مستويات IDM بمفتاحها الخاصّ + ألوان مشتركة (مظهر موحّد)
-        int   rB = idmLastBar + stratLvlOff                     // امتداد المستويات يمينًا (موحّد)
-        float e  = idmLastEntry
-        // صناديق: الوقف (بين SL والدخول) · TP1 (الدخول→TP1) · TP2 (TP1→TP2) · TP3 (TP2→TP3) — تدرّج شفافيّة كالأصل
-        if not na(idmLastSl)
-            idmBxSl := box.new(idmLastBar, math.max(idmLastSl, e), rB, math.min(idmLastSl, e), xloc = xloc.bar_index, bgcolor = color.new(stratColSl, 68), border_color = color(na))
-        if not na(idmLastTp1)
-            idmBxT1 := box.new(idmLastBar, math.max(e, idmLastTp1), rB, math.min(e, idmLastTp1), xloc = xloc.bar_index, bgcolor = color.new(stratColTp, 68), border_color = color(na))
-        if not na(idmLastTp1) and not na(idmLastTp2)
-            idmBxT2 := box.new(idmLastBar, math.max(idmLastTp1, idmLastTp2), rB, math.min(idmLastTp1, idmLastTp2), xloc = xloc.bar_index, bgcolor = color.new(stratColTp, 82), border_color = color(na))
-        if not na(idmLastTp2) and not na(idmLastTp3)
-            idmBxT3 := box.new(idmLastBar, math.max(idmLastTp2, idmLastTp3), rB, math.min(idmLastTp2, idmLastTp3), xloc = xloc.bar_index, bgcolor = color.new(stratColTp, 90), border_color = color(na))
-        // خطوط أفقيّة مسعّرة عند الحافّة اليمنى (Entry/SL/TP1/2/3)
-        idmLnE := line.new(idmLastBar, e, rB, e, xloc = xloc.bar_index, color = stratColEntry, width = 1)
-        idmLbE := label.new(rB, e, "Entry " + str.tostring(e, format.mintick), xloc = xloc.bar_index, color = color.new(stratColEntry, 78), textcolor = color.white, style = label.style_label_left, size = size.small)
-        if not na(idmLastSl)
-            idmLnS := line.new(idmLastBar, idmLastSl, rB, idmLastSl, xloc = xloc.bar_index, color = stratColSl, width = 1, style = line.style_dashed)
-            idmLbS := label.new(rB, idmLastSl, "SL " + str.tostring(idmLastSl, format.mintick), xloc = xloc.bar_index, color = color.new(stratColSl, 78), textcolor = color.white, style = label.style_label_left, size = size.small)
-        if not na(idmLastTp1)
-            idmLnT1 := line.new(idmLastBar, idmLastTp1, rB, idmLastTp1, xloc = xloc.bar_index, color = stratColTp, width = 1, style = line.style_dashed)
-            idmLbT1 := label.new(rB, idmLastTp1, "TP1 " + str.tostring(idmLastTp1, format.mintick), xloc = xloc.bar_index, color = color.new(stratColTp, 78), textcolor = color.white, style = label.style_label_left, size = size.small)
-        if not na(idmLastTp2)
-            idmLnT2 := line.new(idmLastBar, idmLastTp2, rB, idmLastTp2, xloc = xloc.bar_index, color = stratColTp, width = 1, style = line.style_dotted)
-            idmLbT2 := label.new(rB, idmLastTp2, "TP2 " + str.tostring(idmLastTp2, format.mintick), xloc = xloc.bar_index, color = color.new(stratColTp, 83), textcolor = color.white, style = label.style_label_left, size = size.small)
-        if not na(idmLastTp3)
-            idmLnT3 := line.new(idmLastBar, idmLastTp3, rB, idmLastTp3, xloc = xloc.bar_index, color = stratColTp, width = 1, style = line.style_dotted)
-            idmLbT3 := label.new(rB, idmLastTp3, "TP3 " + str.tostring(idmLastTp3, format.mintick), xloc = xloc.bar_index, color = color.new(stratColTp, 88), textcolor = color.white, style = label.style_label_left, size = size.small)
+    f_drawStratLevels(idmBoxes, idmLines, idmLevLbls, idmEnable and showStrat and idmShowLevels, idmLastBar, idmLastDir, idmLastEntry, idmLastSl, idmLastTp1, idmLastTp2, idmLastTp3, stratColTp, stratColSl, stratColEntry, stratLvlOff)
 
 // [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
 [smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
