@@ -13,7 +13,11 @@
 // النطاق: الاتّجاه (internal + swing) + [v2] بيانات رسم بنية BOS/CHoCH + [v3] كشف القمم/القيعان
 // المتساوية (EQH/EQL) + [v4] إصلاح تحذيرات ta + [v6] التطرّف الزاحف (Strong/Weak High/Low = trailing extremes)
 // + [v8] كتل الطلب (Order Blocks) نقل 100% (سوينغ+داخليّة معًا · شرط internalHigh≠swingHigh · حدّ الشريحة يستبعد
-// البار الحاليّ) — المكتبة بيانات فقط، المؤشّر يرسم. FVG/premium/MTF دفعاتٍ لاحقة.
+// البار الحاليّ) + [v9] فجوات القيمة العادلة (FVG · عدم توازن 3 شموع + عتبة تلقائيّة + إبطال بالردم)
+// + [v10] هندسة مناطق العلاوة/التوازن/الخصم (f_smcPdZones · حساب نقيّ من التطرّف الزاحف) + إخراج ta.cum من الـternary (ثبات)
+// + [v11] مستويات MTF (f_smcMtfLevel · قمّة/قاع الفترة الأعلى السابقة عبر request.security + تنقيح بار التطرّف + حارس الفريم)
+// + [v12] وسوم HH/HL/LH/LL (f_smcSwingHL · تصنيف نقطة السوينغ الجديدة مقابل سابقتها كـLuxAlgo getCurrentStructure) —
+// المكتبة بيانات فقط، المؤشّر يرسم. (طبقة SMC مكتملة: بنية · EQH/EQL · Strong/Weak · OB · FVG · Premium/Discount · MTF · HH/HL.)
 // ============================================================================
 library("JW_SMC", overlay = true)
 
@@ -316,3 +320,157 @@ export f_smcOrderBlocks(simple int swingSize, simple int internalSize, bool inte
             array.push(rL, array.get(RL, i))
             array.push(rS, array.get(RS, i))
     [rT, rB, rL, rS]
+
+// [v9] فجوات القيمة العادلة (FVG) — نقل LuxAlgo drawFairValueGaps/deleteFairValueGaps (فريم الشارت) حرفيًّا.
+//   عدم توازن 3 شموع مُغلَقة: صعوديّة (قاع الحاليّة فوق قمّة ما قبل السابقة) · هبوطيّة (بالعكس) + عتبة تلقائيّة
+//   (متوسّط |تغيّر جسم الشمعة%| التراكميّ × 2) + إبطال بالردم. الحالة var داخليّة (تُحسَب كلّ بار — ثبات ta.cum)؛
+//   تُرجِع النشطة (نسخ طازجة، الأحدث في المقدّمة). المؤشّر يرسم فقط (صندوقان نصفان لكلّ فجوة).
+//   🔴 المعاني كـLuxAlgo: fT=.top · fB=.bottom (هبوطيًّا مقلوبان هندسيًّا)؛ الإبطال يتبع النصّ: صعوديّة low<bottom · هبوطيّة high>top.
+// @param autoThreshold  عتبة تلقائيّة (وإلّا 0 = كلّ فجوة).
+// @param maxFvg         أقصى عدد نشط (حماية سقف الصناديق المشترَك).
+// @returns [fT, fB, fBias, fLeft, fRight] — fBias +1 صعوديّة/-1 هبوطيّة · fLeft/fRight بارا التشكّل.
+export f_smcFVG(bool autoThreshold, simple int maxFvg) =>
+    var array<float> aT  = array.new<float>()
+    var array<float> aB  = array.new<float>()
+    var array<int>   aBs = array.new<int>()
+    var array<int>   aL  = array.new<int>()
+    var array<int>   aR  = array.new<int>()
+    float bd  = na(open[1]) ? 0.0 : (close[1] - open[1]) / (open[1] * 100)                 // barDeltaPercent (نقل حرفيّ)
+    float cumBd = ta.cum(math.abs(bd))                                                     // [v10] يُحسَب بلا شرط (خارج الـternary) ⇒ ثبات ta على كلّ بار (يُزيل تحذير «ta داخل ternary»)
+    float thr = autoThreshold and bar_index > 0 ? cumBd / bar_index * 2 : 0.0
+    if barstate.isconfirmed
+        if array.size(aT) > 0                                                              // إبطال المردومة (deleteFairValueGaps)
+            for i = array.size(aT) - 1 to 0
+                if (array.get(aBs, i) == 1 and low < array.get(aB, i)) or (array.get(aBs, i) == -1 and high > array.get(aT, i))
+                    array.remove(aT, i)
+                    array.remove(aB, i)
+                    array.remove(aBs, i)
+                    array.remove(aL, i)
+                    array.remove(aR, i)
+        bool bull = low > high[2] and close[1] > high[2] and bd > thr                       // currentLow>last2High · lastClose>last2High
+        bool bear = high < low[2] and close[1] < low[2] and -bd > thr
+        if bull
+            array.unshift(aT, low)                                                          // top=currentLow · bottom=last2High
+            array.unshift(aB, high[2])
+            array.unshift(aBs, 1)
+            array.unshift(aL, bar_index - 1)
+            array.unshift(aR, bar_index)
+        if bear
+            array.unshift(aT, high)                                                         // top=currentHigh · bottom=last2Low (اسم LuxAlgo)
+            array.unshift(aB, low[2])
+            array.unshift(aBs, -1)
+            array.unshift(aL, bar_index - 1)
+            array.unshift(aR, bar_index)
+        while array.size(aT) > maxFvg                                                       // حدّ العدد (الأقدم في المؤخّرة)
+            int lst = array.size(aT) - 1
+            array.remove(aT, lst)
+            array.remove(aB, lst)
+            array.remove(aBs, lst)
+            array.remove(aL, lst)
+            array.remove(aR, lst)
+    array<float> fT = array.new<float>()                                                   // نسخ طازجة (لا مرجع للحالة الداخليّة)
+    array<float> fB = array.new<float>()
+    array<int>   fBias = array.new<int>()
+    array<int>   fLeft = array.new<int>()
+    array<int>   fRight = array.new<int>()
+    for i = 0 to (array.size(aT) > 0 ? array.size(aT) - 1 : 0)
+        if array.size(aT) > 0
+            array.push(fT, array.get(aT, i))
+            array.push(fB, array.get(aB, i))
+            array.push(fBias, array.get(aBs, i))
+            array.push(fLeft, array.get(aL, i))
+            array.push(fRight, array.get(aR, i))
+    [fT, fB, fBias, fLeft, fRight]
+
+// [v10] هندسة مناطق العلاوة/التوازن/الخصم — نقل LuxAlgo drawPremiumDiscountZones حسابيًّا (نقيّة، صفر حالة، صفر رسم).
+//   المدخل = التطرّف الزاحف (trTop/trBot + بارَاه) الذي تُصدِّره f_smcStructure أصلًا ⇒ لا حساب جديد ولا تكرار حالة.
+//   العلاوة = أعلى 5% (بيع) · التوازن = 5% حول المنتصف · الخصم = أسفل 5% (شراء). كلّها من قسمة المدى الزاحف كـLuxAlgo.
+//   الحارس هنا (لا في المؤشّر): تطرّف غير صالح (na أو مقلوب) ⇒ كلّ المخرجات na ⇒ المؤشّر يتخطّى الرسم. المؤشّر **يرسم فقط**.
+// @param trTop/trBot   التطرّف الزاحف (قمّة/قاع). @param trTopB/trBotB بارَا التطرّف. @param lastBar bar_index الحاليّ.
+// @returns [pTop, pBot, eTop, eBot, eqLvl, dTop, dBot, zLeft, zMid]
+//   pTop/pBot العلاوة · eTop/eBot التوازن + eqLvl مستواه · dTop/dBot الخصم · zLeft يسار الصناديق (أحدث بار سوينغ) · zMid منتصفها (لوسوم العلاوة/الخصم).
+export f_smcPdZones(float trTop, float trBot, int trTopB, int trBotB, int lastBar) =>
+    float pTop  = na
+    float pBot  = na
+    float eTop  = na
+    float eBot  = na
+    float eqLvl = na
+    float dTop  = na
+    float dBot  = na
+    int   zLeft = na
+    int   zMid  = na
+    if not na(trTop) and not na(trBot) and trTop > trBot and not na(trTopB) and not na(trBotB)
+        pTop  := trTop                                                                     // العلاوة: [0.95·قمّة+0.05·قاع .. قمّة]
+        pBot  := 0.95 * trTop + 0.05 * trBot
+        eTop  := 0.525 * trTop + 0.475 * trBot                                             // التوازن: 5% حول المنتصف
+        eBot  := 0.525 * trBot + 0.475 * trTop
+        eqLvl := math.avg(trTop, trBot)
+        dTop  := 0.95 * trBot + 0.05 * trTop                                               // الخصم: [قاع .. 0.95·قاع+0.05·قمّة]
+        dBot  := trBot
+        zLeft := math.max(trTopB, trBotB)                                                  // trailing.barIndex = أحدث بار سوينغ
+        zMid  := math.round(0.5 * (zLeft + lastBar))
+    [pTop, pBot, eTop, eBot, eqLvl, dTop, dBot, zLeft, zMid]
+
+// [v11] مستويات MTF — نقل LuxAlgo drawLevels حرفيًّا (قمّة/قاع الفترة الأعلى **السابقة**): بيانات فقط، المؤشّر يرسم.
+//   request.security([high[1],low[1],time[1],time], lookahead_on) = لا إعادة رسم (الفترة السابقة المكتملة). التنقيح = بار
+//   التطرّف الفعليّ داخل الفترة (بحث ثنائيّ على مصفوفات الشارت المتراكمة var داخليًّا). الحارس: فريم الشارت أعلى ⇒ valid=false.
+//   🔴 request.* مسموح في دوالّ مكتبة Pine v6. كلّ درجة (D/W/M) نداء مستقلّ (مصفوفاته الخاصّة — 3 نداءات security).
+// @param tf  الفريم الأعلى ("D"/"W"/"M").
+// @returns [valid, topLevel, topTime, botLevel, botTime, rightTime]
+//   valid: ارسم؟ (false إن الشارت أعلى) · topLevel/botLevel قمّة/قاع الفترة السابقة · topTime/botTime بارا التطرّف (يسار الخطّ) · rightTime يمين الخطّ (+20 شمعة).
+export f_smcMtfLevel(simple string tf) =>
+    var array<int>   mtfTimes = array.new<int>()                                            // مصفوفات الشارت المتراكمة (كـLuxAlgo highs/lows/times) — للتنقيح
+    var array<float> mtfHighs = array.new<float>()
+    var array<float> mtfLows  = array.new<float>()
+    mtfTimes.push(time)
+    mtfHighs.push(high)
+    mtfLows.push(low)
+    bool higher = timeframe.in_seconds() > timeframe.in_seconds(tf)                          // فريم الشارت أعلى من tf ⇒ لا رسم (higherTimeframe)
+    bool same   = timeframe.in_seconds() == timeframe.in_seconds(tf)                         // نفس الفريم ⇒ الشمعة الحاليّة مباشرةً
+    [topLevel, bottomLevel, leftTime, rightTime] = request.security(syminfo.tickerid, tf, [high[1], low[1], time[1], time], lookahead = barmerge.lookahead_on)
+    float parsedTop     = same ? high : topLevel
+    float parsedBottom  = same ? low : bottomLevel
+    int   parsedLeftTime  = same ? time : leftTime
+    int   parsedRightTime = same ? time : rightTime
+    int   parsedTopTime    = time
+    int   parsedBottomTime = time
+    if not same
+        int leftIndex  = mtfTimes.binary_search_rightmost(parsedLeftTime)                   // شريحة الشارت داخل الفترة السابقة
+        int rightIndex = mtfTimes.binary_search_rightmost(parsedRightTime)
+        array<int>   timeArray   = mtfTimes.slice(leftIndex, rightIndex)
+        array<float> topArray    = mtfHighs.slice(leftIndex, rightIndex)
+        array<float> bottomArray = mtfLows.slice(leftIndex, rightIndex)
+        parsedTopTime    := timeArray.size() > 0 ? timeArray.get(topArray.indexof(topArray.max())) : time      // بار أعلى قمّة/أدنى قاع فعليًّا
+        parsedBottomTime := timeArray.size() > 0 ? timeArray.get(bottomArray.indexof(bottomArray.min())) : time
+    int  rTime = last_bar_time + 20 * (time - time[1])                                       // يمين الخطّ = آخر بار + 20 شمعة
+    bool valid = not higher
+    [valid, parsedTop, parsedTopTime, parsedBottom, parsedBottomTime, rTime]
+
+// [v12] وسوم بنية السوق HH/HL/LH/LL — نقل LuxAlgo getCurrentStructure (فرع drawLabel) حرفيًّا: بيانات فقط، المؤشّر يرسم.
+//   عند كلّ نقطة سوينغ جديدة (تغيّر leg): قاع جديد ⇒ **LL** إن أدنى من القاع السابق وإلّا **HL** · قمّة جديدة ⇒ **HH** إن أعلى
+//   من القمّة السابقة وإلّا **LH**. المقارنة كـLuxAlgo حرفيًّا (na في الأولى ⇒ فرع else = HL/LH). النقطة قبل swingSize شمعة.
+//   🔴 f_smcStructure يكشف السوينغ لكن يكتب فوق المستوى (لا يحفظ lastLevel) ⇒ دالّة مستقلّة تحفظ السابق وتصنّف. نفس آلة f_leg.
+// @param swingSize  طول السوينغ (نفس smcSwingLen = 50 كـLuxAlgo).
+// @returns [code, level, barTime]  code: 0 لا شيء · 1 HH · 2 LH · 3 HL · 4 LL · level مستوى النقطة · barTime بار تكوّنها.
+export f_smcSwingHL(simple int swingSize) =>
+    var float swHigh     = na
+    var float swLow      = na
+    var float prevSwHigh = na
+    var float prevSwLow  = na
+    int   code = 0
+    float lvl  = na
+    int   barT = na
+    swChg = ta.change(f_leg(swingSize))
+    if swChg == +1                                                                            // بدء leg صعوديّ ⇒ قاع سوينغ جديد (قبل swingSize شمعة)
+        prevSwLow := swLow
+        swLow     := low[swingSize]
+        lvl  := low[swingSize]
+        barT := time[swingSize]
+        code := swLow < prevSwLow ? 4 : 3                                                     // LL أدنى من السابق · وإلّا HL (na⇒HL كـLuxAlgo)
+    else if swChg == -1                                                                       // بدء leg هبوطيّ ⇒ قمّة سوينغ جديدة
+        prevSwHigh := swHigh
+        swHigh     := high[swingSize]
+        lvl  := high[swingSize]
+        barT := time[swingSize]
+        code := swHigh > prevSwHigh ? 1 : 2                                                   // HH أعلى من السابق · وإلّا LH (na⇒LH)
+    [code, lvl, barT]

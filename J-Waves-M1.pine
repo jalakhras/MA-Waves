@@ -6,13 +6,18 @@ import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخط�
 import Jassar_Mahmoud/JW_Conclusions/13 as jwc               // [ط3] الاستنتاجات/المراحل (v13 = أ48/ج: +f_atlasDecision قرار FSM نقيّ باللغة وسيطًا؛ v12 = +f_phaseLblI؛ v11 = إحياء الذعر/اليأس/التجميع/التصريف + إزالة look-ahead + رجوع المحور الشمعيّ)
 import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] المناطق — f_pairZones (jaffar: بركة المتوسطة غير المغطّاة · sizeOk/merge/contain/tooBig · between) + [أ89] المرساة = الحاليّة+تاريخ التاريخ فقط (anchorMin) · التاريخ للاستعارة
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
-import Jassar_Mahmoud/JW_SMC/8 as jsmc                        // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100%) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
+import Jassar_Mahmoud/JW_SMC/12 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
-// ═══ v2.78.5 [م-إش-3 · ترفيع خطّ التلاقي] — عرض الخطّ الذهبيّ العابر صار **1 (أرفع)** بطلب المالك (كان 2). النجوم size.normal كما هي. ═══
+// ═══ v2.82.1 [م-إش-3 · تنظيم مدخلات SMC — حسم المالك] — مجموعة التلاقي أُعيدت تسميتها **«🧠 SMC / Smart Money Concepts»** ونُقِلت **أسفل مجموعة إليوت** (ترتيب داخليّ منطقيّ: تصويت/معايير عامّة ← بنية BOS/CHoCH ← EQH/EQL ← Strong/Weak ← Order Blocks ← FVG ← Premium/Discount ← MTF ← HH/HL/LH/LL). تنظيم/عرض بحت — صفر أثر على المنطق (نفس المتغيّرات/القيم/المفاتيح؛ تغيّر ترتيب التصريح ونصّ المجموعة فقط · لا إعادة نشر مكتبة). تحقُّق HH/HL السابق: التصنيف يطابق تسلسل المستويات حرفًا (8/8). ═══
+// ═══ v2.82.0 [م-إش-3 · دفعة HH/HL/LH/LL — طبقة SMC مكتملة] — وسوم بنية السوق (Higher-High/Lower-High/Higher-Low/Lower-Low): **كلّ التصنيف في JW_SMC/12** (`f_smcSwingHL` — نقل LuxAlgo getCurrentStructure: قاع جديد أدنى⇒LL وإلّا HL · قمّة أعلى⇒HH وإلّا LH · على آلة f_leg نفسها، تحفظ المستوى السابق)؛ المؤشّر **يرسم فقط** (وسم عند كلّ نقطة سوينغ، خلف مفتاح مطفأ · حارس ~50). **بهذا تكتمل طبقة تلاقي SMC**: بنية BOS/CHoCH · EQH/EQL · Strong/Weak · OB · FVG · Premium/Discount · MTF · HH/HL — كلّها في JW_SMC، المؤشّر يرسم. عرض بحت · النواة لا تُمَسّ. تحقُّق MTF السابق: PDH/PDL·PWH/PWL مطابق للبيانات الحقيقيّة حرفًا. ═══
+// ═══ v2.81.0 [م-إش-3 · دفعة MTF Levels] — مستويات الفريم الأعلى (قمّة/قاع اليوم/الأسبوع/الشهر السابق): **كلّ المنطق في JW_SMC/11** (`f_smcMtfLevel` — request.security lookahead_on لا إعادة رسم + تنقيح بار التطرّف بالبحث الثنائيّ + حارس «الفريم أعلى»)؛ المؤشّر **يرسم فقط** (خطّان + وسما PDH/PDL لكلّ فريم، خلف 3 مفاتيح مطفأة + نمط/لون). عرض بحت · النواة لا تُمَسّ. تحقُّق P/D السابق: مطابق حسابيًّا (علاوة 29780.834 · توازن 29081.998/28999.782 · خصم 28300.946). ═══
+// ═══ v2.80.1 [م-إش-3 · Premium/Discount ⇐ المكتبة] — **كلّ حساب P/D نُقِل إلى JW_SMC/10** (`f_smcPdZones` نقيّة: هندسة المناطق الثلاث من التطرّف الزاحف + الحارس) ⇒ المؤشّر **يرسم فقط** (حسم المالك: لا منطق SMC في الأساسيّ). + إصلاح تحذير `ta.cum` (إخراجه من الـternary في f_smcFVG ⇒ ثبات ta). سلوك P/D مطابق لـv2.80.0. النواة لا تُمَسّ. ═══
+// ═══ v2.80.0 [م-إش-3 · دفعة Premium/Discount] — مناطق العلاوة/التوازن/الخصم: نقل LuxAlgo drawPremiumDiscountZones حرفيًّا **من التطرّف الزاحف** (smcTrTop/Bot الذي تحسبه JW_SMC أصلًا — لا حساب/نشر جديد؛ الرسم في المؤشّر كـStrong/Weak). 3 مناطق (علاوة أعلى 5% · توازن وسط 5% · خصم أسفل 5%) خلف مفتاح `smcDrawPD` مطفأ + 3 ألوان. عرض بحت · النواة لا تُمَسّ. تحقُّق FVG السابق: مطابق للبيانات الخام (فجوتان 28808/28882 · 28655/28663). ═══
+// ═══ v2.79.0 [م-إش-3 · دفعة FVG] — فجوات القيمة العادلة: الكشف/الإبطال/العتبة في **JW_SMC/9** (`f_smcFVG` — كلّ منطق SMC في المكتبة، لا فوضى في الأساسيّ · نقل LuxAlgo حرفيًّا: عدم توازن 3 شموع + عتبة تلقائيّة `متوسط|تغيّر الجسم%|×2` + إبطال بالردم)؛ المؤشّر يرسم فقط (صندوقان نصفان) خلف مفتاح `smcDrawFVG` مطفأ + عتبة/عدد/امتداد/ألوان. عرض بحت · النواة لا تُمَسّ. ═══
 // ═══ v2.78.4 [م-إش-3 · رجوع خطّ التلاقي عبر المنطقة] — رجوعٌ لطريقة v2.78.2 (الخطّ يعبُر المنطقة بعرضها على الشموع، لا بادج في الفراغ — حسم المالك) مع إبقاء عرض 2 + نجوم size.normal ليبرز. ═══
 // ═══ v2.78.3 [م-إش-3 · إبراز بادج التلاقي — مرفوض] — بادج الخطّ+النجوم في الفراغ يمين المنطقة (رفضه المالك: عاد للخطّ العابر). ═══
 // ═══ v2.78.2 [م-إش-3 · خطّ+نجوم التلاقي] — المنطقة المتلاقية مع OB ⇒ **خطّ ذهبيّ متقطّع يعبُر المنطقة و★ في وسطه** (‪----★★★----‬ · نجمة لكلّ كتلة OB متراكبة، حدّ 3) بدل الوسم الجانبيّ ⬥ (حسم المالك: النجوم على خطّ أجمل). صندوق المنطقة يبقى كما هو. ═══
@@ -223,9 +228,25 @@ bool   showSigS     = input.bool(true, "small / الصغيرة", inline = "sigde
 bool   showSigExit  = input.bool(true, "Exit signals (break+retest) / إشارات الخروج (كسر+إعادة اختبار)", group = grpSig, tooltip = "«الفرصة الثالثة» (الخروج) بنمط **الكسر ثمّ إعادة الاختبار ثمّ الارتداد** (v2.4.0): (1) السعر يكسر المنطقة بتأكيد (شمعة على >15د · شمعتان على ≤15د). (2) يعود ويلمس الحافّة المكسورة ثمّ يُغلِق ثانيةً خلفها (ارتداد). (3) ✦ **مرّة واحدة** لكلّ منطقة، عند شمعة الارتداد المُغلَقة. لا تكرار بعده. منفصلة عن إشارات الدرجات.")
 // [تنظيف v2.66.0 · حسم المالك 2026-07-20] حُذِفت مدخلات **خارج النواة**: showSigDiag (تشخيص) · showSigStats/showSigNotes (تدقيق) · minStopR (أ94) · EMA/SMA/RSI (مؤشّرات أجنبيّة أ95). التقييم الكمّيّ والمؤشّرات يُعادان في طبقة لاحقة (م-إش-3/الاستراتيجية).
 
-// ═════════════════ 🔗 التلاقي / Confluence [م-إش-3] ═════════════════
-// قسم مستقلّ لمصادر التلاقي. كلّ مصدر خلف مفتاح تفعيل خاصّ (مطفأ افتراضيًّا) ⇒ صفر أثر على النواة ما لم يُفعَّل.
-string grpConf     = "🔗 التلاقي / Confluence"
+// ══════════════════════════ وصفيّ · 🌊 إليوت / Elliott ══════════════════════════
+string grpEW       = "وصفيّ · 🌊 إليوت / Elliott"
+bool   showEW      = input.bool(false, "Elliott wave-count labels / ترقيم موجات إليوت", group = grpEW, tooltip = "طبقة وصفيّة: ترقيم (1)-(5) دفعة على النقاط الفعّالة لكلّ درجة، فقط إن حقّقت قواعد إليوت الثلاث القطعيّة (فروست/بريكتر). الدرجات متعشّشة (كبيرة⊃متوسطة⊃صغيرة). عرض فقط — لا يمسّ الدرجات/الإشارات/القرار. (a-b-c لاحقًا ⑥-ب.)")
+bool   showEWBig   = input.bool(true, "large / الكبيرة", inline = "ewd", group = grpEW)
+bool   showEWMed   = input.bool(true, "medium / المتوسطة", inline = "ewd", group = grpEW)
+bool   showEWSmall = input.bool(true, "small / الصغيرة", inline = "ewd", group = grpEW)
+bool   showEWForm  = input.bool(true, "Forming wave (1?)-(5?) / الموجة الجارية (تنبّؤيّ)", group = grpEW, tooltip = "ترقيم تنبّؤيّ للدفعة الجارية غير المكتملة (بعد آخر دفعة+تصحيح): (1?)-(5?) بلون أفتح — غير مؤكَّدة، تكتمل حين تحقّق قواعد إليوت.")
+color  cEWBig      = input.color(#2457E2, "Large color / لون الكبيرة", inline = "ewc", group = grpEW)
+color  cEWMed      = input.color(#FF9800, "Medium / المتوسطة", inline = "ewc", group = grpEW)
+color  cEWSmall    = input.color(#F23645, "Small / الصغيرة", inline = "ewc", group = grpEW)
+int    ewMaxSets   = input.int(0, "Max wave-sets (0=all history) / أقصى دفعات (0=كلّ التاريخ)", minval = 0, group = grpEW, tooltip = "0 = رقّم كلّ الدفعات عبر التاريخ (العدّ من التاريخ). أو آخر N دفعة لتقليل الزحام.")
+bool   ewStrict    = input.bool(false, "Strict no-overlap (else allow diagonals) / صارم بلا تراكب (وإلّا يسمح بالقطريّة)", group = grpEW, tooltip = "مطفأ (موصى): يسمح بتراكب الموجة4/الموجة1 = المثلّث القطريّ (Diagonal) — نمط إليوت صحيح (فروست/بريكتر §4-د) ⇒ تظهر الكبيرة والترندات المتراكبة. مفعّل: يفرض ق3 (لا تراكب) ⇒ دفعات دافعة نقيّة فقط (أندر).")
+float  ewOffset    = input.float(0.06, "Label offset from pivot (× range) / إزاحة الوسم عن النقطة (× النطاق)", minval = 0.0, step = 0.01, group = grpEW, tooltip = "يرفع الوسم فوق القمّة/تحت القاع بمقدار = هذه النسبة × نطاق سعريّ أصيل، لتفادي تداخله مع الدوائر. كلّ درجة تُزاح خطوة أبعد (تتكدّس النقاط المتقاطعة تحت بعضها بألوانها).")
+// [تنظيف v2.66.0] ewDbg (تشخيص أعداد نقاط/وسوم إليوت) حُذِف.
+
+// ═════════════════ 🧠 SMC / Smart Money Concepts (تلاقٍ) [م-إش-3] ═════════════════
+// طبقة تلاقي SMC (© LuxAlgo · اقتباس شخصيّ CC BY-NC-SA) — **أسفل إليوت** (حسم المالك). كلّ مصدر خلف مفتاح تفعيل خاصّ (مطفأ افتراضيًّا)
+// ⇒ صفر أثر على النواة ما لم يُفعَّل. الترتيب: تصويت/معايير عامّة ← بنية (BOS/CHoCH) ← EQH/EQL ← Strong/Weak ← Order Blocks ← FVG ← Premium/Discount ← MTF ← HH/HL/LH/LL.
+string grpConf     = "🧠 SMC / Smart Money Concepts"
 bool   smcEnable   = input.bool(true, "Enable SMC structure vote (LuxAlgo) / تفعيل صوت بنية SMC", group = grpConf, tooltip = "[م-إش-3 · حسم المالك: مفعّل افتراضيًّا] اتّجاه بنية السوق (BOS/CHoCH من SMC) يصوّت على إشارة M-Waves — لا يولّدها. عرض فقط (نجوم على الوسم) · لا يمسّ توليد الإشارة (A/B: أطفئه ⇒ الوسم بلا نجوم كما كان).")
 int    smcSwingLen = input.int(50, "SMC swing length / طول سوينغ SMC", minval = 10, group = grpConf, tooltip = "طول اكتشاف نقاط السوينغ الكبرى (افتراض LuxAlgo = 50).")
 int    smcIntLen   = input.int(5,  "SMC internal length / طول SMC الداخليّ", minval = 3, group = grpConf, tooltip = "طول البنية الداخليّة قصيرة المدى (افتراض LuxAlgo = 5).")
@@ -251,21 +272,26 @@ string smcObMitig   = input.string("HighLow", "OB mitigation source / مصدر �
 color  smcColObBull = input.color(color.new(#1848cc, 80), "OB bullish (raw) / كتلة صعوديّة (خام)", inline = "smcob", group = grpConf)
 color  smcColObBear = input.color(color.new(#b22833, 80), "OB bearish (raw) / كتلة هبوطيّة (خام)", inline = "smcob", group = grpConf)
 color  smcColObZone = input.color(#FFD700, "OB confluence line+stars (gold) / خطّ+نجوم تلاقي OB (ذهبيّ)", group = grpConf, tooltip = "[v9.2] لون الخطّ الذهبيّ المتقطّع الذي يعبُر المنطقة المتلاقية مع OB + النجوم ★ في وسطه (نجمة لكلّ كتلة متراكبة، حدّ 3) — شكل ‪----★★★----‬، بلا زحام.")
-
-// ══════════════════════════ وصفيّ · 🌊 إليوت / Elliott ══════════════════════════
-string grpEW       = "وصفيّ · 🌊 إليوت / Elliott"
-bool   showEW      = input.bool(false, "Elliott wave-count labels / ترقيم موجات إليوت", group = grpEW, tooltip = "طبقة وصفيّة: ترقيم (1)-(5) دفعة على النقاط الفعّالة لكلّ درجة، فقط إن حقّقت قواعد إليوت الثلاث القطعيّة (فروست/بريكتر). الدرجات متعشّشة (كبيرة⊃متوسطة⊃صغيرة). عرض فقط — لا يمسّ الدرجات/الإشارات/القرار. (a-b-c لاحقًا ⑥-ب.)")
-bool   showEWBig   = input.bool(true, "large / الكبيرة", inline = "ewd", group = grpEW)
-bool   showEWMed   = input.bool(true, "medium / المتوسطة", inline = "ewd", group = grpEW)
-bool   showEWSmall = input.bool(true, "small / الصغيرة", inline = "ewd", group = grpEW)
-bool   showEWForm  = input.bool(true, "Forming wave (1?)-(5?) / الموجة الجارية (تنبّؤيّ)", group = grpEW, tooltip = "ترقيم تنبّؤيّ للدفعة الجارية غير المكتملة (بعد آخر دفعة+تصحيح): (1?)-(5?) بلون أفتح — غير مؤكَّدة، تكتمل حين تحقّق قواعد إليوت.")
-color  cEWBig      = input.color(#2457E2, "Large color / لون الكبيرة", inline = "ewc", group = grpEW)
-color  cEWMed      = input.color(#FF9800, "Medium / المتوسطة", inline = "ewc", group = grpEW)
-color  cEWSmall    = input.color(#F23645, "Small / الصغيرة", inline = "ewc", group = grpEW)
-int    ewMaxSets   = input.int(0, "Max wave-sets (0=all history) / أقصى دفعات (0=كلّ التاريخ)", minval = 0, group = grpEW, tooltip = "0 = رقّم كلّ الدفعات عبر التاريخ (العدّ من التاريخ). أو آخر N دفعة لتقليل الزحام.")
-bool   ewStrict    = input.bool(false, "Strict no-overlap (else allow diagonals) / صارم بلا تراكب (وإلّا يسمح بالقطريّة)", group = grpEW, tooltip = "مطفأ (موصى): يسمح بتراكب الموجة4/الموجة1 = المثلّث القطريّ (Diagonal) — نمط إليوت صحيح (فروست/بريكتر §4-د) ⇒ تظهر الكبيرة والترندات المتراكبة. مفعّل: يفرض ق3 (لا تراكب) ⇒ دفعات دافعة نقيّة فقط (أندر).")
-float  ewOffset    = input.float(0.06, "Label offset from pivot (× range) / إزاحة الوسم عن النقطة (× النطاق)", minval = 0.0, step = 0.01, group = grpEW, tooltip = "يرفع الوسم فوق القمّة/تحت القاع بمقدار = هذه النسبة × نطاق سعريّ أصيل، لتفادي تداخله مع الدوائر. كلّ درجة تُزاح خطوة أبعد (تتكدّس النقاط المتقاطعة تحت بعضها بألوانها).")
-// [تنظيف v2.66.0] ewDbg (تشخيص أعداد نقاط/وسوم إليوت) حُذِف.
+// ─── [م-إش-3 · دفعة FVG · v9] فجوات القيمة العادلة — نقل LuxAlgo drawFairValueGaps/deleteFairValueGaps (فريم الشارت) ───
+bool   smcDrawFVG   = input.bool(false, "Draw SMC fair value gaps (FVG) / رسم فجوات القيمة العادلة", group = grpConf, tooltip = "[نقل LuxAlgo] عدم توازن 3 شموع (صندوقان نصفان لكلّ فجوة): صعوديّة إن قاع الشمعة الحاليّة فوق قمّة ما قبل السابقة · هبوطيّة بالعكس. مطفأ افتراضيًّا. تُبطَل حين يردم السعر الفجوة (صعوديّة: قاع تحت أسفلها · هبوطيّة: قمّة فوق أعلاها).")
+bool   smcFvgAuto   = input.bool(true, "FVG auto threshold / عتبة FVG تلقائيّة", group = grpConf, tooltip = "[نقل LuxAlgo] يرشّح الفجوات غير المهمّة: العتبة = متوسّط |تغيّر جسم الشمعة%| التراكميّ × 2. مطفأ ⇒ كلّ فجوة (عتبة 0).")
+int    smcFvgMax    = input.int(12, "FVG max count / أقصى عدد FVG", minval = 1, maxval = 50, group = grpConf, tooltip = "أقصى عدد فجوات نشطة (الأحدث تُبقى). حماية سقف الصناديق المشترَك (300).")
+int    smcFvgExtend = input.int(1, "FVG extend (bars) / امتداد FVG (شموع)", minval = 0, maxval = 50, group = grpConf, tooltip = "[نقل LuxAlgo · Extend FVG] كم شمعة يمتدّ صندوق الفجوة يمينًا عن بار تشكّلها.")
+color  smcColFvgBull = input.color(color.new(#00ff68, 70), "FVG bullish / FVG صعوديّة", inline = "smcfvg", group = grpConf)
+color  smcColFvgBear = input.color(color.new(#ff0008, 70), "FVG bearish / FVG هبوطيّة", inline = "smcfvg", group = grpConf)
+// ─── [م-إش-3 · دفعة Premium/Discount · v10] مناطق العلاوة/التوازن/الخصم — الحساب في JW_SMC/10 (f_smcPdZones من التطرّف الزاحف)؛ المؤشّر يرسم فقط ───
+bool   smcDrawPD    = input.bool(false, "Draw SMC premium/discount zones / رسم مناطق العلاوة/الخصم", group = grpConf, tooltip = "[نقل LuxAlgo] 3 مناطق تقسم التطرّف الزاحف الحاليّ (نفس مصدر Strong/Weak، بلا حساب جديد): **علاوة** (أعلى 5% ⇒ منطقة بيع) · **توازن** (وسط 5%) · **خصم** (أسفل 5% ⇒ منطقة شراء). SMC كلاسيكيّ: اشترِ من الخصم، بِع من العلاوة. مطفأ افتراضيًّا.")
+color  smcColPremium  = input.color(#F23645, "Premium zone / منطقة العلاوة", inline = "smcpd", group = grpConf)
+color  smcColEquil    = input.color(color.gray, "Equilibrium / التوازن", inline = "smcpd", group = grpConf)
+color  smcColDiscount = input.color(#089981, "Discount zone / منطقة الخصم", inline = "smcpd", group = grpConf)
+// ─── [م-إش-3 · دفعة MTF Levels · v11] مستويات الفريم الأعلى — الحساب في JW_SMC/11 (f_smcMtfLevel)؛ المؤشّر يرسم فقط ───
+bool   smcMtfD      = input.bool(false, "MTF prev-Day H/L (PDH/PDL) / قمّة/قاع اليوم السابق", group = grpConf, tooltip = "[نقل LuxAlgo] قمّة/قاع **اليوم السابق** المكتمل خطًّا أفقيًّا (PDH علوّ · PDL سفل) عبر request.security (لا إعادة رسم). لا يُرسَم إن كان فريم الشارت أعلى من اليوميّ. مطفأ افتراضيًّا.")
+bool   smcMtfW      = input.bool(false, "MTF prev-Week (PWH/PWL) / قمّة/قاع الأسبوع السابق", group = grpConf, tooltip = "[نقل LuxAlgo] قمّة/قاع **الأسبوع السابق** المكتمل. لا يُرسَم إن كان الشارت أعلى من الأسبوعيّ. مطفأ افتراضيًّا.")
+bool   smcMtfM      = input.bool(false, "MTF prev-Month (PMH/PML) / قمّة/قاع الشهر السابق", group = grpConf, tooltip = "[نقل LuxAlgo] قمّة/قاع **الشهر السابق** المكتمل. لا يُرسَم إن كان الشارت أعلى من الشهريّ. مطفأ افتراضيًّا.")
+string smcMtfStyle  = input.string("Solid", "MTF level style / نمط خطّ MTF", options = ["Solid", "Dashed", "Dotted"], group = grpConf)
+color  smcColMtf    = input.color(#2157e2, "MTF levels color / لون مستويات MTF", group = grpConf)
+// ─── [م-إش-3 · دفعة HH/HL/LH/LL · v12] وسوم بنية السوق — التصنيف في JW_SMC/12 (f_smcSwingHL)؛ المؤشّر يرسم فقط ───
+bool   smcDrawSwHL  = input.bool(false, "Draw SMC swing labels (HH/HL/LH/LL) / رسم وسوم بنية السوق", group = grpConf, tooltip = "[نقل LuxAlgo] عند كلّ نقطة سوينغ (طول سوينغ SMC) وسمٌ يصنّفها: **HH** قمّة أعلى · **LH** قمّة أدنى (هبوطيّ) · **HL** قاع أعلى (صعوديّ) · **LL** قاع أدنى. لونا الصعود/الهبوط لبنية SMC. مطفأ افتراضيًّا. حدّ ~50 وسمًا.")
 
 // ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
 // يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
@@ -359,6 +385,84 @@ if barstate.islast
             if nRawOb > 0
                 color oc = array.get(smcObS, i) == 1 ? smcColObBull : smcColObBear
                 array.push(smcObBoxes, box.new(array.get(smcObL, i), array.get(smcObT, i), bar_index + 10, array.get(smcObB, i), xloc = xloc.bar_index, border_color = color.new(oc, 40), bgcolor = oc))
+
+// [م-إش-3 · دفعة FVG · v9] فجوات القيمة العادلة — الكشف/الإبطال/العتبة في **JW_SMC/9** (كلّ منطق SMC في المكتبة، لا فوضى)؛ المؤشّر يرسم فقط.
+//   تُحسَب كلّ بار (ثبات ta.cum) ⇒ نداء بلا شرط. الرسم خلف مفتاح مطفأ على islast (صندوقان نصفان لكلّ فجوة).
+[fvgT, fvgB, fvgBs, fvgLb, fvgRb] = jsmc.f_smcFVG(smcFvgAuto, smcFvgMax)
+var array<box> fvgBoxes = array.new<box>()
+if barstate.islast
+    for bx in fvgBoxes
+        box.delete(bx)
+    array.clear(fvgBoxes)
+    if smcDrawFVG
+        int nfv = array.size(fvgT)
+        for i = 0 to (nfv > 0 ? nfv - 1 : 0)
+            if nfv > 0
+                float t   = array.get(fvgT, i)
+                float b   = array.get(fvgB, i)
+                float mid = 0.5 * (t + b)
+                int   lb  = array.get(fvgLb, i)
+                int   rb  = array.get(fvgRb, i) + smcFvgExtend
+                color fc  = array.get(fvgBs, i) == 1 ? smcColFvgBull : smcColFvgBear
+                array.push(fvgBoxes, box.new(lb, math.max(t, b), rb, mid, xloc = xloc.bar_index, border_color = fc, bgcolor = fc))   // النصف العلويّ
+                array.push(fvgBoxes, box.new(lb, mid, rb, math.min(t, b), xloc = xloc.bar_index, border_color = fc, bgcolor = fc))   // النصف السفليّ
+
+// [م-إش-3 · دفعة Premium/Discount · v10] مناطق العلاوة/التوازن/الخصم — **كلّ الحساب في JW_SMC/10** (jsmc.f_smcPdZones من التطرّف الزاحف)؛ المؤشّر يرسم فقط.
+//   3 مناطق تُمسَح/تُبنى كلّ islast (زوج واحد حيّ، لا تراكم). الحارس (na/مقلوب) في المكتبة ⇒ pTop=na ⇒ يُتخطّى الرسم.
+[pdPT, pdPB, pdET, pdEB, pdEqL, pdDT, pdDB, pdZL, pdZM] = jsmc.f_smcPdZones(smcTrTop, smcTrBot, smcTrTopB, smcTrBotB, bar_index)
+var array<box>   smcPdBoxes = array.new<box>()
+var array<label> smcPdLbls  = array.new<label>()
+if barstate.islast
+    for bx in smcPdBoxes
+        box.delete(bx)
+    array.clear(smcPdBoxes)
+    for lb in smcPdLbls
+        label.delete(lb)
+    array.clear(smcPdLbls)
+    if smcDrawPD and not na(pdPT)
+        array.push(smcPdBoxes, box.new(pdZL, pdPT, bar_index, pdPB, xloc = xloc.bar_index, bgcolor = color.new(smcColPremium, 80), border_color = color(na)))   // العلاوة (أعلى 5%)
+        array.push(smcPdLbls, label.new(pdZM, pdPT, "Premium", xloc = xloc.bar_index, color = color(na), textcolor = smcColPremium, style = label.style_label_down, size = size.small))
+        array.push(smcPdBoxes, box.new(pdZL, pdET, bar_index, pdEB, xloc = xloc.bar_index, bgcolor = color.new(smcColEquil, 80), border_color = color(na)))   // التوازن (وسط 5%)
+        array.push(smcPdLbls, label.new(bar_index, pdEqL, "Equilibrium", xloc = xloc.bar_index, color = color(na), textcolor = smcColEquil, style = label.style_label_left, size = size.small))
+        array.push(smcPdBoxes, box.new(pdZL, pdDT, bar_index, pdDB, xloc = xloc.bar_index, bgcolor = color.new(smcColDiscount, 80), border_color = color(na)))   // الخصم (أسفل 5%)
+        array.push(smcPdLbls, label.new(pdZM, pdDB, "Discount", xloc = xloc.bar_index, color = color(na), textcolor = smcColDiscount, style = label.style_label_up, size = size.small))
+
+// [م-إش-3 · دفعة MTF Levels · v11] مستويات الفريم الأعلى — **كلّ المنطق في JW_SMC/11** (request.security + تنقيح بار التطرّف + الحارس)؛ المؤشّر يرسم فقط.
+//   تُحسَب كلّ بار (مصفوفات المكتبة المتراكمة + request.security) ⇒ نداء بلا شرط للثلاث (D/W/M). الرسم خلف مفاتيح مطفأة على islast.
+[mtfDv, mtfDtp, mtfDtpT, mtfDbt, mtfDbtT, mtfDrt] = jsmc.f_smcMtfLevel("D")
+[mtfWv, mtfWtp, mtfWtpT, mtfWbt, mtfWbtT, mtfWrt] = jsmc.f_smcMtfLevel("W")
+[mtfMv, mtfMtp, mtfMtpT, mtfMbt, mtfMbtT, mtfMrt] = jsmc.f_smcMtfLevel("M")
+f_mtfLineStyle(string s) => s == "Dashed" ? line.style_dashed : s == "Dotted" ? line.style_dotted : line.style_solid   // نمط الخطّ من نصّ
+f_pushMtf(array<line> lnS, array<label> lbS, bool show, bool valid, float tp, int tpT, float bt, int btT, int rt, string tag, color col, string style) =>
+    if show and valid and not na(tp) and not na(bt)
+        array.push(lnS, line.new(tpT, tp, rt, tp, xloc = xloc.bar_time, color = col, style = f_mtfLineStyle(style)))                                                    // خطّ القمّة (من بار تطرّفها إلى اليمين)
+        array.push(lbS, label.new(rt, tp, "P" + tag + "H", xloc = xloc.bar_time, color = color(na), textcolor = col, style = label.style_label_left, size = size.small))   // PDH/PWH/PMH
+        array.push(lnS, line.new(btT, bt, rt, bt, xloc = xloc.bar_time, color = col, style = f_mtfLineStyle(style)))                                                    // خطّ القاع
+        array.push(lbS, label.new(rt, bt, "P" + tag + "L", xloc = xloc.bar_time, color = color(na), textcolor = col, style = label.style_label_left, size = size.small))   // PDL/PWL/PML
+var array<line>  smcMtfLn = array.new<line>()
+var array<label> smcMtfLb = array.new<label>()
+if barstate.islast
+    for ln in smcMtfLn
+        line.delete(ln)
+    array.clear(smcMtfLn)
+    for lb in smcMtfLb
+        label.delete(lb)
+    array.clear(smcMtfLb)
+    f_pushMtf(smcMtfLn, smcMtfLb, smcMtfD, mtfDv, mtfDtp, mtfDtpT, mtfDbt, mtfDbtT, mtfDrt, "D", smcColMtf, smcMtfStyle)   // اليوميّ
+    f_pushMtf(smcMtfLn, smcMtfLb, smcMtfW, mtfWv, mtfWtp, mtfWtpT, mtfWbt, mtfWbtT, mtfWrt, "W", smcColMtf, smcMtfStyle)   // الأسبوعيّ
+    f_pushMtf(smcMtfLn, smcMtfLb, smcMtfM, mtfMv, mtfMtp, mtfMtpT, mtfMbt, mtfMbtT, mtfMrt, "M", smcColMtf, smcMtfStyle)   // الشهريّ
+
+// [م-إش-3 · دفعة HH/HL/LH/LL · v12] وسوم بنية السوق — **كلّ التصنيف في JW_SMC/12** (f_smcSwingHL على آلة f_leg)؛ المؤشّر يرسم فقط.
+//   تُحسَب كلّ بار (ta.change/f_leg) ⇒ نداء بلا شرط. الرسم على الشمعة المُغلَقة عند نقطة سوينغ جديدة (خلف مفتاح مطفأ · حارس ~50).
+[swhlCode, swhlLvl, swhlT] = jsmc.f_smcSwingHL(smcSwingLen)
+var array<label> smcSwHlLb = array.new<label>()
+if barstate.isconfirmed and smcDrawSwHL and swhlCode != 0 and not na(swhlLvl)
+    bool   isLow = swhlCode >= 3                                              // 3/4 قاع (LL/HL) · 1/2 قمّة (HH/LH)
+    string swhlTag = swhlCode == 1 ? "HH" : swhlCode == 2 ? "LH" : swhlCode == 3 ? "HL" : "LL"
+    color  cHl   = isLow ? smcColBull : smcColBear                            // قاع⇒أخضر · قمّة⇒أحمر (كـLuxAlgo swingBull/Bear)
+    array.push(smcSwHlLb, label.new(swhlT, swhlLvl, swhlTag, xloc = xloc.bar_time, color = color(na), textcolor = cHl, style = isLow ? label.style_label_up : label.style_label_down, size = size.small))
+    if array.size(smcSwHlLb) > 50
+        label.delete(array.shift(smcSwHlLb))
 
 // 🔵 احتياطيّ عرض فقط (لا قاعدة استراتيجيّة): يُستعمَل فقط قبل تكوّن أوّل ساق leg (لا توجد موجة لتحليلها بعدُ).
 //   بمجرّد وجود أوّل leg تُؤخَذ الحدود من السعر (legBars). المحلّل يضبط الموجة عبر waveMode (تلقائيّ/يدويّ/دمج).
