@@ -8,10 +8,13 @@ import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] �
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
 import Jassar_Mahmoud/JW_SMC/12 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
+import Jassar_Mahmoud/JW_Momentum/1 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · بيانات فقط، المؤشّر يرسم/يصوّت
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.83.1 [م-إش-3 · الزخم في لوحة القرار — حسم المالك] — دُمِجت معلومات الزخم في **لوحة القرار** (صفّان: «الزخم RSI» قيمة+تشبّع · «المتوسّطات E·S·V» اتجاهات EMA/SMA/VWAP مجمَّعة ▲▼) بدل لوحة منفصلة (حُذِفت momTbl + مدخلا الموضع/الخلفيّة). خلف مفتاح `momShowPanel` مستقلّ (إخفاء بإطفائه · يتطلّب لوحة القرار). عرض بحت — النواة/الأصوات لا تُمَسّ. تحقُّق الزخم السابق: RSI مطابق (JW RSI 68.22 ≈ MOM 68.28 · فارق الشمعة الحيّة) · الأصوات الأربعة تعمل. ═══
+// ═══ v2.83.0 [م-إش-3 · دفعة الزخم Momentum — الهدف الأصليّ §8] — مصدر تلاقٍ ثانٍ: EMA/SMA/VWAP/RSI عبر **JW_Momentum/1** (`f_momentum` يُرجِع القيم+الاتجاهات+تشبّع RSI · المكتبة بيانات فقط). المؤشّر: (1) **رسم** خطوط EMA/SMA/VWAP على السعر — **مفتاح إظهار مستقلّ لكلّ مؤشّر** (حسم المالك) · (2) **لوحة زخم** (RSI + تشبّعه + الاتجاهات؛ بديل لوحة RSI السفليّة لأنّ المؤشّر overlay) · (3) **أصوات تلاقٍ حيّة**: كلّ مؤشّر يصوّت (نجمة لكلّ موافق) + تطرّف RSI (شراء+تشبّع↑ / بيع+تشبّع↓) = ⛔veto. مجموعة «🎚 الزخم / Momentum» أسفل SMC · التصويت خلف `momEnable` مطفأ (A/B). عرض/تقييم بحت · النواة لا تُمَسّ. (التاريخيّة تأخذ نجوم الزخم لاحقًا كـSMC-3ج.) ═══
 // ═══ v2.82.1 [م-إش-3 · تنظيم مدخلات SMC — حسم المالك] — مجموعة التلاقي أُعيدت تسميتها **«🧠 SMC / Smart Money Concepts»** ونُقِلت **أسفل مجموعة إليوت** (ترتيب داخليّ منطقيّ: تصويت/معايير عامّة ← بنية BOS/CHoCH ← EQH/EQL ← Strong/Weak ← Order Blocks ← FVG ← Premium/Discount ← MTF ← HH/HL/LH/LL). تنظيم/عرض بحت — صفر أثر على المنطق (نفس المتغيّرات/القيم/المفاتيح؛ تغيّر ترتيب التصريح ونصّ المجموعة فقط · لا إعادة نشر مكتبة). تحقُّق HH/HL السابق: التصنيف يطابق تسلسل المستويات حرفًا (8/8). ═══
 // ═══ v2.82.0 [م-إش-3 · دفعة HH/HL/LH/LL — طبقة SMC مكتملة] — وسوم بنية السوق (Higher-High/Lower-High/Higher-Low/Lower-Low): **كلّ التصنيف في JW_SMC/12** (`f_smcSwingHL` — نقل LuxAlgo getCurrentStructure: قاع جديد أدنى⇒LL وإلّا HL · قمّة أعلى⇒HH وإلّا LH · على آلة f_leg نفسها، تحفظ المستوى السابق)؛ المؤشّر **يرسم فقط** (وسم عند كلّ نقطة سوينغ، خلف مفتاح مطفأ · حارس ~50). **بهذا تكتمل طبقة تلاقي SMC**: بنية BOS/CHoCH · EQH/EQL · Strong/Weak · OB · FVG · Premium/Discount · MTF · HH/HL — كلّها في JW_SMC، المؤشّر يرسم. عرض بحت · النواة لا تُمَسّ. تحقُّق MTF السابق: PDH/PDL·PWH/PWL مطابق للبيانات الحقيقيّة حرفًا. ═══
 // ═══ v2.81.0 [م-إش-3 · دفعة MTF Levels] — مستويات الفريم الأعلى (قمّة/قاع اليوم/الأسبوع/الشهر السابق): **كلّ المنطق في JW_SMC/11** (`f_smcMtfLevel` — request.security lookahead_on لا إعادة رسم + تنقيح بار التطرّف بالبحث الثنائيّ + حارس «الفريم أعلى»)؛ المؤشّر **يرسم فقط** (خطّان + وسما PDH/PDL لكلّ فريم، خلف 3 مفاتيح مطفأة + نمط/لون). عرض بحت · النواة لا تُمَسّ. تحقُّق P/D السابق: مطابق حسابيًّا (علاوة 29780.834 · توازن 29081.998/28999.782 · خصم 28300.946). ═══
@@ -293,6 +296,25 @@ color  smcColMtf    = input.color(#2157e2, "MTF levels color / لون مستوي
 // ─── [م-إش-3 · دفعة HH/HL/LH/LL · v12] وسوم بنية السوق — التصنيف في JW_SMC/12 (f_smcSwingHL)؛ المؤشّر يرسم فقط ───
 bool   smcDrawSwHL  = input.bool(false, "Draw SMC swing labels (HH/HL/LH/LL) / رسم وسوم بنية السوق", group = grpConf, tooltip = "[نقل LuxAlgo] عند كلّ نقطة سوينغ (طول سوينغ SMC) وسمٌ يصنّفها: **HH** قمّة أعلى · **LH** قمّة أدنى (هبوطيّ) · **HL** قاع أعلى (صعوديّ) · **LL** قاع أدنى. لونا الصعود/الهبوط لبنية SMC. مطفأ افتراضيًّا. حدّ ~50 وسمًا.")
 
+// ═════════════════ 🎚 الزخم / Momentum (تلاقٍ) [م-إش-3] ═════════════════
+// مصدر تلاقٍ زخميّ (EMA/SMA/VWAP/RSI) — الحساب في **JW_Momentum** (f_momentum)؛ المؤشّر يرسم/يصوّت فقط. كلّ مؤشّر خلف مفتاح إظهار مستقلّ.
+// ⇒ صفر أثر على النواة ما لم يُفعَّل التصويت (A/B عند momEnable=false، كـSMC).
+string grpMom       = "🎚 الزخم / Momentum"
+bool   momEnable    = input.bool(false, "Enable momentum confluence vote / تفعيل صوت الزخم", group = grpMom, tooltip = "[م-إش-3] EMA/SMA/VWAP/RSI تصوّت على إشارة M-Waves (الإغلاق فوق/تحت الخطّ · RSI فوق/تحت 50) ⇒ نجمة لكلّ موافق. تقييم/عرض فقط — لا يولّد إشارة ولا يعدّلها. مطفأ افتراضيًّا (A/B: الوسم بلا نجوم زخم).")
+int    momEmaLen    = input.int(9, "EMA length / طول EMA", minval = 1, group = grpMom)
+int    momSmaLen    = input.int(50, "SMA length / طول SMA", minval = 1, group = grpMom)
+int    momRsiLen    = input.int(14, "RSI length / طول RSI", minval = 1, group = grpMom)
+float  momRsiOB     = input.float(70, "RSI overbought (veto buy) / تشبّع شرائيّ (veto شراء)", minval = 50, maxval = 100, group = grpMom)
+float  momRsiOS     = input.float(30, "RSI oversold (veto sell) / تشبّع بيعيّ (veto بيع)", minval = 0, maxval = 50, group = grpMom)
+bool   momRsiVeto   = input.bool(true, "RSI extreme = veto (don't chase) / تطرّف RSI = veto", group = grpMom, tooltip = "شراء وRSI مشبّع شرائيًّا (أو بيع ومشبّع بيعيًّا) ⇒ ⛔veto (مطاردة تطرّف). عرض فقط — لا يُلغي الإشارة.")
+bool   momDrawEma   = input.bool(false, "Show EMA / إظهار EMA", inline = "mome", group = grpMom)
+color  momColEma    = input.color(#E040FB, "", inline = "mome", group = grpMom)
+bool   momDrawSma   = input.bool(false, "Show SMA / إظهار SMA", inline = "moms", group = grpMom)
+color  momColSma    = input.color(#26C6DA, "", inline = "moms", group = grpMom)
+bool   momDrawVwap  = input.bool(false, "Show VWAP / إظهار VWAP", inline = "momv", group = grpMom)
+color  momColVwap   = input.color(#FFCA28, "", inline = "momv", group = grpMom)
+bool   momShowPanel = input.bool(false, "Show momentum in decision panel / إظهار الزخم في لوحة القرار", group = grpMom, tooltip = "يُضيف صفَّي زخم إلى **لوحة القرار**: RSI (قيمة + تشبّع) + اتجاهات EMA/SMA/VWAP مجمَّعة. خلف مفتاح مستقلّ (إخفاء بإطفائه) · يتطلّب إظهار لوحة القرار. عرض بحت.")
+
 // ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
 // يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
 [smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB, smcTrTop, smcTrTopB, smcTrBot, smcTrBotB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)   // [v2] +مستوى/بار النقطة المكسورة (للرسم) · [v6] +التطرّف الزاحف (قمّة/قاع) + بارَيهما (Strong/Weak = trailing extremes)
@@ -302,6 +324,18 @@ plot(smcEnable ? smcSwEv   : na, "SMC swingEvent",    display = display.data_win
 plot(smcEnable ? smcInEv   : na, "SMC internalEvent", display = display.data_window)
 max_bars_back(smcSwBias, 500)   // [م-إش-3ج] الفهرسة الزمنيّة المتغيّرة (قراءة الاتّجاه عند بار الإشارة التاريخيّة، ضمن نافذة الإشارات 500)
 max_bars_back(smcSwEv, 500)
+
+// ══════ [م-إش-3 · دفعة الزخم] الزخم (EMA/SMA/VWAP/RSI · JW_Momentum · مصدر تلاقٍ لا مولّد) ══════
+// يُحسَب دائمًا لثبات ta؛ القيم للرسم (خطوط على السعر)، الاتجاهات/التشبّع للتصويت الحيّ (3ب). القيم في Data Window للتحقّق.
+[momEma, momSma, momVwap, momRsi, momEmaDir, momSmaDir, momVwapDir, momRsiDir, momRsiOBst, momRsiOSst] = jmom.f_momentum(momEmaLen, momSmaLen, momRsiLen, momRsiOB, momRsiOS)
+plot(momDrawEma  ? momEma  : na, "Momentum EMA",  color = momColEma,  linewidth = 1)   // خطوط على السعر خلف مفاتيح إظهار مستقلّة
+plot(momDrawSma  ? momSma  : na, "Momentum SMA",  color = momColSma,  linewidth = 1)
+plot(momDrawVwap ? momVwap : na, "Momentum VWAP", color = momColVwap, linewidth = 2)
+plot(momEnable ? momRsi     : na, "MOM rsi",     display = display.data_window)         // للتحقّق البرمجيّ (A/B مع RSI المدمج)
+plot(momEnable ? momEmaDir  : na, "MOM emaDir",  display = display.data_window)
+plot(momEnable ? momSmaDir  : na, "MOM smaDir",  display = display.data_window)
+plot(momEnable ? momVwapDir : na, "MOM vwapDir", display = display.data_window)
+plot(momEnable ? momRsiDir  : na, "MOM rsiDir",  display = display.data_window)
 
 // [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
 [smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
@@ -1699,10 +1733,10 @@ var float        liveE      = na    // سعر الدخول
 var int          liveDir    = 0     // 1 شراء · -1 بيع
 var float         liveStp    = na    // الوقف
 var array<float> liveTps    = array.new<float>()   // سلّم الأهداف
-var table concTbl = table.new(f_pos(concPos), 2, 14, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+var table concTbl = table.new(f_pos(concPos), 2, 16, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)   // [دفعة الزخم] 16 صفًّا (14 قرار + صفّا زخم)
 if barstate.islast
     if not showConc                                             // [فصل الإشارات/التنبيه عن اللوحة] إخفاء اللوحة يمسح خلاياها فقط — الحساب والإشارات والتنبيه تعمل دائمًا (تُحرَس الخلايا بـshowConc)
-        table.clear(concTbl, 0, 0, 1, 13)
+        table.clear(concTbl, 0, 0, 1, 15)
     if showConc
         table.set_position(concTbl, f_pos(concPos))
     // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
@@ -1952,6 +1986,19 @@ if barstate.islast
         table.cell(concTbl, 0, 13, f_t("ذروة شراء/بيع", "Buy/Sell climax"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("قاعدة ذهبيّة: مشاركة عامّة في الدرجات الثلاث + قوّة سيولة الصغيرة ضعيفة (توغّل = نهاية الموجة) ⇒ ذروة شراء/بيع ⇒ تصحيح متوقَّع حتى خطّ السيولة الأكبر.", "Golden rule: general participation across all three degrees + weak small-degree liquidity strength (interference = end of wave) ⇒ buy/sell climax ⇒ correction expected toward the larger liquidity line."))
     if showConc
         table.cell(concTbl, 1, 13, clmTxt, text_color = color.white, bgcolor = clmBg, text_size = size.small)
+    // [دفعة الزخم] صفّا الزخم في لوحة القرار (خلف مفتاح مستقلّ momShowPanel — إخفاء بإطفائه) · عرض بحت
+    if showConc and momShowPanel
+        string mRsiTx = na(momRsi) ? "—" : str.tostring(momRsi, "#.0") + (momRsiOBst ? f_t(" تشبّع↑", " OB") : momRsiOSst ? f_t(" تشبّع↓", " OS") : "")
+        color  mRsiBg = momRsiOBst ? cDn : momRsiOSst ? cUp : momRsiDir == 1 ? cUp : momRsiDir == -1 ? cDn : pMute
+        table.cell(concTbl, 0, 14, f_t("الزخم RSI", "Momentum RSI"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+        table.cell(concTbl, 1, 14, mRsiTx, text_color = color.white, bgcolor = mRsiBg, text_size = size.small)
+        string mMaTx = "EMA " + (momEmaDir == 1 ? "▲" : momEmaDir == -1 ? "▼" : "—") + " · SMA " + (momSmaDir == 1 ? "▲" : momSmaDir == -1 ? "▼" : "—") + " · VWAP " + (momVwapDir == 1 ? "▲" : momVwapDir == -1 ? "▼" : "—")
+        int    mMaSum = momEmaDir + momSmaDir + momVwapDir
+        color  mMaBg  = mMaSum > 0 ? cUp : mMaSum < 0 ? cDn : cRngC                    // توافق صعوديّ/هبوطيّ · مختلط ⇒ برتقاليّ
+        table.cell(concTbl, 0, 15, f_t("المتوسّطات (E·S·V)", "Moving avgs (E·S·V)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+        table.cell(concTbl, 1, 15, mMaTx, text_color = color.white, bgcolor = mMaBg, text_size = size.small)
+    else if showConc
+        table.clear(concTbl, 0, 14, 1, 15)                                            // إخفاء صفّي الزخم دون مسح لوحة القرار
     // [الفرص الثلاث · قرار المستخدم + spec §51-52 · مُرحَّل من رأس المؤشّر — أ45] (1) **أساسيّة** = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) **عالية مخاطرة** = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) **خروج/fallback** = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
     bool basicSig = inZone and (gatePh == 2 or gatePh == 3 or gatePh == 4) and confOk and (entry == 1 or entry == -1)   // [G2+توحيد] أساسيّة: نضج (يأس/تجميع/تصريف بدرجة الصفقة) + تأكيد داخل المنطقة
@@ -2029,6 +2076,23 @@ if barstate.islast
                 array.push(cfDir,  obDir)
                 array.push(cfStr,  1.0)
                 array.push(cfCrit, false)
+        if momEnable                                                              // [دفعة الزخم] EMA/SMA/VWAP/RSI أصوات (كلّ +1/-1/0) + تطرّف RSI = veto حرِج
+            array.push(cfDir, momEmaDir)
+            array.push(cfStr, 1.0)
+            array.push(cfCrit, false)
+            array.push(cfDir, momSmaDir)
+            array.push(cfStr, 1.0)
+            array.push(cfCrit, false)
+            array.push(cfDir, momVwapDir)
+            array.push(cfStr, 1.0)
+            array.push(cfCrit, false)
+            array.push(cfDir, momRsiDir)
+            array.push(cfStr, 1.0)
+            array.push(cfCrit, false)
+            if momRsiVeto and ((up and momRsiOBst) or ((not up) and momRsiOSst))   // شراء+تشبّع شرائيّ أو بيع+تشبّع بيعيّ ⇒ مطاردة تطرّف ⇒ صوت معاكس حرِج (⛔)
+                array.push(cfDir, -sigDirC)
+                array.push(cfStr, 2.0)
+                array.push(cfCrit, true)
         [cfAgree, cfOpp, cfNeu, cfVeto] = jwconf.f_rate(sigDirC, cfDir, cfStr, cfCrit, confUseVeto)
         string starTx = (cfAgree > 0 ? str.repeat("★", cfAgree) : "") + (cfVeto ? "⛔" : "")   // [نموذج المالك] نجمة لكلّ مصدر موافق · بلا نجوم إن لا توافق · ⛔ veto — تُلحَق بعد ✦/⚠
         string sigTx = ((uiLang == "AR / عربيّة") ? (starTx + (isBas ? "✦" : "⚠") + (up ? "شراء" : "بيع")) : ((up ? "Buy" : "Sell") + (isBas ? "✦" : "⚠") + starTx)) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [حسم المالك] ترتيب حسب اللغة ليظهر ★ **يمين** الكلمة في الاثنتين: عربيّ RTL ⇒ سلسلة ★✦كلمة (تُرندَر كلمة✦★) · إنجليزيّ LTR ⇒ كلمة✦★

@@ -1,0 +1,39 @@
+//@version=6
+// ============================================================================
+// JW_Momentum — مصادر تلاقٍ زخميّة (EMA · SMA · VWAP · RSI)
+// ----------------------------------------------------------------------------
+// 🔴 الخطّ الأحمر: النواة (M-Waves) هي المولّد الوحيد للإشارة. هذه المكتبة
+//    «تقرأ فقط»: تحسب أصواتًا زخميّة (اتّجاه/veto) لتقييم إشارة ناجية من النواة.
+//    لا تولّد نقطة/درجة/منطقة/إشارة، ولا تعدّل أيّها.
+//
+// العقد (spec_confluence_layer §3): بيانات كقيمة لا وسمًا · بلا UDT-محلّيّ+method
+//   (يتفادى فخّ ترجمة المكتبات CE10237) · يطابق نمط JW_SMC/JW_Confluence.
+//
+// A/B: القيم تطابق مؤشّرات TradingView المدمجة (EMA/SMA/RSI/VWAP) رقميًّا.
+// ============================================================================
+library("JW_Momentum", overlay = true)
+
+// @function   أصوات الزخم: السعر فوق/تحت المتوسطات وVWAP + اتّجاه/تشبّع RSI.
+//             تُحسَب كلّ بار بلا شرط (ثبات حالة ta) — يقرؤها المؤشّر عند التفعيل.
+// @param emaLen  طول المتوسط الأسّيّ (افتراض TradingView = 9؛ نمرّره وسيطًا).
+// @param smaLen  طول المتوسط البسيط.
+// @param rsiLen  طول RSI.
+// @param obThr   عتبة التشبّع الشرائيّ (RSI ≥ ⇒ يمنع مطاردة الشراء).
+// @param osThr   عتبة التشبّع البيعيّ (RSI ≤ ⇒ يمنع مطاردة البيع).
+// @returns [emaVal, smaVal, vwapVal, rsiVal, emaDir, smaDir, vwapDir, rsiDir, rsiOB, rsiOS]
+//   emaVal/smaVal/vwapVal/rsiVal: القيم الخام (يرسمها المؤشّر — خطوط على السعر · RSI في لوحة).
+//   emaDir/smaDir/vwapDir: +1 الإغلاق فوق الخطّ · -1 تحته · 0 غير متاح (na/تساوٍ).
+//   rsiDir: +1 RSI فوق 50 · -1 تحته · 0 na.
+//   rsiOB/rsiOS: هل RSI بلغ التشبّع الشرائيّ/البيعيّ (للـveto في المؤشّر).
+export f_momentum(simple int emaLen, simple int smaLen, simple int rsiLen, float obThr, float osThr) =>
+    float e = ta.ema(close, emaLen)
+    float s = ta.sma(close, smaLen)
+    float v = ta.vwap(hlc3)                                         // ⚠ يحتاج أداةً بحجم تداول (US100 يملكه)؛ بلا حجم قد يُرجِع na
+    float r = ta.rsi(close, rsiLen)
+    int  emaDir  = na(e) ? 0 : close > e ? 1 : close < e ? -1 : 0   // السعر فوق/تحت EMA (حسم المالك: موضع السعر لا ميل الخطّ)
+    int  smaDir  = na(s) ? 0 : close > s ? 1 : close < s ? -1 : 0
+    int  vwapDir = na(v) ? 0 : close > v ? 1 : close < v ? -1 : 0
+    int  rsiDir  = na(r) ? 0 : r > 50 ? 1 : r < 50 ? -1 : 0
+    bool rsiOB   = not na(r) and r >= obThr
+    bool rsiOS   = not na(r) and r <= osThr
+    [e, s, v, r, emaDir, smaDir, vwapDir, rsiDir, rsiOB, rsiOS]

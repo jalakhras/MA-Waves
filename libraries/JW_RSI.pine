@@ -1,0 +1,87 @@
+//@version=6
+// ============================================================================
+// JW_RSI — لوحة RSI المرافقة لـJ-Waves M2 (مؤشّر مستقلّ، لوحة سفليّة منفصلة)
+// ----------------------------------------------------------------------------
+// السبب: J-Waves M2 مؤشّر overlay=true ⇒ لا يملك لوحة أوسِلِّيتور منفصلة. هذا
+//   المؤشّر المرافق يعرض RSI في **لوحته الخاصّة أسفل الشارت** بالشكل الأصليّ
+//   المألوف (نقل حرفيّ للوحة RSI المدمجة في TradingView).
+// المطابقة: نفس حساب RSI ونفس الطول الافتراضيّ (14) المستعمَل في تصويت الزخم
+//   داخل J-Waves (jmom.f_momentum) ⇒ قيمة RSI هنا = قيمة صوت RSI هناك حرفًا.
+// الاستعمال: أضِفه للشارت كأيّ مؤشّر (Add to chart) — يظهر في لوحته السفليّة.
+// عرض بحت — لا يولّد إشارة ولا يمسّ نواة M-Waves.
+// ============================================================================
+indicator(title = "JW RSI", shorttitle = "JW RSI", format = format.price, precision = 2, timeframe = "", timeframe_gaps = true)
+
+// ─── الإعدادات (تطابق افتراضات الزخم في J-Waves) ───
+rsiLengthInput = input.int(14, minval = 1, title = "RSI Length / طول RSI", group = "RSI")
+rsiSourceInput = input.source(close, "Source / المصدر", group = "RSI")
+calculateDivergence = input.bool(false, title = "Calculate Divergence / كشف الدايفرجنس", group = "RSI", tooltip = "[نقل حرفيّ للوحة RSI الأصليّة] دايفرجنس منتظم: صعوديّ (قاع سعر أدنى + قاع RSI أعلى ⇒ Bull) · هبوطيّ (قمّة سعر أعلى + قمّة RSI أدنى ⇒ Bear). ضروريّ لتنبيهات الدايفرجنس. مطفأ افتراضيًّا.")
+
+// ─── حساب RSI (نقل حرفيّ = ta.rsi) ───
+change = ta.change(rsiSourceInput)
+up   = ta.rma(math.max(change, 0), rsiLengthInput)
+down = ta.rma(-math.min(change, 0), rsiLengthInput)
+rsi  = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+// ─── الرسم (نقل حرفيّ للوحة RSI الأصليّة: خطّ بنفسجيّ + 70/50/30 + تعبئات) ───
+rsiPlot      = plot(rsi, "RSI", color = #7E57C2)
+rsiUpperBand = hline(70, "RSI Upper Band", color = #787B86)
+midline      = hline(50, "RSI Middle Band", color = color.new(#787B86, 50))
+rsiLowerBand = hline(30, "RSI Lower Band", color = #787B86)
+fill(rsiUpperBand, rsiLowerBand, color = color.rgb(126, 87, 194, 90), title = "RSI Background Fill")
+midLinePlot  = plot(50, color = na, editable = false, display = display.none)
+fill(rsiPlot, midLinePlot, 100, 70, top_color = color.new(color.green, 0), bottom_color = color.new(color.green, 100), title = "Overbought Gradient Fill")
+fill(rsiPlot, midLinePlot, 30, 0, top_color = color.new(color.red, 100), bottom_color = color.new(color.red, 0), title = "Oversold Gradient Fill")
+
+// ─── متوسّط تنعيم اختياريّ (كاللوحة الأصليّة · افتراض SMA مطفأ display حتّى يُفعَّل) ───
+GRP = "Smoothing / تنعيم"
+maTypeInput   = input.string("None", "MA Type / نوع المتوسّط", options = ["None", "SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group = GRP)
+maLengthInput = input.int(14, "MA Length / طول المتوسّط", group = GRP)
+f_ma(source, length, MAtype) =>
+    switch MAtype
+        "SMA"        => ta.sma(source, length)
+        "EMA"        => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA"        => ta.wma(source, length)
+        "VWMA"       => ta.vwma(source, length)
+        => na
+bool  enableMA = maTypeInput != "None"
+float smoothingMA = enableMA ? f_ma(rsi, maLengthInput, maTypeInput) : na
+plot(smoothingMA, "RSI-based MA", color = color.yellow, display = enableMA ? display.all : display.none, editable = enableMA)
+
+// ─── مكتشف الدايفرجنس (نقل حرفيّ للوحة RSI الأصليّة: دايفرجنس منتظم صعوديّ/هبوطيّ) ───
+lookbackRight = 5
+lookbackLeft  = 5
+rangeUpper = 60
+rangeLower = 5
+bearColor = color.red
+bullColor = color.green
+textColor = color.white
+noneColor = color.new(color.white, 100)
+_inRange(bool cond) =>
+    bars = ta.barssince(cond)
+    rangeLower <= bars and bars <= rangeUpper
+// 🔴 يُحسَب **بلا شرط** (ثبات ta — ta.pivot*/valuewhen/barssince لا تُوضَع داخل if) · التفعيل بوّابة عرض فقط (bullCond/bearCond)
+float rsiLBR  = rsi[lookbackRight]
+bool  plFound = not na(ta.pivotlow(rsi, lookbackLeft, lookbackRight))    // قاع RSI
+bool  phFound = not na(ta.pivothigh(rsi, lookbackLeft, lookbackRight))   // قمّة RSI
+float rsiAtPrevPL  = ta.valuewhen(plFound, rsiLBR, 1)                     // قيمة RSI عند القاع السابق
+float rsiAtPrevPH  = ta.valuewhen(phFound, rsiLBR, 1)                     // قيمة RSI عند القمّة السابقة
+float lowLBR  = low[lookbackRight]
+float lowAtPrevPL  = ta.valuewhen(plFound, lowLBR, 1)
+float highLBR = high[lookbackRight]
+float highAtPrevPH = ta.valuewhen(phFound, highLBR, 1)
+bool  plInRange = _inRange(plFound[1])                                   // [ثبات ta] احسب barssince بلا شرط ثمّ استعمله (لا داخل and)
+bool  phInRange = _inRange(phFound[1])
+bool  rsiHL   = rsiLBR > rsiAtPrevPL and plInRange                       // RSI قاع أعلى
+bool  priceLL = lowLBR < lowAtPrevPL                                     // السعر قاع أدنى
+bool  rsiLH   = rsiLBR < rsiAtPrevPH and phInRange                       // RSI قمّة أدنى
+bool  priceHH = highLBR > highAtPrevPH                                   // السعر قمّة أعلى
+bool  bullCond = calculateDivergence and priceLL and rsiHL and plFound   // دايفرجنس صعوديّ منتظم
+bool  bearCond = calculateDivergence and priceHH and rsiLH and phFound   // دايفرجنس هبوطيّ منتظم
+plot(plFound ? rsiLBR : na, offset = -lookbackRight, title = "Regular Bullish", linewidth = 2, color = (bullCond ? bullColor : noneColor), display = display.pane, editable = calculateDivergence)
+plotshape(bullCond ? rsiLBR : na, offset = -lookbackRight, title = "Regular Bullish Label", text = " Bull ", style = shape.labelup, location = location.absolute, color = bullColor, textcolor = textColor, display = display.pane, editable = calculateDivergence)
+plot(phFound ? rsiLBR : na, offset = -lookbackRight, title = "Regular Bearish", linewidth = 2, color = (bearCond ? bearColor : noneColor), display = display.pane, editable = calculateDivergence)
+plotshape(bearCond ? rsiLBR : na, offset = -lookbackRight, title = "Regular Bearish Label", text = " Bear ", style = shape.labeldown, location = location.absolute, color = bearColor, textcolor = textColor, display = display.pane, editable = calculateDivergence)
+alertcondition(bullCond, title = "Regular Bullish Divergence / دايفرجنس صعوديّ", message = "JW RSI: Regular Bullish Divergence")
+alertcondition(bearCond, title = "Regular Bearish Divergence / دايفرجنس هبوطيّ", message = "JW RSI: Regular Bearish Divergence")
