@@ -10,10 +10,12 @@ import Jassar_Mahmoud/JW_SMC/13 as jsmc                       // [م-إش-3 · �
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
 import Jassar_Mahmoud/JW_Momentum/1 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · بيانات فقط، المؤشّر يرسم/يصوّت
 import Jassar_Mahmoud/JW_Sessions/1 as jsess                // [م-إش-3 · تلاقٍ] الجلسات (نقل LuxAlgo Sessions) — f_sessionState يُرجِع حالة الجلسة+مداها · المؤشّر يرسم الصناديق + تلاقي سيولة (قمّة/قاع جلسة كبرى ⇒ +نجمة) + بوّابة نشاط
+import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · استراتيجيّة مُقيَّمة] كنس الإغراء IDM (نقل Inducement Engine [MarkitTick]) — f_inducement يُرجِع إشارة (اتّجاه/دخول/وقف/أهداف/موقف) · بيانات فقط، المؤشّر يرسمها باسمها ويقيّمها بنجوم المصادر
 // ════════════════════════════════════════════════════════════════════════════
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.86.0 [م-إش-3 · دفعة الإغراء IDM — التلاقي متعدّد الاستراتيجيّات] — أوّل **استراتيجيّة مُقيَّمة** عبر **JW_Inducement/1** (نقل «كنس الإغراء» Inducement Engine [MarkitTick] · بيانات فقط · © MarkitTick): (1) حساب إشارة IDM كلّ بار (اتّجاه/دخول/وقف/أهداف/موقف) · (2) **رسمها معنونةً «IDM شراء/بيع»** عند بار كنسها بمعلومات صفقتها هي (لا زون M-Waves) · (3) **تقييمها بنجوم SMC + الزخم** (per-bar عند بار الإشارة، jwconf.f_rate — IDM لا يصوّت على نفسه). مجموعة «🎯 الإغراء» خلف `idmEnable` مطفأ ⇒ **A/B مطلق** (النواة وتصويت M-Waves لم يُمَسّا). النموذج (حسم المالك): كلّ استراتيجيّة تُطلِق إشاراتها باسمها بأمانتها، والتقييم بالنجوم حسب بقيّة المصادر. (M-Waves/الجلسات كمصوّتَين على IDM + تاريخيّة IDM = دفعات تالية.) ═══
 // ═══ v2.85.3 [م-إش-3 · تنبيه مقتضَب — حسم المالك] — رسالة `alert()` أُعيد تنسيقها: **الاسم + القوّة + معلومات الصفقة المهمّة فقط** (M-Waves شراء/بيع ✦/⚠ ★★★ [⛔] · دخول · وقف · هدف · RR). حُذِف الحشو؛ أُبقيت العناصر التنفيذيّة للصفقة بطلب المالك («أضِف المعلومات المهمّة للصفقة»). عرض بحت · لا نشر مكتبة · النواة لا تُمَسّ. ═══
 // ═══ v2.85.2 [م-إش-3 · أوقات الجلسات النهائيّة (الأردن · US100) — حسم المالك] — ثُبِّتت افتراضات المالك: **نيويورك 16:30–00:00** (= فتح الناسداك 09:30 ET بتوقيت الأردن، صيف أمريكا · شتاءً يُزاح +1 ⇒ 17:30) · **لندن 10:00–16:30** (تسليم نظيف لنيويورك) · طوكيو 03:00–12:00 · سيدني 00:00–09:00. تشخيص الجذر (لقطة المالك): «Use exchange timezone» كان مفعّلًا فيتجاهل إزاحة +3 ⇒ الصناديق مُزاحة؛ إطفاؤه حلّها. لا إعادة نشر مكتبة (مدخلات فقط). ═══
 // ═══ v2.85.1 [م-إش-3 · الجلسات بتوقيت الأردن افتراضًا — حسم المالك] — أوقات الجلسات الافتراضيّة حُوِّلت لتوقيت الأردن UTC+3 (نيويورك 1600-0100 · لندن 1000-1900 · طوكيو 0300-1200 · سيدني 0000-0900) + إزاحة UTC الافتراضيّة صارت +3 ⇒ الأرقام في الإعدادات تُقرأ بساعة المالك مباشرةً. 🔴 **المواضع لم تتغيّر** (الإزاحة+الأوقات معًا تحفظان نفس اللحظات المطلقة = 13-22 UTC…): الجلسات كانت صحيحة أصلًا؛ التغيير عرضيّ (أرقام مقروءة) لا موضعيّ. لا إعادة نشر مكتبة. ═══
@@ -356,6 +358,23 @@ bool   sesMajorD    = input.bool(false, "major", inline = "sesD", group = grpSes
 bool   sesShowLbl   = input.bool(true, "Session name labels / أسماء الجلسات", group = grpSes)
 float  sesBoxTransp = input.float(90, "Session box transparency / شفافية صندوق الجلسة", minval = 0, maxval = 100, group = grpSes)
 
+// ═════════════════ 🎯 الإغراء / Inducement (استراتيجيّة مُقيَّمة) [م-إش-3] ═════════════════
+// استراتيجيّة **مستقلّة** تُطلِق إشاراتها باسمها (كنس الإغراء IDM) — الحساب في **JW_Inducement** (f_inducement)؛ المؤشّر يرسمها
+// معنونةً «IDM» بمعلومات صفقتها هي (دخول/وقف/أهداف) و**يقيّمها بنجوم المصادر** (SMC + الزخم المتاحان per-bar). © MarkitTick.
+// 🔴 خلف `idmEnable` مطفأ ⇒ صفر أثر على النواة (A/B). النموذج: كلّ استراتيجيّة باسمها، والتقييم بالنجوم حسب بقيّة المصادر.
+string grpIdm       = "🎯 الإغراء / Inducement"
+bool   idmEnable    = input.bool(false, "Enable IDM strategy signals / تفعيل إشارات استراتيجيّة الإغراء", group = grpIdm, tooltip = "[م-إش-3 · استراتيجيّة مُقيَّمة] استراتيجيّة «كنس الإغراء» تُطلِق إشاراتها باسمها (IDM شراء/بيع) بدخولها/وقفها/أهدافها هي، وتُقيَّم بنجوم SMC والزخم. مطفأ افتراضيًّا ⇒ النواة مطابقة بايتًا (A/B).")
+int    idmSwingLen  = input.int(5, "Swing length / طول السوينغ", minval = 2, group = grpIdm, tooltip = "طول اكتشاف نقاط الإغراء (افتراض الأصل = 5).")
+int    idmAtrLen    = input.int(14, "ATR length / طول ATR", minval = 1, group = grpIdm, tooltip = "طول ATR للوقف المتكيّف (افتراض 14).")
+int    idmIndMax    = input.int(50, "Max IDM memory / سقف ذاكرة الإغراء", minval = 10, maxval = 200, group = grpIdm)
+bool   idmUseAtrSl  = input.bool(true, "ATR-adaptive SL / وقف متكيّف بالـATR", group = grpIdm, tooltip = "الوقف = شمعة الإغراء ± ATR×المضاعِف · مطفأ ⇒ شمعة الإغراء فقط.")
+float  idmAtrMult   = input.float(1.0, "ATR SL mult / مضاعِف وقف ATR", minval = 0.1, step = 0.1, group = grpIdm)
+float  idmRr1       = input.float(1.0, "TP1 R:R", minval = 0.5, step = 0.1, group = grpIdm)
+float  idmRr2       = input.float(2.0, "TP2 R:R", minval = 1.0, step = 0.5, group = grpIdm)
+float  idmRr3       = input.float(3.0, "TP3 R:R", minval = 1.5, step = 0.5, group = grpIdm)
+color  idmColBull   = input.color(#26A69A, "IDM buy / إشارة شراء IDM", inline = "idmc", group = grpIdm)
+color  idmColBear   = input.color(#EF5350, "IDM sell / إشارة بيع IDM", inline = "idmc", group = grpIdm)
+
 // ══════ [م-إش-3 · تلاقٍ] صوت بنية SMC (LuxAlgo · مصدر تلاقٍ لا مولّد) ══════
 // يُحسب دائمًا لثبات حالة ta؛ يُستعمَل عند التفعيل فقط (3ب). القيم في Data Window للتحقّق البرمجيّ (بلا رسم على الشارت).
 [smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB, smcTrTop, smcTrTopB, smcTrBot, smcTrBotB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)   // [v2] +مستوى/بار النقطة المكسورة (للرسم) · [v6] +التطرّف الزاحف (قمّة/قاع) + بارَيهما (Strong/Weak = trailing extremes)
@@ -424,6 +443,50 @@ f_drawSesBox(sesBxA, sesLbA, sesShowA, sesShowLbl, sesActA, sesStA, sesMaxA, ses
 f_drawSesBox(sesBxB, sesLbB, sesShowB, sesShowLbl, sesActB, sesStB, sesMaxB, sesMinB, sesStTB, sesColB, sesNameB, sesBoxTransp)
 f_drawSesBox(sesBxC, sesLbC, sesShowC, sesShowLbl, sesActC, sesStC, sesMaxC, sesMinC, sesStTC, sesColC, sesNameC, sesBoxTransp)
 f_drawSesBox(sesBxD, sesLbD, sesShowD, sesShowLbl, sesActD, sesStD, sesMaxD, sesMinD, sesStTD, sesColD, sesNameD, sesBoxTransp)
+
+// ══════ [م-إش-3 · دفعة الإغراء IDM] استراتيجيّة كنس الإغراء (JW_Inducement) — إشارة مستقلّة باسمها + تقييم بنجوم المصادر ══════
+// تُحسَب كلّ بار (حالة var متراكمة في المكتبة). الإشارة تُرسَم **معنونةً «IDM»** عند بار كنسها (على المُغلَقة ⇒ لا وميض/لا look-ahead)
+//   بمعلومات صفقتها هي (دخول/وقف/أهداف)، وتُقيَّم بنجوم SMC + الزخم (سلاسل per-bar متاحة عند بار الإشارة). خلف idmEnable ⇒ A/B.
+[idmDir, idmEntry, idmSl, idmTp1, idmTp2, idmTp3, idmTrig, idmStance] = jind.f_inducement(idmSwingLen, idmAtrLen, idmIndMax, idmUseAtrSl, idmAtrMult, idmRr1, idmRr2, idmRr3)
+plot(idmEnable ? idmDir    : na, "IDM dir",    display = display.data_window)   // للتحقّق البرمجيّ (مقابل المؤشّر الأصليّ)
+plot(idmEnable ? idmStance : na, "IDM stance", display = display.data_window)
+var array<label> idmLabels = array.new<label>()
+if idmEnable and idmTrig and barstate.isconfirmed and idmDir != 0
+    bool idmUp = idmDir == 1
+    // التقييم: أصوات المصادر المتاحة per-bar عند بار الإشارة (SMC + الزخم) — IDM لا يصوّت على نفسه · M-Waves/الجلسات لاحقًا
+    array<int>   cfDirI  = array.new<int>()
+    array<float> cfStrI  = array.new<float>()
+    array<bool>  cfCritI = array.new<bool>()
+    if smcEnable
+        array.push(cfDirI,  smcSwBias)
+        array.push(cfStrI,  smcSwEv != 0 ? 2.0 : 1.0)
+        array.push(cfCritI, smcCritical)
+    if momEnable
+        array.push(cfDirI, momEmaDir)
+        array.push(cfStrI, 1.0)
+        array.push(cfCritI, false)
+        array.push(cfDirI, momSmaDir)
+        array.push(cfStrI, 1.0)
+        array.push(cfCritI, false)
+        array.push(cfDirI, momVwapDir)
+        array.push(cfStrI, 1.0)
+        array.push(cfCritI, false)
+        array.push(cfDirI, momRsiDir)
+        array.push(cfStrI, 1.0)
+        array.push(cfCritI, false)
+        if momRsiVeto and ((idmUp and momRsiOBst) or ((not idmUp) and momRsiOSst))   // شراء+تشبّع↑ / بيع+تشبّع↓ ⇒ مطاردة تطرّف ⇒ معاكس حرِج
+            array.push(cfDirI, -idmDir)
+            array.push(cfStrI, 2.0)
+            array.push(cfCritI, true)
+    [iAg, iOp, iNe, iVt] = jwconf.f_rate(idmDir, cfDirI, cfStrI, cfCritI, confUseVeto)
+    string iStar = (iAg > 0 ? str.repeat("★", iAg) : "") + (iVt ? "⛔" : "")
+    string iWord = idmUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
+    string iTx   = (uiLang == "AR / عربيّة") ? (iStar + "IDM " + iWord) : ("IDM " + iWord + iStar)   // ★ يمين الكلمة بصريًّا (RTL يعكس)
+    string iTip  = "IDM — Inducement sweep" + f_t("\nدخول: ", "\nEntry: ") + str.tostring(idmEntry, format.mintick) + f_t("\nوقف: ", "\nStop: ") + (na(idmSl) ? "—" : str.tostring(idmSl, format.mintick)) + "\nTP1: " + (na(idmTp1) ? "—" : str.tostring(idmTp1, format.mintick)) + "\nTP2: " + (na(idmTp2) ? "—" : str.tostring(idmTp2, format.mintick)) + "\nTP3: " + (na(idmTp3) ? "—" : str.tostring(idmTp3, format.mintick))
+    color  iLc   = idmUp ? idmColBull : idmColBear
+    array.push(idmLabels, label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip))
+    while array.size(idmLabels) > 100                          // سقف علامات IDM (حماية سقف الوسوم المشترَك 500)
+        label.delete(array.shift(idmLabels))
 
 // [م-إش-3 · v7] كتل الطلب النشطة (تُحسَب دائمًا لثبات الحالة) — للتلاقي مع المناطق (تراكب) + الرسم الخام الاختياريّ
 [smcObT, smcObB, smcObL, smcObS] = jsmc.f_smcOrderBlocks(smcSwingLen, smcIntLen, smcObInternal, smcConfFilt, smcObFilter, smcObMitig, smcObMax)
