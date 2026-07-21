@@ -15,6 +15,7 @@ import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.87.1 [م-إش-3 · مفاتيح إظهار/إخفاء خاصّة بكلّ استراتيجيّة — حسم المالك] — تحكّم كامل بالازدحام: بدل مفتاحَي «الوسوم/المستويات» العامَّين، صار **لكلّ استراتيجيّة صفّها الثلاثيّ** في القسم الموحّد: **تفعيل + وسوم + مستويات** (inline). IDM: `idmEnable` + `idmShowMarks` (إظهار الوسوم — الاسم/الاتّجاه/النجوم) + `idmShowLevels` (إظهار مستويات الصفقة Entry/SL/TP). **مستقلّان**: تُخفى الوسوم مع إبقاء المستويات أو العكس (حالة IDM تُخزَّن دائمًا ⇒ المستويات تعمل حتّى مع إخفاء الوسوم). المظهر (ألوان TP/SL/Entry + الامتداد) يبقى **موحّدًا** لكلّ الاستراتيجيّات. إضافة استراتيجيّة = صفّ ثلاثيّ مماثل. عرض/تنظيم بحت · النواة/التقييم لا يُمَسّان · A/B مطلق · pine_check نظيف (0/0). ملاحظة: إشارات M-Waves الأصليّة لها تحكّمها المكافئ أصلًا (showSigMain/showSigSub للوسوم · showSigLevels للمستويات). ═══
 // ═══ v2.87.0 [م-إش-3 · تعميق تقييم IDM — M-Waves + الجلسات مصوّتان — حسم المالك] — إشارة IDM كانت تُقيَّم بـSMC+الزخم فقط (per-bar). الآن **آخر إشارة IDM يُعاد تقييمها في `islast`** بعد جهوز حالة الدرجات، بإضافة: (1) صوت **M-Waves** (اتّجاه المستوى الكبير `bActVg` — المرساة الأثقل، وزن 2، بلا veto) · (2) صوت **سيولة الجلسات** (قمّة/قاع جلسة كبرى سابقة داخل نطاق الدخول↔الوقف ⇒ بِركة سيولة تعزّز الكنس). أصوات SMC/الزخم تُقرأ عند بار الإشارة عبر `[loff]` (تناظر الكتلة الحيّة، لا look-ahead، ضمن max_bars_back 500). ⇒ نجوم آخر IDM تعكس **كلّ المصادر** (M-Waves+SMC+الزخم+الجلسات). الإشارات التاريخيّة تبقى بنجوم SMC+الزخم (M-Waves لا سلسلة اتّجاه per-bar تاريخيّة — صادق لا تلفيق). عرض بحت · النواة/IDM لا يُمَسّان · A/B مطلق (خلف idmEnable). pine_check نظيف (0/0). ═══
 // ═══ v2.86.2 [م-إش-3 · قسم موحّد لإشارات الاستراتيجيّات — حسم المالك] — قسم مستقلّ **«🎛 إشارات الاستراتيجيّات»** (أعلى، بعد «عامّ»): (1) مفتاح رئيسيّ `showStrat` يُظهر/يُخفي الكلّ · (2) **مفتاح لكلّ استراتيجيّة** (نُقِل `idmEnable` إليه؛ إضافة استراتيجيّة = سطر واحد) · (3) **رسم مستويات الصفقة موحّد** `showStratLevels` + ألوان مشتركة (TP/SL/Entry) + امتداد — نفس الشكل لكلّ الاستراتيجيّات. مجموعة «🎯 الإغراء» صارت معاملات IDM التفصيليّة فقط. عرض/تنظيم بحت · صفر أثر على المنطق (النواة + A/B). pine_check نظيف (0/0). ═══
 // ═══ v2.86.1 [م-إش-3 · IDM بشكل الأصل — خيار — حسم المالك] — أُضيف مفتاح `idmFullDraw` (مطفأ): يرسم لآخر إشارة IDM **مستويات الصفقة كاملةً كالمؤشّر الأصليّ** (Inducement Engine): صناديق الوقف/الدخول/الأهداف بتدرّج شفافيّة + خطوط أفقيّة مسعّرة Entry/SL/TP1/2/3 عند الحافّة اليمنى + ألوان (TP/SL/Entry) + امتداد. صفقة واحدة نشطة (تُمسَح/تُعاد كلّ islast · لا زحام تاريخيّ). مطفأ ⇒ الشكل الحاليّ المقتضب (الوسم فقط) يبقى تمامًا. عرض بحت · النواة لا تُمَسّ (A/B). ═══
@@ -96,14 +97,15 @@ f_t(string ar, string en) => uiLang == "AR / عربيّة" ? ar : en   // مبد
 //   مفتاح رئيسيّ + مفتاح تفعيل لكلّ استراتيجيّة. **إضافة استراتيجيّة مستقبليّة = سطر مفتاح واحد هنا**؛ معاملاتها التفصيليّة تبقى في مجموعتها الخاصّة.
 string grpStrat  = "🎛 إشارات الاستراتيجيّات / Strategy Signals"
 bool   showStrat = input.bool(true, "Show strategy signals (master) / إظهار إشارات الاستراتيجيّات (رئيسيّ)", group = grpStrat, tooltip = "مفتاح عامّ يُظهر/يُخفي كلّ إشارات الاستراتيجيّات المُقيَّمة دفعةً واحدة. إطفاؤه يُخفيها جميعًا — لا يمسّ النواة (A/B).")
-// ─── شكل موحّد لكلّ الاستراتيجيّات: وسم معنون (اسم + اتّجاه + نجوم) + رسم مستويات الصفقة اختياريّ (صناديق/خطوط الدخول/الوقف/الأهداف) ───
-bool   showStratLevels = input.bool(false, "Draw trade levels (all strategies) / رسم مستويات الصفقة (لكلّ الاستراتيجيّات)", group = grpStrat, tooltip = "[شكل موحّد] يرسم لآخر إشارة **كلّ** استراتيجيّة مفعّلة: صناديق الوقف/الدخول/الأهداف + خطوطًا أفقيّة مسعّرة (Entry/SL/TP1/2/3) كالمؤشّر الأصليّ. مطفأ ⇒ الوسم المقتضب فقط (اسم + نجوم). لآخر صفقة لكلّ استراتيجيّة (لا زحام تاريخيّ).")
+// ─── مظهر موحّد لكلّ الاستراتيجيّات (ألوان مستويات الصفقة + امتدادها) — الشكل نفسه لكلّ استراتيجيّة ───
 color  stratColTp    = input.color(color.new(#00C8FF, 55), "TP levels / مستويات الأهداف", inline = "stratlvl", group = grpStrat)
 color  stratColSl    = input.color(color.new(#DC2850, 55), "SL / الوقف", inline = "stratlvl", group = grpStrat)
 color  stratColEntry = input.color(#64B4FF, "Entry / الدخول", inline = "stratlvl", group = grpStrat)
 int    stratLvlOff   = input.int(40, "Levels extend (bars) / امتداد المستويات (شموع)", minval = 1, maxval = 200, group = grpStrat)
-// ─── مفاتيح تفعيل الاستراتيجيّات (استراتيجيّة = سطر) — معاملاتها التفصيليّة في مجموعتها الخاصّة ───
-bool   idmEnable = input.bool(false, "🎯 Inducement (IDM) sweep signals / إشارات كنس الإغراء", group = grpStrat, tooltip = "[استراتيجيّة مُقيَّمة] «كنس الإغراء» تُطلِق إشاراتها باسمها (IDM شراء/بيع) بدخولها/وقفها/أهدافها هي، وتُقيَّم بنجوم SMC والزخم. معاملاتها التفصيليّة في مجموعة «🎯 الإغراء». مطفأ افتراضيًّا ⇒ النواة مطابقة بايتًا (A/B).")
+// ─── مفاتيح كلّ استراتيجيّة (حسم المالك): تفعيل + إظهار وسومها + إظهار مستوياتها — **مستقلّة لكلٍّ** ⇒ تحكّم كامل بالازدحام · إضافة استراتيجيّة مستقبليّة = صفّ ثلاثيّ مماثل ───
+bool   idmEnable     = input.bool(false, "🎯 IDM", inline = "idm", group = grpStrat, tooltip = "[استراتيجيّة مُقيَّمة] تفعيل «كنس الإغراء» (Inducement) — تُطلِق إشاراتها باسمها (IDM شراء/بيع) بدخولها/وقفها/أهدافها هي، وتُقيَّم بنجوم المصادر (SMC+الزخم+M-Waves+الجلسات). معاملاتها التفصيليّة في مجموعة «🎯 الإغراء». مطفأ ⇒ النواة مطابقة بايتًا (A/B).")
+bool   idmShowMarks  = input.bool(true,  "وسوم/labels", inline = "idm", group = grpStrat, tooltip = "إظهار/إخفاء **وسوم** IDM (الاسم + الاتّجاه + النجوم) — مستقلّ عن مستوياتها. أطفئه لتقليل ازدحام الشارت بالوسوم.")
+bool   idmShowLevels = input.bool(false, "مستويات/levels", inline = "idm", group = grpStrat, tooltip = "إظهار/إخفاء **مستويات صفقة** IDM لآخر إشارة (صناديق/خطوط Entry/SL/TP كالمؤشّر الأصليّ) — مستقلّ عن وسومها.")
 
 // ══════════════════════════ ط0 · 🌊 الموجة والإطار / Wave & Frame ══════════════════════════
 string grpWave = "ط0 · 🌊 الموجة والإطار / Wave & Frame"
@@ -469,7 +471,7 @@ f_drawSesBox(sesBxD, sesLbD, sesShowD, sesShowLbl, sesActD, sesStD, sesMaxD, ses
 plot(idmEnable ? idmDir    : na, "IDM dir",    display = display.data_window)   // للتحقّق البرمجيّ (مقابل المؤشّر الأصليّ)
 plot(idmEnable ? idmStance : na, "IDM stance", display = display.data_window)
 var array<label> idmLabels = array.new<label>()
-// [الشكل الموحّد] حالة آخر إشارة IDM — لرسم مستوياتها كاملةً (خلف showStratLevels المشترك) كالمؤشّر الأصليّ (صفقة واحدة نشطة، لا زحام)
+// [الشكل الموحّد] حالة آخر إشارة IDM — لرسم مستوياتها كاملةً (خلف مفتاح IDM الخاصّ idmShowLevels) كالمؤشّر الأصليّ (صفقة واحدة نشطة، لا زحام)
 var int   idmLastBar   = na
 var int   idmLastDir   = 0
 var float idmLastEntry = na
@@ -518,13 +520,14 @@ if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0 
     string iTx   = (uiLang == "AR / عربيّة") ? (iStar + "IDM " + iWord) : ("IDM " + iWord + iStar)   // ★ يمين الكلمة بصريًّا (RTL يعكس)
     string iTip  = "IDM — Inducement sweep" + f_t("\nدخول: ", "\nEntry: ") + str.tostring(idmEntry, format.mintick) + f_t("\nوقف: ", "\nStop: ") + (na(idmSl) ? "—" : str.tostring(idmSl, format.mintick)) + "\nTP1: " + (na(idmTp1) ? "—" : str.tostring(idmTp1, format.mintick)) + "\nTP2: " + (na(idmTp2) ? "—" : str.tostring(idmTp2, format.mintick)) + "\nTP3: " + (na(idmTp3) ? "—" : str.tostring(idmTp3, format.mintick))
     color  iLc   = idmUp ? idmColBull : idmColBear
-    label  iLbl  = label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip)
-    array.push(idmLabels, iLbl)
-    idmLastLbl := iLbl                                         // [تعميق التقييم] احفظ مرجع وسم آخر إشارة — يُعاد تقييمه في islast (M-Waves+الجلسات)
-    while array.size(idmLabels) > 100                          // سقف علامات IDM (حماية سقف الوسوم المشترَك 500)
-        label.delete(array.shift(idmLabels))
+    if idmShowMarks                                           // [مفاتيح IDM الخاصّة · حسم المالك] الوسوم مستقلّة عن المستويات ⇒ تحكّم كامل بالازدحام (المستويات تبقى تُرسَم من idmLast* أدناه حتّى لو أُخفيت الوسوم)
+        label  iLbl  = label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip)
+        array.push(idmLabels, iLbl)
+        idmLastLbl := iLbl                                     // [تعميق التقييم] احفظ مرجع وسم آخر إشارة — يُعاد تقييمه في islast (M-Waves+الجلسات)
+        while array.size(idmLabels) > 100                      // سقف علامات IDM (حماية سقف الوسوم المشترَك 500)
+            label.delete(array.shift(idmLabels))
 
-// [الشكل الموحّد · خلف showStratLevels] رسم مستويات آخر صفقة IDM كاملةً (صناديق الوقف/الدخول/الأهداف + خطوط مسعّرة بألوان مشتركة stratCol*) — صفقة واحدة، تُمسَح وتُعاد كلّ islast. النمط نفسه لكلّ استراتيجيّة مستقبليّة.
+// [الشكل الموحّد · خلف مفتاح IDM الخاصّ idmShowLevels] رسم مستويات آخر صفقة IDM كاملةً (صناديق الوقف/الدخول/الأهداف + خطوط مسعّرة بألوان مشتركة stratCol*) — صفقة واحدة، تُمسَح وتُعاد كلّ islast. النمط نفسه لكلّ استراتيجيّة مستقبليّة.
 var box   idmBxSl = na
 var box   idmBxT1 = na
 var box   idmBxT2 = na
@@ -582,7 +585,7 @@ if barstate.islast
     idmLbT1 := na
     idmLbT2 := na
     idmLbT3 := na
-    if idmEnable and showStrat and showStratLevels and not na(idmLastBar) and idmLastDir != 0   // [شكل موحّد] رسم المستويات بمفتاح/ألوان مشتركة
+    if idmEnable and showStrat and idmShowLevels and not na(idmLastBar) and idmLastDir != 0   // [مفاتيح IDM الخاصّة] رسم مستويات IDM بمفتاحها الخاصّ + ألوان مشتركة (مظهر موحّد)
         int   rB = idmLastBar + stratLvlOff                     // امتداد المستويات يمينًا (موحّد)
         float e  = idmLastEntry
         // صناديق: الوقف (بين SL والدخول) · TP1 (الدخول→TP1) · TP2 (TP1→TP2) · TP3 (TP2→TP3) — تدرّج شفافيّة كالأصل
