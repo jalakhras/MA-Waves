@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.95.0 [م-إش-3 · صفّ J-Waves في القسم الموحّد — حسم المالك «نفس إعدادات IDM/DMM للأصليّة»] — أُضيف للاستراتيجيّة الأصليّة **صفّها الثلاثيّ** في «🎛 إشارات الاستراتيجيّات» كـIDM/DMM: `mwEnable` (تفعيل) + `mwShowMarks` (وسوم) + `mwShowLevels` (مستويات) — كلّها ON افتراضيًّا (لا تغيّر سلوك). تُوصَّل **بوّابةً (AND)** فوق مفاتيح «✅ الإشارات» التفصيليّة القائمة (showSigMain/showSigSub/showSigLevels تبقى): الوسوم الحيّة + التاريخيّة (الدرجات + الخروج) خلف `mwEnable and mwShowMarks` · المستويات خلف `mwEnable and mwShowLevels`. عرض بحت — **النواة/التقييم/التنبيهات لا تُمَسّ** (التنبيه يتبع enableAlerts). pine_check نظيف (0/0). ═══
 // ═══ v2.94.0 [م-إش-3 · الإعدادات الإنتاجيّة الافتراضيّة — حسم المالك (لقطات الإعدادات)] — رُفِعت افتراضات 14 مفتاحًا لتطابق تهيئة المالك المعتمَدة (قيم مدخلات فقط · لا منطق · لا رسم جديد): **الاستراتيجيّتان مفعّلتان بمستوياتهما** (idmEnable/idmShowLevels · dmmEnable/dmmShowLevels) · **كلّ المصوّتات مفعّلة** (momEnable · divEnable · sesEnable ⇒ مع SMC المفعّل أصلًا) · **رسوم SMC الإضافيّة** (FVG · Premium/Discount · MTF يوم/أسبوع/شهر · HH/HL/LH/LL) · **لوحة اختبار الموجة مخفيّة** (showFrameHelper=false). ⚠ ملاحظة: صار الافتراض «كلّ الطبقات فعّالة» ⇒ A/B لم يعد الوضع الافتراضيّ، لكنّه متاح بإطفاء المفاتيح. الجلسات الأربع (A-D) **كلّها مطفأة** افتراضيًّا (show+major=false · حسم المالك v2.94.1) ⇒ صوت الجلسات خامل حتّى يُفعَّل يدويًّا. عرض/تهيئة بحت. ═══
 // ═══ v2.93.0 [م-إش-3 · توحيد شكل مستويات M-Waves — حسم المالك «الشكل فقط · امسح القديم»] — مستويات صفقة M-Waves الحيّة صارت **بشكل الاستراتيجيّتين** (IDM/DMM): عبر `f_drawStratLevels` (صناديق متدرّجة + خطوط مسعّرة بوسوم Entry/SL/TP1-3) بالمظهر الموحّد (stratColTp/Sl/Entry + stratLvlOff). **أُزيلت** الشبكة القديمة كاملةً (`jws.f_sigLvl`: ✕/▶/●/★/◆ + مصفوفاتها sigLvLines/sigLvMarks + مدخل sigLvlExt). مُغذّاة من **الصفقة الحيّة القائمة** (liveB/liveDir/liveE/liveStp/liveTps، أوّل 3 أهداف) — **بلا حساب جديد ولا مساس بالمنطق/التقييم** (قيد المالك: «لا تعدّل المنطق، فقط شكل الإشارات»). النجوم/الإشارات/القرار لا تتغيّر. دالّة jws.f_sigLvl تبقى في JW_Signals غير مستعمَلة (بلا إعادة نشر). عرض بحت · pine_check نظيف (0/0). ═══
 // ═══ v2.92.0 [م-إش-3 · الدايفرجنس مصوّتًا — حسم المالك] — **مصدر تقييم جديد**: دايفرجنس RSI المنتظم عبر **JW_Momentum/2** (دالّة ثانية `f_rsiDivergence` · f_momentum **لم تُلمَس** ⇒ مصوّتات الزخم القائمة مطابقة بايتًا · RSI مشترك المفهوم ⇒ نفس المكتبة لا مكتبة منفصلة — حسم المالك «لماذا لا في مكتبة الزخم؟»). صعوديّ (قاع سعر أدنى + قاع RSI أعلى) ⇒ يؤيّد الشراء · هبوطيّ (قمّة سعر أعلى + قمّة RSI أدنى) ⇒ يؤيّد البيع. **حلّ المشكلة البنيويّة** (الدايفرجنس حدث لحظيّ، التقييم يحتاج صوتًا لكلّ بار): **لَقْط الاتّجاه** بانقضاء `divHold` (افتراض 20 شمعة) — يبقى مصوّتًا حتّى معاكس يستبدله أو الانقضاء. صوت عاديّ (وزن 1، لا veto) في **المواقع الستّة**: M-Waves (حيّ+تاريخيّ) · IDM (حيّ+re-rate) · DMM (حيّ+re-rate) — يُقرأ عند بار الإشارة ([off]/[loff]/[doff] ضمن max_bars_back 500، لا look-ahead: الدايفرجنس يُعرَف فقط عند بار كشفه المتأخّر lbR). مجموعة «🔀 الدايفرجنس» خلف `divEnable` مطفأ ⇒ **A/B مطلق**. النواة/التقييم القائم لا يُمَسّان · pine_check نظيف (0/0 مكتبةً ودلتا). ═══
@@ -98,6 +99,10 @@ bool   idmShowLevels = input.bool(true, "مستويات/levels", inline = "idm",
 bool   dmmEnable     = input.bool(true, "📊 DMM", inline = "dmm", group = grpStrat, tooltip = "[استراتيجيّة مُقيَّمة] تفعيل «المقاييس الديناميّة» (Dynamic Market Metrics · AlphaTrend + MFI حجميّ + تقلّب) — تُطلِق إشاراتها باسمها (DMM شراء/بيع) وتُقيَّم بنجوم كلّ المصادر (SMC+الزخم+M-Waves+الجلسات + موقف IDM). معاملاتها في مجموعة «📊 المقاييس الديناميّة». مطفأ ⇒ A/B مطلق.")
 bool   dmmShowMarks  = input.bool(true,  "وسوم/labels", inline = "dmm", group = grpStrat, tooltip = "إظهار/إخفاء **وسوم** DMM (الاسم + الاتّجاه + النجوم) — مستقلّ عن مستوياتها.")
 bool   dmmShowLevels = input.bool(true, "مستويات/levels", inline = "dmm", group = grpStrat, tooltip = "إظهار/إخفاء **مستويات صفقة** DMM لآخر إشارة (Entry/SL/TP) — مستقلّ عن وسومها.")
+// ─── [حسم المالك] الاستراتيجيّة الأصليّة M-Waves كصفّ في القسم الموحّد (نفس مفاتيح IDM/DMM: تفعيل + وسوم + مستويات) — عرض بحت، بوّابة (AND) فوق مفاتيح «✅ الإشارات» التفصيليّة · النواة/التقييم/التنبيهات لا تُمَسّ ───
+bool   mwEnable      = input.bool(true, "🌊 J-Waves", inline = "mw", group = grpStrat, tooltip = "[الاستراتيجيّة الأصليّة · النواة] تفعيل عرض إشارات M-Waves (شراء/بيع ✦/⚠ + النجوم + R:R) كصفّ IDM/DMM. مطفأ ⇒ تُخفى وسوم ومستويات M-Waves معًا. عرض بحت — الحساب/التقييم لا يُمَسّان، والتنبيهات تتبع «تفعيل التنبيه» في «✅ الإشارات».")
+bool   mwShowMarks   = input.bool(true, "وسوم/labels", inline = "mw", group = grpStrat, tooltip = "إظهار/إخفاء **وسوم** M-Waves (الحيّة الرئيسيّة + التاريخيّة عبر الدرجات + الخروج) — مستقلّ عن مستوياتها. بوّابة فوق showSigMain/showSigSub في «✅ الإشارات» (يجب أن يكون كلاهما مفعّلًا).")
+bool   mwShowLevels  = input.bool(true, "مستويات/levels", inline = "mw", group = grpStrat, tooltip = "إظهار/إخفاء **مستويات صفقة** M-Waves الحيّة (صناديق/خطوط Entry/SL/TP بشكل الاستراتيجيّتين) — مستقلّ عن وسومها. بوّابة فوق showSigLevels في «✅ الإشارات».")
 
 // ══════════════════════════ ط0 · 🌊 الموجة والإطار / Wave & Frame ══════════════════════════
 string grpWave = "ط0 · 🌊 الموجة والإطار / Wave & Frame"
@@ -2517,7 +2522,7 @@ if barstate.islast
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
         // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
         if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
-            if showSigMain and rrOk and decOk                   // [مفتاح] الوسم الرئيسيّ الحيّ — مستقلّ عن التنبيه · [بوّابة RR] · [أ92] موافقة اللوحة
+            if showSigMain and mwEnable and mwShowMarks and rrOk and decOk                   // [مفتاح] الوسم الرئيسيّ الحيّ · [صفّ J-Waves] mwEnable/mwShowMarks بوّابة عرض — مستقلّ عن التنبيه · [بوّابة RR] · [أ92] موافقة اللوحة
                 int curDirG = up ? 1 : -1
                 if sigOppGuard > 0                               // [أ91] احذف الوسوم الحيّة **المعاكسة القريبة** (أُبطِلت بالانقلاب — ضُرِب وقفها) ⇒ لا تكدّس بيع+شراء بنفس المنطقة
                     int giG = array.size(sigMarks) - 1
@@ -2575,7 +2580,7 @@ if barstate.islast
     if showSignals and showSigSub and nzs > 0 and sigDir != 0
         array<bool> scCovArr = f_covArr(scBar, scTop, scPrc, histLs, hL2s, wHiS, wLoS, scCovLg)   // [v2.67.0] قناع التغطية مُحسَبًا للمكتبة (بدل f_coveredAt الداخليّة في jws)
         array<bool> mcCovArr = f_covArr(mcBar, mcTop, mcPrc, histLs, hL2s, wHiS, wLoS, mcCovLg)
-        if showSigS
+        if showSigS and mwEnable and mwShowMarks
             [slb, sle, slzt, slzb, slup] = jws.f_emitDegSignals(scBar, scTop, scPrc, scEff, scCovArr, sigDir, histLs, f_t("صغيرة", "Small"), sActVg, mcBar, mcTop, mcPrc, mcEff, zTop, zBot, sigLabels, confWin, minRR, maxTradesL2, useDistrib, uiLang == "AR / عربيّة")     // إشارات الصغيرة · [G-S1] تأكيد N+1 = المتوسطة · [v2.67.0 jws]
             if not gTrMed and slb >= 0                                                                  // درجة الصفقة صغيرة ⇒ شبكة من آخر إشارة صغيرة
                 gSigB := slb
@@ -2583,7 +2588,7 @@ if barstate.islast
                 gSigZT := slzt
                 gSigZB := slzb
                 gSigUp := slup
-        if showSigM
+        if showSigM and mwEnable and mwShowMarks
             [mlb, mle, mlzt, mlzb, mlup] = jws.f_emitDegSignals(mcBar, mcTop, mcPrc, mcEff, mcCovArr, sigDir, histLs, f_t("متوسطة", "Medium"), mActVg, lgBar, lgTop, lgPrc, lgEff, zTop, zBot, sigLabels, confWin, minRR, maxTradesL2, useDistrib, uiLang == "AR / عربيّة")    // إشارات المتوسطة · [G-S1] تأكيد N+1 = الكبيرة · [v2.67.0 jws]
             if gTrMed and mlb >= 0                                                                      // درجة الصفقة متوسطة ⇒ شبكة من آخر إشارة متوسطة
                 gSigB := mlb
@@ -2592,7 +2597,7 @@ if barstate.islast
                 gSigZB := mlzb
                 gSigUp := mlup
         // [ت30/ب · G-S1] إشارات الكبيرة **عُطِّلت**: صفقة الكبيرة غير مصدريّة (L2-04: أعلى صفقة = المتوسطة) · xl خاملة للإشارات حتّى الأسبوعيّ (تأكّد=0 عبر US100·60/D/W · BTC·60/W). الكبيرة تبقى **مرجعَ N+1 للمتوسطة** (lgBar تُمرَّر لنداء المتوسطة).
-        if showSigExit                                                                                                          // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
+        if showSigExit and mwEnable and mwShowMarks                                                                             // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
         // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
         if smcEnable or momEnable or divEnable                                       // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
@@ -2645,7 +2650,7 @@ if barstate.islast
         float mwTp1 = array.size(liveTps) > 0 ? array.get(liveTps, 0) : na
         float mwTp2 = array.size(liveTps) > 1 ? array.get(liveTps, 1) : na
         float mwTp3 = array.size(liveTps) > 2 ? array.get(liveTps, 2) : na
-        f_drawStratLevels(mwBoxes, mwLines, mwLevLbls, showSigLevels and liveActive and not na(liveB), liveB, liveDir, liveE, liveStp, mwTp1, mwTp2, mwTp3, stratColTp, stratColSl, stratColEntry, stratLvlOff)
+        f_drawStratLevels(mwBoxes, mwLines, mwLevLbls, showSigLevels and mwEnable and mwShowLevels and liveActive and not na(liveB), liveB, liveDir, liveE, liveStp, mwTp1, mwTp2, mwTp3, stratColTp, stratColSl, stratColEntry, stratLvlOff)
     // [تدقيق ذاتيّ — محذوف v2.66.0] كتلة الحساب والجداول أُزيلت (خارج النواة). يُعاد في طبقة الاستراتيجية.
     // (جداول التدقيق/الملاحظات محذوفة — v2.66.0)
 
