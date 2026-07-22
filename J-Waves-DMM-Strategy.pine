@@ -17,6 +17,9 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm
 //   الدخول = dmmTrig ∧ dmmDir≠0 ∧ نجوم ≥ العتبة ∧ لا صفقة نشطة (كآلة التتبّع). الوقف = dmmSl · الهدف = dmmTp1 (البُعد المُقاس ~57%).
 //   الوقف يغلب في نفس الشمعة (افتراض strategy.exit التحفّظيّ = تطابق قياس الدراسة SL-priority).
 //
+// [v1.1 · إصلاح الكريبتو] backtest 4H: رابح على ناسداك (PF 1.29) وذهب (1.33) وفضّة (1.11)؛ خاسر على فوركس/كريبتو.
+//   الكريبتو (BTC PF 0.76 · ETH 0.80): خسائر غير متماثلة لأنّ dmmTp1 أقرب من dmmSl ⇒ أُضيف نمط «Fixed R:R» (هدف عند مضاعِف R
+//   من المخاطرة) يترك الرابح يركض. الافتراض «DMM TP1» يبقى (المؤشّرات/المعادن لا تتأثّر). يُختبَر الكريبتو بـFixed R:R.
 // © MarkitTick (DMM/IDM · AlphaTrend: © KivancOzbilgic) · © LuxAlgo CC BY-NC-SA (SMC).
 // عرض/تنفيذ اختباريّ شخصيّ لا تجاريّ. التكاليف (العمولة/الانزلاق) في رأس strategy() — تُعاير لكلّ أداة من Properties.
 // ============================================================================
@@ -26,6 +29,9 @@ strategy("J-Waves DMM ≥5★ Strategy", overlay = true, initial_capital = 10000
 string grpStr = "🎯 الاستراتيجيّة / Strategy"
 int   starThr = input.int(5, "Min stars ≥ (entry gate) / أدنى نجوم للدخول", minval = 0, maxval = 6, group = grpStr, tooltip = "لا تُفتَح صفقة DMM إلّا إن بلغ توافق نجومها هذا الحدّ. القياس: ≥5★ = TP1% ~57% ثابت (الأفضل). خفّضه لصفقات أكثر أقلّ جودةً.")
 string dirSel = input.string("Both", "Trade direction / اتّجاه التداول", options = ["Both", "Long only", "Short only"], group = grpStr, tooltip = "قصْر الصفقات على اتّجاه واحد (مثلًا Long only في السوق الصاعد) أو كليهما.")
+// [إصلاح الكريبتو · v1.1] نمط الخروج: «DMM TP1» (هدف DMM الأصليّ — المُثبَت على المؤشّرات/المعادن) أو «Fixed R:R» (الهدف = مضاعِف ثابت من المخاطرة |الدخول−الوقف| ⇒ يترك الرابح يركض · يعالج خسائر الكريبتو غير المتماثلة حيث dmmTp1 أقرب من dmmSl). الوقف = dmmSl في الحالتين.
+string tpMode = input.string("DMM TP1", "Exit target mode / نمط هدف الخروج", options = ["DMM TP1", "Fixed R:R"], group = grpStr, tooltip = "DMM TP1 = هدف DMM الأصليّ (افتراض · المُقاس ~57% على المؤشّرات/المعادن). Fixed R:R = الهدف عند مضاعِف R من المخاطرة (يترك الرابح يركض — للكريبتو المتقلّب).")
+float tpRr    = input.float(1.5, "Fixed TP R:R (when Fixed mode) / نسبة الهدف الثابتة", minval = 0.5, maxval = 5.0, step = 0.5, group = grpStr, tooltip = "عند نمط Fixed R:R: الهدف = الدخول ± هذه النسبة × المخاطرة (|الدخول−dmmSl|). 1.5 = ربح يعادل 1.5 ضعف المخاطرة.")
 
 // ── معاملات المصادر (مطابقة افتراضات المؤشّر التي قِيست عليها الدراسة — لا تُغيَّر إلّا للتجريب) ──
 string grpSrc = "⚙ معاملات المصادر / Source params"
@@ -110,13 +116,17 @@ int dmmStars = dmmDir != 0 ? f_dmmStars(dmmDir, idmStance != 0 ? idmStance : 0) 
 // [مطابقة آلة التتبّع] صفقة واحدة نشطة: تُفتَح عند dmmTrig إن بلغت النجوم العتبة ولا صفقة مفتوحة · الوقف=dmmSl · الهدف=dmmTp1 (البُعد المُقاس).
 bool allowLong  = dirSel != "Short only"
 bool allowShort = dirSel != "Long only"
-bool gateOk = barstate.isconfirmed and strategy.position_size == 0 and dmmTrig and dmmDir != 0 and dmmStars >= starThr and not na(dmmSl) and not na(dmmTp1)
+bool fixedTp = tpMode == "Fixed R:R"
+float riskD  = math.abs(close - dmmSl)                                                  // المخاطرة الفعليّة من الدخول (إغلاق الشمعة) إلى الوقف
+bool gateOk = barstate.isconfirmed and strategy.position_size == 0 and dmmTrig and dmmDir != 0 and dmmStars >= starThr and not na(dmmSl) and (fixedTp ? riskD > 0 : not na(dmmTp1))
 if gateOk and dmmDir == 1 and allowLong
+    float tpL = fixedTp ? close + tpRr * riskD : dmmTp1                                 // Fixed R:R ⇒ الهدف عند مضاعِف R من المخاطرة (يترك الرابح يركض)
     strategy.entry("DMM ▲", strategy.long, comment = "★" + str.tostring(dmmStars))
-    strategy.exit("DMM ▲ x", from_entry = "DMM ▲", stop = dmmSl, limit = dmmTp1)   // الوقف يغلب في نفس الشمعة (تحفّظ = قياس الدراسة)
+    strategy.exit("DMM ▲ x", from_entry = "DMM ▲", stop = dmmSl, limit = tpL)           // الوقف يغلب في نفس الشمعة (تحفّظ = قياس الدراسة)
 if gateOk and dmmDir == -1 and allowShort
+    float tpS = fixedTp ? close - tpRr * riskD : dmmTp1
     strategy.entry("DMM ▼", strategy.short, comment = "★" + str.tostring(dmmStars))
-    strategy.exit("DMM ▼ x", from_entry = "DMM ▼", stop = dmmSl, limit = dmmTp1)
+    strategy.exit("DMM ▼ x", from_entry = "DMM ▼", stop = dmmSl, limit = tpS)
 
 // ─────────────────────────── عرض تشخيصيّ خفيف ───────────────────────────
 plot(dmmStars, "DMM stars", display = display.data_window)
