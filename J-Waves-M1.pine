@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.98.0 [م3-outcome · backtest تاريخيّ لـIDM/DMM — حسم المالك «لم تظهر أرقام رغم الإشارات الحيّة»] — الصفوف كانت تعدّ **للأمام فقط** (islast) ⇒ فارغة على شارت ساكن. الآن آلة تتبّع IDM/DMM تعمل على **كلّ بار مُغلَق** (أُزيل قيد islast) ⇒ **backtest كامل الشارت**: تفتح عند كلّ إشارة بمستوياتها وقتها (per-bar، لا look-ahead/لا repaint)، تُغلق بأوّل TP أخير/وقف لاحق، تُحصي ⇒ **أرقام فوريّة** (صفّا 17/18 «تاريخيّ»). عرض/سجلّ بحت — لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة · pine_check نظيف. **M-Waves يبقى «حيًّا»** (دخوله/وقفه/أهدافه تُحسَب عند islast فقط — backtest أمين له = دفعة تالية). ═══
 // ═══ v2.97.0 [م3-outcome · سجلّ النتائج لكلّ الاستراتيجيّات الثلاث — حسم المالك «السجلّ لكلّ الاستراتيجيّات وكلّ الإشارات الحيّة»] — أُضيف صفّا **سجلّ IDM** و**سجلّ DMM** (حيّان) إلى لوحة القرار بجانب سجلّ M-Waves ⇒ 3 صفوف (16-18). تتبّع نتيجة صفقة كلّ استراتيجيّة **حيًّا** (islast+isconfirmed ⇒ للأمام فقط، توأمان لـM-Waves): فتح على الإشارة الحيّة، win=إصابة **الهدف الأخير** قبل الوقف · loss=**الوقف** (تحفّظ)، صفقة واحدة نشطة لكلٍّ. عرض/سجلّ بحت — **لا يمسّ الإشارة/التقييم/التوليد**. يتراكم للأمام (backtest تاريخيّ = دفعة لاحقة). pine_check نظيف (0/0). ═══
 // ═══ v2.96.0 [م3-outcome · وسم إغلاق + عدّاد نجاح M-Waves — فرع m3/trade-outcome] — أوّل لبنة نحو تحويلها استراتيجية: عند إغلاق صفقة M-Waves الحيّة (`liveActive`) يُرسَم **وسم نتيجة** (`✓` أخضر = إصابة الهدف الأخير · `✗` أحمر = إصابة الوقف) عند شمعة الإغلاق + **صفّ سجلّ (ربح/خسارة + نسبة)** في لوحة القرار (صفّ 17). 🔴 تصنيف الإغلاق **مطابق حرفيًّا** لشرط `hitClose` السابق (وقف OR هدف؛ فقط أُميّز أيّهما — الوقف أوّلًا تحفّظًا) ⇒ سلوك «متى تُغلَق» لا يتغيّر · لا مساس بالتوليد/التقييم. **يتراكم للأمام** (تتبّع liveActive على الشمعة الحيّة) — الحساب التاريخيّ الكامل (backtest النجوم↔النجاح) = دفعة لاحقة. عرض/سجلّ بحت · pine_check نظيف (0/0). ═══
 // ═══ v2.95.0 [م-إش-3 · صفّ J-Waves في القسم الموحّد — حسم المالك «نفس إعدادات IDM/DMM للأصليّة»] — أُضيف للاستراتيجيّة الأصليّة **صفّها الثلاثيّ** في «🎛 إشارات الاستراتيجيّات» كـIDM/DMM: `mwEnable` (تفعيل) + `mwShowMarks` (وسوم) + `mwShowLevels` (مستويات) — كلّها ON افتراضيًّا (لا تغيّر سلوك). تُوصَّل **بوّابةً (AND)** فوق مفاتيح «✅ الإشارات» التفصيليّة القائمة (showSigMain/showSigSub/showSigLevels تبقى): الوسوم الحيّة + التاريخيّة (الدرجات + الخروج) خلف `mwEnable and mwShowMarks` · المستويات خلف `mwEnable and mwShowLevels`. عرض بحت — **النواة/التقييم/التنبيهات لا تُمَسّ** (التنبيه يتبع enableAlerts). pine_check نظيف (0/0). ═══
@@ -505,8 +506,9 @@ plot(dmmEnable ? dmmMfi    : na, "DMM mfi",    display = display.data_window)   
 plot(dmmEnable ? (dmmVolExp ? 1 : 0) : na, "DMM volExp", display = display.data_window)   // بُعد التقلّب (توسّع=1)
 max_bars_back(idmStance, 500)   // [تناظر] موقف IDM يُقرأ عند بار إشارة DMM التاريخيّة (والعكس) ⇒ كلّ استراتيجيّة تصوّت على الأخرى
 max_bars_back(dmmStance, 500)
-// [م3-outcome · حسم المالك «السجلّ لكلّ الاستراتيجيّات وكلّ الإشارات الحيّة»] تتبّع نتيجة صفقات IDM/DMM **الحيّة** (توأمان لـM-Waves: islast+isconfirmed ⇒ للأمام فقط، لا تاريخيّ).
-//   win = إصابة الهدف الأخير قبل الوقف · loss = الوقف (تحفّظ: الاثنان بشمعة ⇒ خسارة). صفقة واحدة نشطة لكلٍّ. عرض/سجلّ بحت — لا يمسّ الإشارة/التقييم/التوليد.
+// [م3-outcome · v2.98.0 · حسم المالك «لم تظهر أرقام»] backtest تاريخيّ لصفقات IDM/DMM على **كلّ التاريخ** (أُزيل قيد islast): آلة تتبّع تُقيَّم كلّ **بار مُغلَق** (isconfirmed)
+//   ⇒ تفتح صفقة عند كلّ إشارة (idmTrig/dmmTrig) بمستوياتها وقتها (per-bar، لا look-ahead)، وتُغلقها بأوّل إصابة لاحقة ⇒ تُحصي عبر الشارت ⇒ أرقام فوريّة.
+//   win = إصابة الهدف الأخير قبل الوقف · loss = الوقف (تحفّظ: الاثنان بشمعة ⇒ خسارة). صفقة واحدة نشطة لكلٍّ، ثمّ تقبل التالية. عرض/سجلّ بحت — لا يمسّ الإشارة/التقييم/التوليد.
 var bool  idmTrActive = false
 var int   idmTrDir    = 0
 var float idmTrSl     = na
@@ -519,8 +521,8 @@ var float dmmTrSl     = na
 var float dmmTrFin    = na
 var int   dmmWins     = 0
 var int   dmmLosses   = 0
-if barstate.islast and barstate.isconfirmed
-    if idmEnable                                                                                            // IDM الحيّ
+if barstate.isconfirmed                                                                                    // [v2.98.0] كلّ بار مُغلَق (لا islast) ⇒ backtest تاريخيّ يتراكم عبر الشارت
+    if idmEnable                                                                                            // IDM (تاريخيّ)
         if idmTrActive
             bool iLoss = idmTrDir == 1 ? low <= idmTrSl : high >= idmTrSl
             bool iWin  = not iLoss and not na(idmTrFin) and (idmTrDir == 1 ? high >= idmTrFin : low <= idmTrFin)
@@ -535,7 +537,7 @@ if barstate.islast and barstate.isconfirmed
                 idmTrDir    := idmDir
                 idmTrSl     := idmSl
                 idmTrFin    := iFin
-    if dmmEnable                                                                                            // DMM الحيّ (نفس النمط حرفيًّا)
+    if dmmEnable                                                                                            // DMM (تاريخيّ · نفس النمط حرفيًّا)
         if dmmTrActive
             bool dLoss = dmmTrDir == 1 ? low <= dmmTrSl : high >= dmmTrSl
             bool dWin  = not dLoss and not na(dmmTrFin) and (dmmTrDir == 1 ? high >= dmmTrFin : low <= dmmTrFin)
@@ -2462,14 +2464,14 @@ if barstate.islast
         color  mwRecBg = mwTot == 0 ? pMute : mwWins > mwLosses ? cUp : mwWins < mwLosses ? cDn : cRngC
         table.cell(concTbl, 0, 16, f_t("سجلّ M-Waves (حيّ)", "M-Waves record (live)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سجلّ نتائج صفقات M-Waves الحيّة منذ فتح الشارت (ربح=إصابة الهدف الأخير · خسارة=إصابة الوقف). يتراكم للأمام. الحساب التاريخيّ الكامل = دفعة لاحقة.", "Live M-Waves trade outcomes since chart open (win=final TP hit · loss=SL hit). Accumulates forward. Full historical backtest = later batch."))
         table.cell(concTbl, 1, 16, mwRec, text_color = color.white, bgcolor = mwRecBg, text_size = size.small)
-        // [م3-outcome · حسم المالك] صفّا سجلّ IDM/DMM الحيّين (توأمان لـM-Waves · للأمام) — عرض بحت
+        // [م3-outcome · v2.98.0] صفّا سجلّ IDM/DMM **التاريخيّين** (backtest كامل الشارت — أرقام فوريّة) — عرض بحت
         int    idmTot   = idmWins + idmLosses
         string idmRec   = idmTot == 0 ? "—" : str.tostring(idmWins) + "W / " + str.tostring(idmLosses) + "L (" + str.tostring(100.0 * idmWins / idmTot, "#") + "%)"
-        table.cell(concTbl, 0, 17, f_t("سجلّ IDM (حيّ)", "IDM record (live)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سجلّ نتائج صفقات IDM الحيّة (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف). يتراكم للأمام.", "Live IDM trade outcomes (win=final TP before SL · loss=SL). Accumulates forward."))
+        table.cell(concTbl, 0, 17, f_t("سجلّ IDM (تاريخيّ)", "IDM record (backtest)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest صفقات IDM عبر كلّ تاريخ الشارت (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف · صفقة واحدة نشطة). لا look-ahead: مستويات الصفقة من بار إشارتها.", "IDM trade backtest across full chart history (win=final TP before SL · loss=SL · one active trade). No look-ahead: levels from the signal's own bar."))
         table.cell(concTbl, 1, 17, idmRec, text_color = color.white, bgcolor = idmTot == 0 ? pMute : idmWins > idmLosses ? cUp : idmWins < idmLosses ? cDn : cRngC, text_size = size.small)
         int    dmmTot   = dmmWins + dmmLosses
         string dmmRec   = dmmTot == 0 ? "—" : str.tostring(dmmWins) + "W / " + str.tostring(dmmLosses) + "L (" + str.tostring(100.0 * dmmWins / dmmTot, "#") + "%)"
-        table.cell(concTbl, 0, 18, f_t("سجلّ DMM (حيّ)", "DMM record (live)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سجلّ نتائج صفقات DMM الحيّة (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف). يتراكم للأمام.", "Live DMM trade outcomes (win=final TP before SL · loss=SL). Accumulates forward."))
+        table.cell(concTbl, 0, 18, f_t("سجلّ DMM (تاريخيّ)", "DMM record (backtest)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest صفقات DMM عبر كلّ تاريخ الشارت (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف · صفقة واحدة نشطة). لا look-ahead: مستويات الصفقة من بار إشارتها.", "DMM trade backtest across full chart history (win=final TP before SL · loss=SL · one active trade). No look-ahead: levels from the signal's own bar."))
         table.cell(concTbl, 1, 18, dmmRec, text_color = color.white, bgcolor = dmmTot == 0 ? pMute : dmmWins > dmmLosses ? cUp : dmmWins < dmmLosses ? cDn : cRngC, text_size = size.small)
     // [الفرص الثلاث · قرار المستخدم + spec §51-52 · مُرحَّل من رأس المؤشّر — أ45] (1) **أساسيّة** = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) **عالية مخاطرة** = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) **خروج/fallback** = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
