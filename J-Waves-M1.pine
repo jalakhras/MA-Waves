@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.105.0 [م3 · بوّابة أدنى نجوم لإظهار الإشارة — طلب المالك «لا تظهر الإشارة إلا بعدد نجوم معيّن»] — بعد أن أثبت التقييم أنّ النجوم مصفاة جودة (DMM≥5★)، أُضيف مدخل `minSigStars` (0-5، افتراض 0) يُخفي إشارات M-Waves (✦/⚠) التي توافُق نجومها أدنى من الحدّ: **الحيّة** (بوّابة على cfAgree للوسم + التنبيه) + **التاريخيّة** (حذف الوسم إن hAg<الحدّ في post-process). **عرض بحت** — لا يمسّ التوليد/التقييم/السجلّ (f_mwBacktest يحسب كلّ الإشارات قبل الفلترة) · 0 = A/B مطلق · pine_check معزول 0/0. (IDM/DMM خارج النطاق — تُضاف بنفس النمط عند الطلب.) ═══
 // ═══ v2.104.0 [تشخيص · حذف جدول «النجوم↔النجاح» — طلب المالك «لا ننسى حذف التشخيص»] — بعد أن أجاب التقييمُ الشاملُ السؤالَ (DMM≥5★ ~57% ثابت · IDM لا يُرتِّب — موثَّق §2د) أُزيل التشخيص كاملًا: مدخلا showCorr/corrPos · دالّة f_stratStars · 8 مصفوفات دلاء النجوم (winByStar/lossByStar/winByStarTp1/lossByStarTp1/idmNbk/idmW1bk/dmmNbk/dmmW1bk) · متغيّرات idm/dmmTrStars/TrTp1/TrTp1Hit · تصنيف النجوم في آلة التتبّع · دالّات f_corrPct/f_corrBg1/f_drawCorr + corrTbl. **يبقى:** آلة تتبّع IDM/DMM (سجلّ ربح/خسارة فقط) + صفوف السجلّ في لوحة القرار (16-18). A/B: سجلّا IDM/DMM يجب أن يطابقا (39/123 · 71/201 على US100·45). العتبة تُطبَّق استراتيجيّةً في J-Waves-DMM-Strategy.pine. ═══
 // ═══ v2.103.0 [تقييم شامل · فصل النجوم لكلّ استراتيجيّة — طلب المالك «لأيّ استراتيجيّة»] — لجواب دقيق على «أيّ استراتيجيّة × كم نجمة × أيّ أداة/فريم» أُضيفت مصفوفات IDM/DMM منفصلة لكلّ دلو نجوم (idmNbk/idmW1bk/dmmNbk/dmmW1bk) تُملأ في كتلتَي الإغلاق ذاتهما (إضافيّ بحت · المصفوفات المدموجة winByStar*/lossByStar* لم تُلمَس ⇒ الأعمدة القديمة مطابقة بايتًا · A/B). الجدول توسّع لـ8 أعمدة: النجوم · TP1% · TP3% · عدد · IDM% · I·N · DMM% · D·N. صفر تكلفة على سقف الكتلة (كلّه داخل f_drawCorr + مساعدَين f_corrPct/f_corrBg1). لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة · pine_check معزول 0/0. ═══
 // ═══ v2.102.0 [م3-outcome · بُعد TP1 (1R) في جدول النجوم — حسم المالك] — أُضيف عمود ثانٍ للارتباط: **نجاح على الهدف الأوّل TP1 (1R)** بجانب TP3 (≈3R). لكلّ صفقة IDM/DMM يُلتقَط «هل لُمِس TP1 قبل الوقف؟» (SL-priority) ويُصنَّف بالنجوم (winByStarTp1/lossByStarTp1). الجدول صار: النجوم · TP1% · TP3% · العدد ⇒ يجيب «هل النجوم ترفع احتمال **أيّ ربح** (TP1) أقوى من ركض 3R (TP3)؟». تتبّع/تصنيف عرضيّ بحت — لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة. ═══
@@ -256,6 +257,7 @@ float  slBufPts     = input.float(0.0, "SL buffer (× mintick) [م-إش-2أ] / �
 int    numTP        = input.int(3, "Target ladder count TP1..N [م-إش-2أ] / عدد أهداف السلّم", minval = 1, maxval = 5, group = grpSig, tooltip = "[نموذج المالك · م-إش-2أ] عدد أهداف السلّم من خطوط م.A بالاتجاه: TP1 = أوّل مستوى م.A **خارج منطقة الدخول** (L2-03 «مش اللي قدامها»)، ثمّ التالي تباعًا. RR/بوّابة minRR على TP1. إن لا مستوى خارج المنطقة ⇒ لا هدف ⇒ لا إشارة. للحيّة فقط (التاريخيّة بهدف واحد).")
 bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpSig, tooltip = "المفتاح العامّ لكلّ الإشارات. يُغلق الكلّ دفعةً.")
 bool   showSigMain  = input.bool(true, "main: live confirmed / الرئيسيّة: الحيّة المؤكَّدة", group = grpSig, tooltip = "الوسم الحيّ للفرصة المؤكَّدة على آخر شمعة (شراء/بيع + RR + وقف/هدف).")
+int    minSigStars  = input.int(0, "Min confluence stars to show signal [م3] / أدنى نجوم توافق لإظهار الإشارة", minval = 0, maxval = 5, group = grpSig, tooltip = "[م3 · حسم المالك] إشارة M-Waves (✦/⚠ الحيّة + التاريخيّة + تنبيهها) لا تُعرَض إلّا إن بلغ توافق نجومها (SMC+الزخم+الجلسات+الدايفرجنس) هذا الحدّ ⇒ يُخفي ضعيفة التوافق (تركيز على الأعلى جودةً · شارت أنظف). 0 = إظهار الكلّ (A/B). عرض بحت — لا يمسّ التوليد/التقييم/السجلّ. (خطر: عتبة عالية تُخفي رابحة أيضًا.)")
 int    sigOppGuard  = input.int(30, "Clear opposite live signal within N bars [أ91] / مسح الإشارة الحيّة المعاكسة خلال N شمعة", minval = 0, maxval = 300, group = grpSig, tooltip = "[أ91 · حسم المالك 2026-07-20] عند إشارة حيّة جديدة تُحذَف الوسوم الحيّة **المعاكسة** التي أُطلِقت خلال آخر N شمعة (أُبطِلت بالانقلاب — ضُرِب وقفها) ⇒ يمنع تكدّس بيع+شراء بنفس المنطقة قرب الانقلاب. 0 = بلا مسح (السلوك السابق).")
 bool   sigNeedConc  = input.bool(true, "Signal requires panel decision (conclusions) [أ92] / اشتراط قرار اللوحة (الاستنتاجات) للإشارة", group = grpSig, tooltip = "[أ92 · حسم المالك 2026-07-20] مفعّل (افتراض): الإشارة الحيّة (✦/⚠ + التنبيه) **لا تُطلَق** إلّا إن كان **قرار لوحة القرار** موافقًا (شراء ⇒ القرار «شراء» · بيع ⇒ «بيع»). يُوحّد الإشارة مع الاستنتاجات ⇒ لا إطلاق حين اللوحة «نطاق/انتظار/مراجعة/لا تداول». الشبكة الحيّة (العرض) تبقى مبكّرة. مطفأ = السلوك السابق.")
 bool   showSigLevels = input.bool(true, "M-Waves trade levels (live) [توحيد الشكل] / مستويات صفقة M-Waves (الحيّة)", group = grpSig, tooltip = "[توحيد الشكل · حسم المالك] مستويات الصفقة الحيّة **الأحدث** بشكل الاستراتيجيّتين (IDM/DMM): **صناديق متدرّجة** (الوقف/الأهداف) + **خطوط مسعّرة** بوسوم (Entry/SL/TP1-3) — نفس مظهر «🎛 إشارات الاستراتيجيّات» (ألوان TP/SL/Entry + الامتداد). الشبكة القديمة (✕/▶/●/★/◆) أُزيلت. عرض بحت (لا يمسّ إشارة/تقييمًا). التاريخيّة تبقى مضغوطة (✦/⚠).")
@@ -2595,7 +2597,7 @@ if barstate.islast
         color  lc    = isBas ? (up ? cUp : cDn) : (up ? #66BB6A : #E57373)   // أساسيّة = صلب · مخاطرة = أفتح
         // 🔴 لا وسم حيّ متحرّك — الإشارة **ثابتة** (تُرسم مرّة عند إغلاق الشمعة وتبقى في مكانها، كالإشارات التاريخيّة الأخوات)
         if barstate.isconfirmed                                 // عند إغلاق الشمعة: علامة ثابتة تبقى على الشارت (لا تتحرك مع السعر)
-            if showSigMain and mwEnable and mwShowMarks and rrOk and decOk                   // [مفتاح] الوسم الرئيسيّ الحيّ · [صفّ J-Waves] mwEnable/mwShowMarks بوّابة عرض — مستقلّ عن التنبيه · [بوّابة RR] · [أ92] موافقة اللوحة
+            if showSigMain and mwEnable and mwShowMarks and rrOk and decOk and cfAgree >= minSigStars   // [مفتاح] الوسم الرئيسيّ الحيّ · [صفّ J-Waves] mwEnable/mwShowMarks بوّابة عرض · [بوّابة RR] · [أ92] موافقة اللوحة · [م3] بوّابة أدنى نجوم (عرض بحت)
                 int curDirG = up ? 1 : -1
                 if sigOppGuard > 0                               // [أ91] احذف الوسوم الحيّة **المعاكسة القريبة** (أُبطِلت بالانقلاب — ضُرِب وقفها) ⇒ لا تكدّس بيع+شراء بنفس المنطقة
                     int giG = array.size(sigMarks) - 1
@@ -2614,7 +2616,7 @@ if barstate.islast
                     label.delete(array.shift(sigMarks))
                     array.shift(sigMarkBar)
                     array.shift(sigMarkDir)
-            if enableAlerts and rrOk and decOk                   // التنبيه مستقلّ (داخل حارس الإغلاق · [بوّابة RR]) · [أ92] موافقة اللوحة · يُطلَق حتى لو أُخفي الوسم
+            if enableAlerts and rrOk and decOk and cfAgree >= minSigStars   // التنبيه (داخل حارس الإغلاق · [بوّابة RR]) · [أ92] موافقة اللوحة · [م3] بوّابة أدنى نجوم
                 string alStr = cfAgree > 0 ? f_starTx(cfAgree) : f_t("بلا توافق", "no conf")   // [حسم المالك] التنبيه = الاسم + القوّة (★+عدد) + معلومات الصفقة المهمّة فقط (دخول/وقف/هدف/RR)
                 string alTx  = "M-Waves " + (up ? f_t("شراء", "Buy") : f_t("بيع", "Sell")) + " " + (isBas ? "✦" : "⚠") + " " + alStr + (cfVeto ? "⛔" : "")
                 alTx := alTx + f_t(" · دخول ", " · Entry ") + str.tostring(close, format.mintick)
@@ -2742,6 +2744,7 @@ if barstate.islast
                         string body   = str.substring(tx, 1)                 // الكلمة (بيع/شراء/Sell/Buy)
                         int sd = (str.contains(tx, "بيع") or str.contains(tx, "Sell")) ? -1 : (str.contains(tx, "شراء") or str.contains(tx, "Buy")) ? 1 : 0
                         string hStar = ""
+                        int    hShown = 0
                         if sd != 0
                             int off = bar_index - label.get_x(lb)
                             if off >= 0 and off <= 500
@@ -2776,7 +2779,11 @@ if barstate.islast
                                 if array.size(hDir) > 0
                                     [hAg, hOp, hNe, hVt] = jwconf.f_rate(sd, hDir, hStr, hCrit, confUseVeto)
                                     hStar := f_starTx(hAg) + (hVt ? "⛔" : "")
-                        label.set_text(lb, (uiLang == "AR / عربيّة") ? (hStar + marker + body) : (body + marker + hStar))   // [حسم المالك] ترتيب حسب اللغة ⇒ ★ يمين الكلمة بصريًّا في الاثنتين (RTL يعكس السلسلة)
+                                    hShown := hAg
+                        if minSigStars > 0 and hShown < minSigStars
+                            label.delete(lb)                                    // [م3] أخفِ الإشارة التاريخيّة ضعيفة التوافق (عرض بحت — f_mwBacktest حسبها قبل هذه الحلقة)
+                        else
+                            label.set_text(lb, (uiLang == "AR / عربيّة") ? (hStar + marker + body) : (body + marker + hStar))   // [حسم المالك] ترتيب حسب اللغة ⇒ ★ يمين الكلمة بصريًّا في الاثنتين (RTL يعكس السلسلة)
         // [توحيد الشكل · حسم المالك «امسح القديم»] مستويات صفقة M-Waves الحيّة **بشكل الاستراتيجيّتين** (f_drawStratLevels — صناديق متدرّجة + خطوط مسعّرة) بدل الشبكة القديمة (✕/▶/●/★/◆). مغذّاة من الصفقة الحيّة القائمة (liveB/liveDir/liveE/liveStp/liveTps — بلا حساب جديد) · المظهر الموحّد للثلاث (stratColTp/Sl/Entry + stratLvlOff) · عرض بحت (لا يمسّ إشارة/تقييمًا).
         float mwTp1 = array.size(liveTps) > 0 ? array.get(liveTps, 0) : na
         float mwTp2 = array.size(liveTps) > 1 ? array.get(liveTps, 1) : na
