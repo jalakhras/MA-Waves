@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.104.0 [تشخيص · حذف جدول «النجوم↔النجاح» — طلب المالك «لا ننسى حذف التشخيص»] — بعد أن أجاب التقييمُ الشاملُ السؤالَ (DMM≥5★ ~57% ثابت · IDM لا يُرتِّب — موثَّق §2د) أُزيل التشخيص كاملًا: مدخلا showCorr/corrPos · دالّة f_stratStars · 8 مصفوفات دلاء النجوم (winByStar/lossByStar/winByStarTp1/lossByStarTp1/idmNbk/idmW1bk/dmmNbk/dmmW1bk) · متغيّرات idm/dmmTrStars/TrTp1/TrTp1Hit · تصنيف النجوم في آلة التتبّع · دالّات f_corrPct/f_corrBg1/f_drawCorr + corrTbl. **يبقى:** آلة تتبّع IDM/DMM (سجلّ ربح/خسارة فقط) + صفوف السجلّ في لوحة القرار (16-18). A/B: سجلّا IDM/DMM يجب أن يطابقا (39/123 · 71/201 على US100·45). العتبة تُطبَّق استراتيجيّةً في J-Waves-DMM-Strategy.pine. ═══
 // ═══ v2.103.0 [تقييم شامل · فصل النجوم لكلّ استراتيجيّة — طلب المالك «لأيّ استراتيجيّة»] — لجواب دقيق على «أيّ استراتيجيّة × كم نجمة × أيّ أداة/فريم» أُضيفت مصفوفات IDM/DMM منفصلة لكلّ دلو نجوم (idmNbk/idmW1bk/dmmNbk/dmmW1bk) تُملأ في كتلتَي الإغلاق ذاتهما (إضافيّ بحت · المصفوفات المدموجة winByStar*/lossByStar* لم تُلمَس ⇒ الأعمدة القديمة مطابقة بايتًا · A/B). الجدول توسّع لـ8 أعمدة: النجوم · TP1% · TP3% · عدد · IDM% · I·N · DMM% · D·N. صفر تكلفة على سقف الكتلة (كلّه داخل f_drawCorr + مساعدَين f_corrPct/f_corrBg1). لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة · pine_check معزول 0/0. ═══
 // ═══ v2.102.0 [م3-outcome · بُعد TP1 (1R) في جدول النجوم — حسم المالك] — أُضيف عمود ثانٍ للارتباط: **نجاح على الهدف الأوّل TP1 (1R)** بجانب TP3 (≈3R). لكلّ صفقة IDM/DMM يُلتقَط «هل لُمِس TP1 قبل الوقف؟» (SL-priority) ويُصنَّف بالنجوم (winByStarTp1/lossByStarTp1). الجدول صار: النجوم · TP1% · TP3% · العدد ⇒ يجيب «هل النجوم ترفع احتمال **أيّ ربح** (TP1) أقوى من ركض 3R (TP3)؟». تتبّع/تصنيف عرضيّ بحت — لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة. ═══
 // ═══ v2.101.0 [م3-outcome · إصلاح «الجسم الرئيسيّ طويل» CE10295] — v2.100.0 دفع جسم السكربت الرئيسيّ فوق حدّ Pine. الحلّ: **إخراج كتلتَي عرض/حساب من الجسم إلى دالّتين** (لا تغيير سلوك): (1) `f_drawCorr` رسم جدول النجوم↔النجاح · (2) `f_mwBacktest` حلقة backtest M-Waves التاريخيّ (تُرجِع [ربح،خسارة]). النتائج/المظهر مطابقة حرفيًّا. لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة. ═══
@@ -111,9 +112,7 @@ bool   dmmShowLevels = input.bool(true, "مستويات/levels", inline = "dmm",
 bool   mwEnable      = input.bool(true, "🌊 J-Waves", inline = "mw", group = grpStrat, tooltip = "[الاستراتيجيّة الأصليّة · النواة] تفعيل عرض إشارات M-Waves (شراء/بيع ✦/⚠ + النجوم + R:R) كصفّ IDM/DMM. مطفأ ⇒ تُخفى وسوم ومستويات M-Waves معًا. عرض بحت — الحساب/التقييم لا يُمَسّان، والتنبيهات تتبع «تفعيل التنبيه» في «✅ الإشارات».")
 bool   mwShowMarks   = input.bool(true, "وسوم/labels", inline = "mw", group = grpStrat, tooltip = "إظهار/إخفاء **وسوم** M-Waves (الحيّة الرئيسيّة + التاريخيّة عبر الدرجات + الخروج) — مستقلّ عن مستوياتها. بوّابة فوق showSigMain/showSigSub في «✅ الإشارات» (يجب أن يكون كلاهما مفعّلًا).")
 bool   mwShowLevels  = input.bool(true, "مستويات/levels", inline = "mw", group = grpStrat, tooltip = "إظهار/إخفاء **مستويات صفقة** M-Waves الحيّة (صناديق/خطوط Entry/SL/TP بشكل الاستراتيجيّتين) — مستقلّ عن وسومها. بوّابة فوق showSigLevels في «✅ الإشارات».")
-// ─── [م3-outcome · v2.100.0] جدول «النجوم ↔ النجاح» (backtest IDM+DMM مصنّفًا بعدد النجوم) — الجسر لعتبة الدخول الآليّ ───
-bool   showCorr = input.bool(true, "★↔success table (IDM+DMM backtest) / جدول النجوم↔النجاح", group = grpStrat, tooltip = "[م3-outcome] جدول يصنّف نتائج صفقات IDM+DMM التاريخيّة **بعدد نجوم توافقها** (0 · 1 · 2 · 3 · 4 · 5+) ⇒ نسبة النجاح لكلّ دلو ⇒ يجيب «هل النجوم الأعلى ⇐ نجاح أعلى؟». الأساس لعتبة دخول آليّة لاحقًا. عرض بحت.")
-string corrPos  = input.string("Bot R", "★↔success table position / موضع جدول النجوم↔النجاح", options = ["Top L", "Top C", "Top R", "Mid L", "Center", "Mid R", "Bot L", "Bot C", "Bot R"], group = grpStrat)
+// [تشخيص · v2.104.0] جدول «النجوم ↔ النجاح» (backtest IDM+DMM مصنّفًا بالنجوم) **أُزيل**: أدّى غرضه (الاستنتاج: DMM≥5★ ~57% — موثَّق في m3_confluence_sources_summary §2د)، والعتبة تُطبَّق الآن في استراتيجيّة J-Waves-DMM-Strategy.pine.
 
 // ══════════════════════════ ط0 · 🌊 الموجة والإطار / Wave & Frame ══════════════════════════
 string grpWave = "ط0 · 🌊 الموجة والإطار / Wave & Frame"
@@ -517,76 +516,28 @@ max_bars_back(dmmStance, 500)
 // [م3-outcome · v2.98.0 · حسم المالك «لم تظهر أرقام»] backtest تاريخيّ لصفقات IDM/DMM على **كلّ التاريخ** (أُزيل قيد islast): آلة تتبّع تُقيَّم كلّ **بار مُغلَق** (isconfirmed)
 //   ⇒ تفتح صفقة عند كلّ إشارة (idmTrig/dmmTrig) بمستوياتها وقتها (per-bar، لا look-ahead)، وتُغلقها بأوّل إصابة لاحقة ⇒ تُحصي عبر الشارت ⇒ أرقام فوريّة.
 //   win = إصابة الهدف الأخير قبل الوقف · loss = الوقف (تحفّظ: الاثنان بشمعة ⇒ خسارة). صفقة واحدة نشطة لكلٍّ، ثمّ تقبل التالية. عرض/سجلّ بحت — لا يمسّ الإشارة/التقييم/التوليد.
-// [م3-outcome · v2.100.0 · جدول النجوم↔النجاح] عدد نجوم توافق استراتيجيّة **عند بارها** (نفس مصادر التقييم الحيّة per-bar: SMC + الزخم + موقف الأخرى + الدايفرجنس — لا look-ahead) ⇒ يُخزَّن مع الصفقة، وعند إغلاقها تُصنَّف النتيجة بدلو النجوم ⇒ «هل النجوم الأعلى ⇐ نجاح أعلى؟» (جسر عتبة الدخول الآليّ).
-f_stratStars(int sdir, int crossStance) =>
-    array<int>   sD = array.new<int>()
-    array<float> sS = array.new<float>()
-    array<bool>  sC = array.new<bool>()
-    if smcEnable
-        array.push(sD, smcSwBias)
-        array.push(sS, smcSwEv != 0 ? 2.0 : 1.0)
-        array.push(sC, smcCritical)
-    if momEnable
-        f_pushMom(sD, sS, sC, momEmaDir, momSmaDir, momVwapDir, momRsiDir, momRsiVeto and ((sdir == 1 and momRsiOBst) or (sdir == -1 and momRsiOSst)), sdir)
-    if crossStance != 0                                                                                     // موقف الاستراتيجيّة الأخرى (تناظر) — يُمرَّر 0 إن معطّلة
-        array.push(sD, crossStance)
-        array.push(sS, 1.0)
-        array.push(sC, false)
-    if divEnable and divDir != 0
-        array.push(sD, divDir)
-        array.push(sS, 1.0)
-        array.push(sC, false)
-    [agS, opS, neS, vtS] = jwconf.f_rate(sdir, sD, sS, sC, confUseVeto)
-    agS
-var array<int> winByStar  = array.new<int>(6, 0)   // [نجوم↔نجاح · TP3] ربح/خسارة IDM+DMM على الهدف الأخير (≈3R) مصنّفة بدلو النجوم (0 · 1 · 2 · 3 · 4 · 5+)
-var array<int> lossByStar = array.new<int>(6, 0)
-var array<int> winByStarTp1  = array.new<int>(6, 0)   // [بُعد TP1 · v2.102.0] ربح/خسارة على الهدف الأوّل (1R · «هل ربحت أصلًا؟») مصنّفة بالنجوم — بُعد ثانٍ
-var array<int> lossByStarTp1 = array.new<int>(6, 0)
-var array<int> idmNbk  = array.new<int>(6, 0)   // [تقييم شامل · v2.103.0] عدد صفقات IDM لكلّ دلو نجوم (عرض بحت — يفصل الأداء لكلّ استراتيجيّة)
-var array<int> idmW1bk = array.new<int>(6, 0)   // ربح IDM على TP1 (1R) لكلّ دلو
-var array<int> dmmNbk  = array.new<int>(6, 0)   // عدد صفقات DMM لكلّ دلو
-var array<int> dmmW1bk = array.new<int>(6, 0)   // ربح DMM على TP1 (1R) لكلّ دلو
+// [تشخيص · v2.104.0] f_stratStars + مصفوفات دلاء النجوم (winByStar/lossByStar/winByStarTp1/lossByStarTp1/idmNbk/idmW1bk/dmmNbk/dmmW1bk) **أُزيلت** مع جدول النجوم↔النجاح. آلة تتبّع IDM/DMM أدناه **تبقى** (تُغذّي صفّي السجلّ في لوحة القرار — ربح/خسارة فقط، بلا تصنيف نجوم).
 var bool  idmTrActive = false
 var int   idmTrDir    = 0
 var float idmTrSl     = na
 var float idmTrFin    = na
 var int   idmWins     = 0
 var int   idmLosses   = 0
-var int   idmTrStars  = 0
-var float idmTrTp1    = na
-var bool  idmTrTp1Hit = false
 var bool  dmmTrActive = false
 var int   dmmTrDir    = 0
 var float dmmTrSl     = na
 var float dmmTrFin    = na
 var int   dmmWins     = 0
 var int   dmmLosses   = 0
-var int   dmmTrStars  = 0
-var float dmmTrTp1    = na
-var bool  dmmTrTp1Hit = false
 if barstate.isconfirmed                                                                                    // [v2.98.0] كلّ بار مُغلَق (لا islast) ⇒ backtest تاريخيّ يتراكم عبر الشارت
-    if idmEnable                                                                                            // IDM (تاريخيّ)
+    if idmEnable                                                                                            // IDM (تاريخيّ · سجلّ ربح/خسارة للوحة القرار)
         if idmTrActive
             bool iLoss = idmTrDir == 1 ? low <= idmTrSl : high >= idmTrSl
-            if not iLoss and not idmTrTp1Hit and not na(idmTrTp1) and (idmTrDir == 1 ? high >= idmTrTp1 : low <= idmTrTp1)   // [بُعد TP1] لمس الهدف الأوّل قبل الوقف (SL-priority: الوقف يغلب في نفس الشمعة)
-                idmTrTp1Hit := true
             bool iWin  = not iLoss and not na(idmTrFin) and (idmTrDir == 1 ? high >= idmTrFin : low <= idmTrFin)
             if iLoss or iWin
                 idmTrActive := false
                 idmWins   := idmWins   + (iWin  ? 1 : 0)
                 idmLosses := idmLosses + (iLoss ? 1 : 0)
-                int ibk = math.min(idmTrStars, 5)                                                          // [نجوم↔نجاح] صنّف النتيجة بدلو نجوم الصفقة (0..5+)
-                if iWin
-                    array.set(winByStar, ibk, array.get(winByStar, ibk) + 1)
-                else
-                    array.set(lossByStar, ibk, array.get(lossByStar, ibk) + 1)
-                if idmTrTp1Hit                                                                              // [بُعد TP1] صنّف نتيجة الهدف الأوّل (لمسه قبل الوقف = ربح TP1 ولو ضُرِب الوقف قبل TP3)
-                    array.set(winByStarTp1, ibk, array.get(winByStarTp1, ibk) + 1)
-                else
-                    array.set(lossByStarTp1, ibk, array.get(lossByStarTp1, ibk) + 1)
-                array.set(idmNbk, ibk, array.get(idmNbk, ibk) + 1)                                          // [تقييم شامل] عزل أداء IDM لكلّ دلو (لا يمسّ المدموج)
-                if idmTrTp1Hit
-                    array.set(idmW1bk, ibk, array.get(idmW1bk, ibk) + 1)
         if not idmTrActive and idmTrig and idmDir != 0 and not na(idmSl)                                    // فتح على إشارة IDM حيّة (لا صفقة نشطة)
             float iFin = not na(idmTp3) ? idmTp3 : not na(idmTp2) ? idmTp2 : idmTp1
             if not na(iFin)
@@ -594,31 +545,14 @@ if barstate.isconfirmed                                                         
                 idmTrDir    := idmDir
                 idmTrSl     := idmSl
                 idmTrFin    := iFin
-                idmTrTp1    := idmTp1                                                                       // [بُعد TP1] الهدف الأوّل (1R) — بُعد التصنيف الثاني
-                idmTrTp1Hit := false
-                idmTrStars  := f_stratStars(idmDir, (dmmEnable and dmmStance != 0) ? dmmStance : 0)         // [نجوم↔نجاح] نجوم الإشارة عند بارها (تُصنَّف بها النتيجة لاحقًا)
-    if dmmEnable                                                                                            // DMM (تاريخيّ · نفس النمط حرفيًّا)
+    if dmmEnable                                                                                            // DMM (تاريخيّ · سجلّ ربح/خسارة للوحة القرار · نفس النمط)
         if dmmTrActive
             bool dLoss = dmmTrDir == 1 ? low <= dmmTrSl : high >= dmmTrSl
-            if not dLoss and not dmmTrTp1Hit and not na(dmmTrTp1) and (dmmTrDir == 1 ? high >= dmmTrTp1 : low <= dmmTrTp1)   // [بُعد TP1] لمس الهدف الأوّل قبل الوقف
-                dmmTrTp1Hit := true
             bool dWin  = not dLoss and not na(dmmTrFin) and (dmmTrDir == 1 ? high >= dmmTrFin : low <= dmmTrFin)
             if dLoss or dWin
                 dmmTrActive := false
                 dmmWins   := dmmWins   + (dWin  ? 1 : 0)
                 dmmLosses := dmmLosses + (dLoss ? 1 : 0)
-                int dbk = math.min(dmmTrStars, 5)
-                if dWin
-                    array.set(winByStar, dbk, array.get(winByStar, dbk) + 1)
-                else
-                    array.set(lossByStar, dbk, array.get(lossByStar, dbk) + 1)
-                if dmmTrTp1Hit                                                                              // [بُعد TP1] صنّف نتيجة الهدف الأوّل
-                    array.set(winByStarTp1, dbk, array.get(winByStarTp1, dbk) + 1)
-                else
-                    array.set(lossByStarTp1, dbk, array.get(lossByStarTp1, dbk) + 1)
-                array.set(dmmNbk, dbk, array.get(dmmNbk, dbk) + 1)                                          // [تقييم شامل] عزل أداء DMM لكلّ دلو (لا يمسّ المدموج)
-                if dmmTrTp1Hit
-                    array.set(dmmW1bk, dbk, array.get(dmmW1bk, dbk) + 1)
         if not dmmTrActive and dmmTrig and dmmDir != 0 and not na(dmmSl)
             float dFin = not na(dmmTp3) ? dmmTp3 : not na(dmmTp2) ? dmmTp2 : dmmTp1
             if not na(dFin)
@@ -626,9 +560,6 @@ if barstate.isconfirmed                                                         
                 dmmTrDir    := dmmDir
                 dmmTrSl     := dmmSl
                 dmmTrFin    := dFin
-                dmmTrTp1    := dmmTp1                                                                       // [بُعد TP1]
-                dmmTrTp1Hit := false
-                dmmTrStars  := f_stratStars(dmmDir, (idmEnable and idmStance != 0) ? idmStance : 0)
 var array<label> idmLabels = array.new<label>()
 // [الشكل الموحّد] حالة آخر إشارة IDM — لرسم مستوياتها كاملةً (خلف مفتاح IDM الخاصّ idmShowLevels) كالمؤشّر الأصليّ (صفقة واحدة نشطة، لا زحام)
 var int   idmLastBar   = na
@@ -2911,76 +2842,9 @@ if showFrameHelper and barstate.islast
     float impMed = array.size(pool) >= 2 ? array.median(pool) : na             // لا عيّنة كافية في السلسلة كلّها ⇒ **«—» صادقة** لا رقم مخترَع
     f_drawWavePanel(wpDeg, wpImp, impMed, impHist)
 
-// ═══ [م3-outcome · v2.100.0] جدول «النجوم ↔ النجاح» — backtest IDM+DMM مصنّفًا بعدد النجوم (winByStar/lossByStar مُلِئا في آلة التتبّع أعلاه) ═══
-//   يجيب سؤال المالك المحوريّ: «هل النجوم الأعلى ⇐ نجاح أعلى؟» ⇒ أساس عتبة الدخول الآليّ (تحويلها استراتيجية). عرض/سجلّ بحت.
-//   🔴 [v2.101.0] الرسم داخل **دالّة** (لا في الجسم الرئيسيّ) — الجسم بلغ حدّ Pine (CE10295)؛ الدالّة تُخرِج كتلة العرض من الجسم.
-f_corrPct(int w, int n) =>                                                                             // [تقييم شامل] نسبة مئويّة نصًّا (— إن العيّنة صفر)
-    n > 0 ? str.tostring(100.0 * w / n, "#") + "%" : "—"
-f_corrBg1(float wr, color miss) =>                                                                     // لون خليّة TP1 (1R): أخضر ≥55 · برتقاليّ ≥45 · أحمر
-    na(wr) ? miss : wr >= 55 ? #089981 : wr >= 45 ? #FF9800 : #F23645
-f_drawCorr(table t) =>
-    if not showCorr
-        table.clear(t, 0, 0, 7, 7)
-    if showCorr
-        table.set_position(t, f_pos(corrPos))
-        color cHdr2 = color.new(color.rgb(color.r(concBg) * 0.72, color.g(concBg) * 0.72, color.b(concBg) * 0.72), color.t(concBg))
-        color cMt2  = #787B86
-        color cMn2  = #D1D4DC
-        table.cell(t, 0, 0, f_t("النجوم ↔ النجاح", "Stars ↔ win"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest IDM+DMM مصنّفًا بنجوم كلّ صفقة عند بارها. المدموج: TP1% (1R · «هل ربحت أصلًا؟») · TP3% (≈3R · ركض كامل) · عدد. ثمّ منفصلًا لكلّ استراتيجيّة: IDM% وDMM% على TP1 + عيّنة كلٍّ (I·N/D·N) ⇒ «أيّ استراتيجيّة × كم نجمة» أفضل. تصاعد النسبة مع النجوم ⇒ عتبة دخول آليّة.", "IDM+DMM backtest bucketed by stars. Combined: TP1% (1R) · TP3% (≈3R) · N. Then per-strategy on TP1: IDM% and DMM% + each sample (I·N/D·N) ⇒ which strategy × how many stars is best."))
-        table.cell(t, 1, 0, "TP1%", text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(t, 2, 0, "TP3%", text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(t, 3, 0, f_t("عدد", "N"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(t, 4, 0, "IDM%", text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(t, 5, 0, "I·N", text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(t, 6, 0, "DMM%", text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(t, 7, 0, "D·N", text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        int t1W = 0
-        int t3W = 0
-        int tN  = 0
-        int tiW = 0
-        int tiN = 0
-        int tdW = 0
-        int tdN = 0
-        for bi = 0 to 5
-            int w1 = array.get(winByStarTp1, bi)
-            int w3 = array.get(winByStar, bi)
-            int n  = w3 + array.get(lossByStar, bi)                                                    // العدد نفسه للبُعدين (نفس الصفقات)
-            int iw = array.get(idmW1bk, bi)
-            int inn = array.get(idmNbk, bi)
-            int dw = array.get(dmmW1bk, bi)
-            int dn = array.get(dmmNbk, bi)
-            t1W := t1W + w1
-            t3W := t3W + w3
-            tN  := tN  + n
-            tiW := tiW + iw
-            tiN := tiN + inn
-            tdW := tdW + dw
-            tdN := tdN + dn
-            string starTx2 = bi == 0 ? f_t("بلا نجوم", "0★") : bi == 5 ? "★5+" : "★" + str.tostring(bi)
-            float  wr1 = n > 0 ? 100.0 * w1 / n : na
-            float  wr3 = n > 0 ? 100.0 * w3 / n : na
-            float  wri = inn > 0 ? 100.0 * iw / inn : na
-            float  wrd = dn > 0 ? 100.0 * dw / dn : na
-            color  bg3 = na(wr3) ? cMt2 : wr3 >= 40 ? #089981 : wr3 >= 30 ? #FF9800 : #F23645          // TP3 (≈3R) يُتوقَّع ~25-30% ⇒ عتبات أدنى
-            table.cell(t, 0, bi + 1, starTx2, text_color = cMt2, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-            table.cell(t, 1, bi + 1, na(wr1) ? "—" : str.tostring(wr1, "#") + "%", text_color = color.white, bgcolor = f_corrBg1(wr1, cMt2), text_size = size.small)
-            table.cell(t, 2, bi + 1, na(wr3) ? "—" : str.tostring(wr3, "#") + "%", text_color = color.white, bgcolor = bg3, text_size = size.small)
-            table.cell(t, 3, bi + 1, str.tostring(n), text_color = cMn2, bgcolor = concBg, text_size = size.small)
-            table.cell(t, 4, bi + 1, f_corrPct(iw, inn), text_color = color.white, bgcolor = f_corrBg1(wri, cMt2), text_size = size.small)
-            table.cell(t, 5, bi + 1, str.tostring(inn), text_color = cMt2, bgcolor = concBg, text_size = size.small)
-            table.cell(t, 6, bi + 1, f_corrPct(dw, dn), text_color = color.white, bgcolor = f_corrBg1(wrd, cMt2), text_size = size.small)
-            table.cell(t, 7, bi + 1, str.tostring(dn), text_color = cMt2, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 0, 7, f_t("المجموع", "Total"), text_color = cMt2, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-        table.cell(t, 1, 7, f_corrPct(t1W, tN), text_color = color.white, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 2, 7, f_corrPct(t3W, tN), text_color = color.white, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 3, 7, str.tostring(tN), text_color = cMn2, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 4, 7, f_corrPct(tiW, tiN), text_color = color.white, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 5, 7, str.tostring(tiN), text_color = cMt2, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 6, 7, f_corrPct(tdW, tdN), text_color = color.white, bgcolor = concBg, text_size = size.small)
-        table.cell(t, 7, 7, str.tostring(tdN), text_color = cMt2, bgcolor = concBg, text_size = size.small)
-var table corrTbl = table.new(f_pos(corrPos), 8, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
-if barstate.islast
-    f_drawCorr(corrTbl)
+// ═══ [تشخيص · v2.104.0] جدول «النجوم ↔ النجاح» (f_corrPct/f_corrBg1/f_drawCorr + corrTbl) **أُزيل** بعد أن أدّى غرضه ═══
+//   الاستنتاج المُوثَّق (m3_confluence_sources_summary §2د): **DMM عند ≥5★ = TP1% ثابت ~57% عبر كلّ الأدوات/الفريمات** (رتيب · عيّنات ضخمة)،
+//   بينما نجوم IDM لا تُرتِّب موثوقًا. العتبة تُطبَّق الآن **استراتيجيّةً** في `J-Waves-DMM-Strategy.pine` (strategy()، دخول DMM≥5★ + جني 1R + نمذجة تكاليف).
 
 // ── نهاية النواة (صغيرة + متوسطة + كبيرة + لوحة الموجة). التالي: الخطوط/التجدّد (دروس 08-09) أو طريقة الكسر للكبيرة. ──
 // [م-إش-1ج ⇒ م3] plot(قوّة الإشارة data-window) رُفِع مع f_sigStrength — التوافق/الحجم يُبنى في طبقة الاستراتيجية.

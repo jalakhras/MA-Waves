@@ -1,0 +1,124 @@
+//@version=6
+import Jassar_Mahmoud/JW_SMC/13 as jsmc
+import Jassar_Mahmoud/JW_Confluence/1 as jwconf
+import Jassar_Mahmoud/JW_Momentum/2 as jmom
+import Jassar_Mahmoud/JW_Inducement/1 as jind
+import Jassar_Mahmoud/JW_DMM/1 as jdmm
+// ============================================================================
+// J-Waves — DMM ≥5★ Strategy (استراتيجيّة تجريبيّة · فرع m3/star-threshold)
+// ----------------------------------------------------------------------------
+// المصدر: التقييم الشامل م3-outcome (docs/build/m3_confluence_sources_summary §2د):
+//   قياس 16 خليّة (مؤشّرات أمريكيّة · معادن · أزواج · كريبتو × فريمات 45/60/240) أثبت:
+//   🏆 **DMM عند ≥5★ = TP1% ثابت ~57% عبر كلّ الأدوات/الفريمات** (رتيب · عيّنات 100-213/خليّة)،
+//   بينما نجوم IDM لا تُرتِّب موثوقًا ⇒ الاستراتيجيّة على DMM وحده بعتبة نجوم.
+//
+// 🔴 المنطق **مطابق حرفيًّا** لتقييم النجوم في المؤشّر (f_stratStars على DMM، المحذوفة v2.104.0):
+//   النجوم = jwconf.f_rate(dmmDir, [SMC + الزخم(EMA/SMA/VWAP/RSI+veto) + موقف IDM(تناظر) + الدايفرجنس]).
+//   الدخول = dmmTrig ∧ dmmDir≠0 ∧ نجوم ≥ العتبة ∧ لا صفقة نشطة (كآلة التتبّع). الوقف = dmmSl · الهدف = dmmTp1 (البُعد المُقاس ~57%).
+//   الوقف يغلب في نفس الشمعة (افتراض strategy.exit التحفّظيّ = تطابق قياس الدراسة SL-priority).
+//
+// © MarkitTick (DMM/IDM · AlphaTrend: © KivancOzbilgic) · © LuxAlgo CC BY-NC-SA (SMC).
+// عرض/تنفيذ اختباريّ شخصيّ لا تجاريّ. التكاليف (العمولة/الانزلاق) في رأس strategy() — تُعاير لكلّ أداة من Properties.
+// ============================================================================
+strategy("J-Waves DMM ≥5★ Strategy", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, commission_type = strategy.commission.percent, commission_value = 0.02, slippage = 2, pyramiding = 0, process_orders_on_close = true, calc_on_every_tick = false, max_bars_back = 5000)
+
+// ─────────────────────────────── المدخلات ───────────────────────────────
+string grpStr = "🎯 الاستراتيجيّة / Strategy"
+int   starThr = input.int(5, "Min stars ≥ (entry gate) / أدنى نجوم للدخول", minval = 0, maxval = 6, group = grpStr, tooltip = "لا تُفتَح صفقة DMM إلّا إن بلغ توافق نجومها هذا الحدّ. القياس: ≥5★ = TP1% ~57% ثابت (الأفضل). خفّضه لصفقات أكثر أقلّ جودةً.")
+string dirSel = input.string("Both", "Trade direction / اتّجاه التداول", options = ["Both", "Long only", "Short only"], group = grpStr, tooltip = "قصْر الصفقات على اتّجاه واحد (مثلًا Long only في السوق الصاعد) أو كليهما.")
+
+// ── معاملات المصادر (مطابقة افتراضات المؤشّر التي قِيست عليها الدراسة — لا تُغيَّر إلّا للتجريب) ──
+string grpSrc = "⚙ معاملات المصادر / Source params"
+int   dmmAtrLen  = input.int(14,  "DMM ATR/MFI length", minval = 1, group = grpSrc)
+float dmmAtrMult = input.float(1.0,"DMM ATR mult", minval = 0.1, step = 0.1, group = grpSrc)
+bool  dmmBoOver  = input.bool(true,"DMM breakout override", group = grpSrc)
+float dmmBoSens  = input.float(2.0,"DMM breakout sensitivity", minval = 0.1, step = 0.1, group = grpSrc)
+int   smcSwingLen= input.int(50,  "SMC swing length", minval = 10, group = grpSrc)
+int   smcIntLen  = input.int(5,   "SMC internal length", minval = 3, group = grpSrc)
+bool  smcConfFilt= input.bool(false,"SMC confluence filter", group = grpSrc)
+bool  smcCritical= input.bool(true,"SMC opposition = veto", group = grpSrc)
+bool  confUseVeto= input.bool(true,"Enable veto (critical sources)", group = grpSrc)
+int   momEmaLen  = input.int(9,   "EMA length", minval = 1, group = grpSrc)
+int   momSmaLen  = input.int(50,  "SMA length", minval = 1, group = grpSrc)
+int   momRsiLen  = input.int(14,  "RSI length", minval = 1, group = grpSrc)
+float momRsiOB   = input.float(70, "RSI overbought (veto)", minval = 50, maxval = 100, group = grpSrc)
+float momRsiOS   = input.float(30, "RSI oversold (veto)", minval = 0, maxval = 50, group = grpSrc)
+bool  momRsiVeto = input.bool(true,"RSI extreme = veto", group = grpSrc)
+int   divLbL     = input.int(5,   "Divergence pivot left", minval = 1, group = grpSrc)
+int   divLbR     = input.int(5,   "Divergence pivot right", minval = 1, group = grpSrc)
+int   divRangeLo = input.int(5,   "Divergence min range", minval = 1, group = grpSrc)
+int   divRangeHi = input.int(60,  "Divergence max range", minval = 5, group = grpSrc)
+int   divHold    = input.int(20,  "Divergence vote hold", minval = 1, maxval = 300, group = grpSrc)
+// IDM (لموقف التناظر فقط — لا يُتداوَل)
+int   idmSwingLen= input.int(5,   "IDM swing length", minval = 2, group = grpSrc)
+int   idmAtrLen  = input.int(14,  "IDM ATR length", minval = 1, group = grpSrc)
+int   idmIndMax  = input.int(50,  "IDM memory", minval = 10, maxval = 200, group = grpSrc)
+bool  idmUseAtrSl= input.bool(true,"IDM ATR SL", group = grpSrc)
+float idmAtrMult = input.float(1.0,"IDM ATR mult", minval = 0.1, step = 0.1, group = grpSrc)
+float idmRr1     = input.float(1.0,"IDM TP1 R:R", minval = 0.5, step = 0.1, group = grpSrc)
+float idmRr2     = input.float(2.0,"IDM TP2 R:R", minval = 1.0, step = 0.5, group = grpSrc)
+float idmRr3     = input.float(3.0,"IDM TP3 R:R", minval = 1.5, step = 0.5, group = grpSrc)
+
+// ─────────────────── حساب المصادر (كلّ بار — ثبات حالة ta) ───────────────────
+[dmmDir, dmmEntry, dmmSl, dmmTp1, dmmTp2, dmmTp3, dmmTrig, dmmStance, dmmMfi, dmmVolExp] = jdmm.f_dynMetrics(dmmAtrLen, dmmAtrMult, dmmBoOver, dmmBoSens)
+[idmDir, idmEntry, idmSl, idmTp1, idmTp2, idmTp3, idmTrig, idmStance] = jind.f_inducement(idmSwingLen, idmAtrLen, idmIndMax, idmUseAtrSl, idmAtrMult, idmRr1, idmRr2, idmRr3)
+[smcSwBias, smcInBias, smcSwEv, smcInEv, smcSwLvl, smcSwPivB, smcInLvl, smcInPivB, smcTrTop, smcTrTopB, smcTrBot, smcTrBotB] = jsmc.f_smcStructure(smcSwingLen, smcIntLen, smcConfFilt)
+[momEma, momSma, momVwap, momRsi, momEmaDir, momSmaDir, momVwapDir, momRsiDir, momRsiOBst, momRsiOSst] = jmom.f_momentum(momEmaLen, momSmaLen, momRsiLen, momRsiOB, momRsiOS)
+[divDir, divBull, divBear, divRsi] = jmom.f_rsiDivergence(momRsiLen, divLbL, divLbR, divRangeLo, divRangeHi, divHold)
+
+// ─────────────── نجوم توافق DMM (نقل حرفيّ لـf_stratStars/f_pushMom من المؤشّر) ───────────────
+f_pushMom(array<int> d, array<float> s, array<bool> c, int emaD, int smaD, int vwapD, int rsiD, bool rsiVetoTrig, int sigDir) =>
+    array.push(d, emaD)
+    array.push(s, 1.0)
+    array.push(c, false)
+    array.push(d, smaD)
+    array.push(s, 1.0)
+    array.push(c, false)
+    array.push(d, vwapD)
+    array.push(s, 1.0)
+    array.push(c, false)
+    array.push(d, rsiD)
+    array.push(s, 1.0)
+    array.push(c, false)
+    if rsiVetoTrig
+        array.push(d, -sigDir)
+        array.push(s, 2.0)
+        array.push(c, true)
+
+f_dmmStars(int sdir, int crossStance) =>
+    array<int>   sD = array.new<int>()
+    array<float> sS = array.new<float>()
+    array<bool>  sC = array.new<bool>()
+    array.push(sD, smcSwBias)                                         // SMC (كسر طازج ⇒ وزن 2)
+    array.push(sS, smcSwEv != 0 ? 2.0 : 1.0)
+    array.push(sC, smcCritical)
+    f_pushMom(sD, sS, sC, momEmaDir, momSmaDir, momVwapDir, momRsiDir, momRsiVeto and ((sdir == 1 and momRsiOBst) or (sdir == -1 and momRsiOSst)), sdir)   // الزخم + veto تطرّف RSI
+    if crossStance != 0                                              // موقف IDM (تناظر) — كما في f_stratStars لـDMM
+        array.push(sD, crossStance)
+        array.push(sS, 1.0)
+        array.push(sC, false)
+    if divDir != 0                                                   // الدايفرجنس
+        array.push(sD, divDir)
+        array.push(sS, 1.0)
+        array.push(sC, false)
+    [agS, opS, neS, vtS] = jwconf.f_rate(sdir, sD, sS, sC, confUseVeto)
+    agS
+
+int dmmStars = dmmDir != 0 ? f_dmmStars(dmmDir, idmStance != 0 ? idmStance : 0) : 0   // موقف IDM = التناظر (كتلة DMM في المؤشّر)
+
+// ─────────────────────────── الدخول/الخروج ───────────────────────────
+// [مطابقة آلة التتبّع] صفقة واحدة نشطة: تُفتَح عند dmmTrig إن بلغت النجوم العتبة ولا صفقة مفتوحة · الوقف=dmmSl · الهدف=dmmTp1 (البُعد المُقاس).
+bool allowLong  = dirSel != "Short only"
+bool allowShort = dirSel != "Long only"
+bool gateOk = barstate.isconfirmed and strategy.position_size == 0 and dmmTrig and dmmDir != 0 and dmmStars >= starThr and not na(dmmSl) and not na(dmmTp1)
+if gateOk and dmmDir == 1 and allowLong
+    strategy.entry("DMM ▲", strategy.long, comment = "★" + str.tostring(dmmStars))
+    strategy.exit("DMM ▲ x", from_entry = "DMM ▲", stop = dmmSl, limit = dmmTp1)   // الوقف يغلب في نفس الشمعة (تحفّظ = قياس الدراسة)
+if gateOk and dmmDir == -1 and allowShort
+    strategy.entry("DMM ▼", strategy.short, comment = "★" + str.tostring(dmmStars))
+    strategy.exit("DMM ▼ x", from_entry = "DMM ▼", stop = dmmSl, limit = dmmTp1)
+
+// ─────────────────────────── عرض تشخيصيّ خفيف ───────────────────────────
+plot(dmmStars, "DMM stars", display = display.data_window)
+plotshape(gateOk and dmmDir == 1 and allowLong,  "Long entry",  style = shape.triangleup,   location = location.belowbar, color = #26A69A, size = size.tiny)
+plotshape(gateOk and dmmDir == -1 and allowShort, "Short entry", style = shape.triangledown, location = location.abovebar, color = #EF5350, size = size.tiny)
