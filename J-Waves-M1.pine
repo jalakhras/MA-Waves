@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.106.0 [قياس مؤقّت · M-Waves↔النجاح — طلب المالك «قِس لكلّ استراتيجيّة على حدة»] — لتحديد عتبة minSigStars بالدليل لا بالتخمين: عُمِّمت f_mwBacktest لتُصنّف نتائج كلّ إشارة M-Waves بدلو نجومها عند بارها ([offk]، نفس أصوات post-process، لا look-ahead) ⇒ تُرجِع [ربح،خسارة،دلاء]. جدول مؤقّت mwCorrTbl (النجوم·فوز%·عدد · خلف showMwCorr) عبر f_drawMwCorr. **يُحذَف بعد استخراج العتبة** (كتشخيص DMM). عرض/قياس بحت — لا يمسّ التوليد/الفلترة/السجلّ · pine_check معزول 0/0. (IDM/DMM قِيسا سابقًا §2د: DMM≥5★ · IDM لا يُرتِّب.) ═══
 // ═══ v2.105.0 [م3 · بوّابة أدنى نجوم لإظهار الإشارة — طلب المالك «لا تظهر الإشارة إلا بعدد نجوم معيّن»] — بعد أن أثبت التقييم أنّ النجوم مصفاة جودة (DMM≥5★)، أُضيف مدخل `minSigStars` (0-5، افتراض 0) يُخفي إشارات M-Waves (✦/⚠) التي توافُق نجومها أدنى من الحدّ: **الحيّة** (بوّابة على cfAgree للوسم + التنبيه) + **التاريخيّة** (حذف الوسم إن hAg<الحدّ في post-process). **عرض بحت** — لا يمسّ التوليد/التقييم/السجلّ (f_mwBacktest يحسب كلّ الإشارات قبل الفلترة) · 0 = A/B مطلق · pine_check معزول 0/0. (IDM/DMM خارج النطاق — تُضاف بنفس النمط عند الطلب.) ═══
 // ═══ v2.104.0 [تشخيص · حذف جدول «النجوم↔النجاح» — طلب المالك «لا ننسى حذف التشخيص»] — بعد أن أجاب التقييمُ الشاملُ السؤالَ (DMM≥5★ ~57% ثابت · IDM لا يُرتِّب — موثَّق §2د) أُزيل التشخيص كاملًا: مدخلا showCorr/corrPos · دالّة f_stratStars · 8 مصفوفات دلاء النجوم (winByStar/lossByStar/winByStarTp1/lossByStarTp1/idmNbk/idmW1bk/dmmNbk/dmmW1bk) · متغيّرات idm/dmmTrStars/TrTp1/TrTp1Hit · تصنيف النجوم في آلة التتبّع · دالّات f_corrPct/f_corrBg1/f_drawCorr + corrTbl. **يبقى:** آلة تتبّع IDM/DMM (سجلّ ربح/خسارة فقط) + صفوف السجلّ في لوحة القرار (16-18). A/B: سجلّا IDM/DMM يجب أن يطابقا (39/123 · 71/201 على US100·45). العتبة تُطبَّق استراتيجيّةً في J-Waves-DMM-Strategy.pine. ═══
 // ═══ v2.103.0 [تقييم شامل · فصل النجوم لكلّ استراتيجيّة — طلب المالك «لأيّ استراتيجيّة»] — لجواب دقيق على «أيّ استراتيجيّة × كم نجمة × أيّ أداة/فريم» أُضيفت مصفوفات IDM/DMM منفصلة لكلّ دلو نجوم (idmNbk/idmW1bk/dmmNbk/dmmW1bk) تُملأ في كتلتَي الإغلاق ذاتهما (إضافيّ بحت · المصفوفات المدموجة winByStar*/lossByStar* لم تُلمَس ⇒ الأعمدة القديمة مطابقة بايتًا · A/B). الجدول توسّع لـ8 أعمدة: النجوم · TP1% · TP3% · عدد · IDM% · I·N · DMM% · D·N. صفر تكلفة على سقف الكتلة (كلّه داخل f_drawCorr + مساعدَين f_corrPct/f_corrBg1). لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة · pine_check معزول 0/0. ═══
@@ -258,6 +259,7 @@ int    numTP        = input.int(3, "Target ladder count TP1..N [م-إش-2أ] / �
 bool   showSignals  = input.bool(true, "Signals (master) / الإشارات (رئيسيّ)", group = grpSig, tooltip = "المفتاح العامّ لكلّ الإشارات. يُغلق الكلّ دفعةً.")
 bool   showSigMain  = input.bool(true, "main: live confirmed / الرئيسيّة: الحيّة المؤكَّدة", group = grpSig, tooltip = "الوسم الحيّ للفرصة المؤكَّدة على آخر شمعة (شراء/بيع + RR + وقف/هدف).")
 int    minSigStars  = input.int(0, "Min confluence stars to show signal [م3] / أدنى نجوم توافق لإظهار الإشارة", minval = 0, maxval = 5, group = grpSig, tooltip = "[م3 · حسم المالك] إشارة M-Waves (✦/⚠ الحيّة + التاريخيّة + تنبيهها) لا تُعرَض إلّا إن بلغ توافق نجومها (SMC+الزخم+الجلسات+الدايفرجنس) هذا الحدّ ⇒ يُخفي ضعيفة التوافق (تركيز على الأعلى جودةً · شارت أنظف). 0 = إظهار الكلّ (A/B). عرض بحت — لا يمسّ التوليد/التقييم/السجلّ. (خطر: عتبة عالية تُخفي رابحة أيضًا.)")
+bool   showMwCorr   = input.bool(true, "[قياس مؤقّت] M-Waves stars↔win table / جدول M-Waves↔النجاح", group = grpSig, tooltip = "[قياس مؤقّت — يُحذَف بعد استخراج العتبة] يصنّف نتائج backtest إشارات M-Waves بدلو نجومها ⇒ نسبة الفوز لكلّ عتبة ⇒ نحدّد عتبة minSigStars بالدليل لا بالتخمين. لكلّ استراتيجيّة على حدة (M-Waves هنا · IDM/DMM قِيسا سابقًا).")
 int    sigOppGuard  = input.int(30, "Clear opposite live signal within N bars [أ91] / مسح الإشارة الحيّة المعاكسة خلال N شمعة", minval = 0, maxval = 300, group = grpSig, tooltip = "[أ91 · حسم المالك 2026-07-20] عند إشارة حيّة جديدة تُحذَف الوسوم الحيّة **المعاكسة** التي أُطلِقت خلال آخر N شمعة (أُبطِلت بالانقلاب — ضُرِب وقفها) ⇒ يمنع تكدّس بيع+شراء بنفس المنطقة قرب الانقلاب. 0 = بلا مسح (السلوك السابق).")
 bool   sigNeedConc  = input.bool(true, "Signal requires panel decision (conclusions) [أ92] / اشتراط قرار اللوحة (الاستنتاجات) للإشارة", group = grpSig, tooltip = "[أ92 · حسم المالك 2026-07-20] مفعّل (افتراض): الإشارة الحيّة (✦/⚠ + التنبيه) **لا تُطلَق** إلّا إن كان **قرار لوحة القرار** موافقًا (شراء ⇒ القرار «شراء» · بيع ⇒ «بيع»). يُوحّد الإشارة مع الاستنتاجات ⇒ لا إطلاق حين اللوحة «نطاق/انتظار/مراجعة/لا تداول». الشبكة الحيّة (العرض) تبقى مبكّرة. مطفأ = السلوك السابق.")
 bool   showSigLevels = input.bool(true, "M-Waves trade levels (live) [توحيد الشكل] / مستويات صفقة M-Waves (الحيّة)", group = grpSig, tooltip = "[توحيد الشكل · حسم المالك] مستويات الصفقة الحيّة **الأحدث** بشكل الاستراتيجيّتين (IDM/DMM): **صناديق متدرّجة** (الوقف/الأهداف) + **خطوط مسعّرة** بوسوم (Entry/SL/TP1-3) — نفس مظهر «🎛 إشارات الاستراتيجيّات» (ألوان TP/SL/Entry + الامتداد). الشبكة القديمة (✕/▶/●/★/◆) أُزيلت. عرض بحت (لا يمسّ إشارة/تقييمًا). التاريخيّة تبقى مضغوطة (✦/⚠).")
@@ -2628,10 +2630,36 @@ if barstate.islast
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
 //   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
 //   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
-// [م3-outcome · v2.101.0] backtest M-Waves التاريخيّ في **دالّة** (إخراج الحلقة من الجسم الرئيسيّ · CE10295): لكلّ إشارة مرسومة (✦/⚠) تُشتقّ صفقتها من المناطق الحاليّة ثمّ مسح أماميّ لأوّل إصابة ⇒ يُرجِع [ربح، خسارة].
+// [قياس مؤقّت · M-Waves↔النجاح] جدول (3 أعمدة: النجوم · فوز% · عدد) + دالّة رسمه (خارج الجسم لتفادي CE10295) — يُحذَف بعد استخراج العتبة.
+var table mwCorrTbl = table.new(position.bottom_left, 3, 8, bgcolor = #1E222D, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+f_drawMwCorr(table t, array<int> winBk, array<int> lossBk) =>
+    table.set_position(t, position.bottom_left)
+    table.cell(t, 0, 0, "MW ★↔win", text_color = #D1D4DC, bgcolor = #2A2E39, text_size = size.small)
+    table.cell(t, 1, 0, "win%", text_color = #D1D4DC, bgcolor = #2A2E39, text_size = size.small)
+    table.cell(t, 2, 0, "N", text_color = #D1D4DC, bgcolor = #2A2E39, text_size = size.small)
+    int tW = 0
+    int tN = 0
+    for bi = 0 to 5
+        int w = array.get(winBk, bi)
+        int n = w + array.get(lossBk, bi)
+        tW := tW + w
+        tN := tN + n
+        string st = bi == 0 ? "0★" : bi == 5 ? "★5+" : "★" + str.tostring(bi)
+        float wr = n > 0 ? 100.0 * w / n : na
+        color bg = na(wr) ? #787B86 : wr >= 50 ? #089981 : wr >= 40 ? #FF9800 : #F23645
+        table.cell(t, 0, bi + 1, st, text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
+        table.cell(t, 1, bi + 1, na(wr) ? "—" : str.tostring(wr, "#") + "%", text_color = color.white, bgcolor = bg, text_size = size.small)
+        table.cell(t, 2, bi + 1, str.tostring(n), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+    table.cell(t, 0, 7, "Σ", text_color = #787B86, bgcolor = #1E222D, text_size = size.small)
+    table.cell(t, 1, 7, tN > 0 ? str.tostring(100.0 * tW / tN, "#") + "%" : "—", text_color = color.white, bgcolor = #1E222D, text_size = size.small)
+    table.cell(t, 2, 7, str.tostring(tN), text_color = #D1D4DC, bgcolor = #1E222D, text_size = size.small)
+
+// [م3-outcome · v2.101.0] backtest M-Waves التاريخيّ في **دالّة** (إخراج الحلقة من الجسم الرئيسيّ · CE10295): لكلّ إشارة مرسومة (✦/⚠) تُشتقّ صفقتها من المناطق الحاليّة ثمّ مسح أماميّ لأوّل إصابة ⇒ يُرجِع [ربح، خسارة، دلاء النجوم].
 f_mwBacktest(array<label> labs, array<float> zt, array<float> zb, array<float> maLv, int nz) =>
     int wins   = 0
     int losses = 0
+    array<int> winBk  = array.new<int>(6, 0)   // [قياس مؤقّت · M-Waves↔النجاح] دلاء فوز/خسارة لكلّ عتبة نجوم (0..5+) — يُحذَف بعد استخراج العتبة
+    array<int> lossBk = array.new<int>(6, 0)
     float mwBuf = slBufPts * syminfo.mintick
     int nMwLb = array.size(labs)
     for li = 0 to (nMwLb > 0 ? nMwLb - 1 : 0)
@@ -2674,11 +2702,48 @@ f_mwBacktest(array<label> labs, array<float> zt, array<float> zb, array<float> m
                                     else if winK
                                         resk := 1
                                         break
-                            if resk == 1
-                                wins := wins + 1
-                            else if resk == -1
-                                losses := losses + 1
-    [wins, losses]
+                            if resk != 0                                                            // [قياس مؤقّت] صنّف النتيجة بدلو نجوم الإشارة عند بارها ([offk]، لا look-ahead · نفس أصوات post-process)
+                                int mwStars = 0
+                                if smcEnable or momEnable or divEnable
+                                    array<int>   qDir  = array.new<int>()
+                                    array<float> qStr  = array.new<float>()
+                                    array<bool>  qCrit = array.new<bool>()
+                                    if smcEnable
+                                        array.push(qDir, int(smcSwBias[offk]))
+                                        array.push(qStr, smcSwEv[offk] != 0 ? 2.0 : 1.0)
+                                        array.push(qCrit, smcCritical)
+                                    if momEnable
+                                        array.push(qDir, int(momEmaDir[offk]))
+                                        array.push(qStr, 1.0)
+                                        array.push(qCrit, false)
+                                        array.push(qDir, int(momSmaDir[offk]))
+                                        array.push(qStr, 1.0)
+                                        array.push(qCrit, false)
+                                        array.push(qDir, int(momVwapDir[offk]))
+                                        array.push(qStr, 1.0)
+                                        array.push(qCrit, false)
+                                        array.push(qDir, int(momRsiDir[offk]))
+                                        array.push(qStr, 1.0)
+                                        array.push(qCrit, false)
+                                        if momRsiVeto and ((sdk == 1 and momRsiOBst[offk]) or (sdk == -1 and momRsiOSst[offk]))
+                                            array.push(qDir, -sdk)
+                                            array.push(qStr, 2.0)
+                                            array.push(qCrit, true)
+                                    if divEnable and divDir[offk] != 0
+                                        array.push(qDir, int(divDir[offk]))
+                                        array.push(qStr, 1.0)
+                                        array.push(qCrit, false)
+                                    if array.size(qDir) > 0
+                                        [qAg, qOp, qNe, qVt] = jwconf.f_rate(sdk, qDir, qStr, qCrit, confUseVeto)
+                                        mwStars := qAg
+                                int mbk = math.min(mwStars, 5)
+                                if resk == 1
+                                    wins := wins + 1
+                                    array.set(winBk, mbk, array.get(winBk, mbk) + 1)
+                                else
+                                    losses := losses + 1
+                                    array.set(lossBk, mbk, array.get(lossBk, mbk) + 1)
+    [wins, losses, winBk, lossBk]
 
 var array<label> sigLabels = array.new<label>()
 // [ط4-ج] f_emitDegSignals ⇐ نُقلت إلى JW_Signals (jws.f_emitDegSignals) — v2.68.0 حُذِف الجسم المحلّيّ. التوقيع الجديد يأخذ قناع التغطية aCov (=f_covArr) + المناطق/المدخلات/اللغة وسائط.
@@ -2729,9 +2794,11 @@ if barstate.islast
         if showSigExit and mwEnable and mwShowMarks                                                                             // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
         // [م3-outcome · v2.101.0 · backtest M-Waves التاريخيّ] **قبل حلقة النجوم** (نصّ الوسم خام بعدُ: يبدأ ✦/⚠ لا ★) — النداء في دالّة f_mwBacktest (أُخرِجت من الجسم · CE10295).
-        [mwbwR, mwblR] = f_mwBacktest(sigLabels, zTop, zBot, zMaLevels, nzs)
+        [mwbwR, mwblR, mwWinBk, mwLossBk] = f_mwBacktest(sigLabels, zTop, zBot, zMaLevels, nzs)
         mwHistWins   := mwbwR
         mwHistLosses := mwblR
+        if showMwCorr                                                                               // [قياس مؤقّت] ارسم جدول M-Waves↔النجاح (يُحذَف بعد استخراج العتبة)
+            f_drawMwCorr(mwCorrTbl, mwWinBk, mwLossBk)
         // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
         if smcEnable or momEnable or divEnable                                       // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
             int nSigLb = array.size(sigLabels)
