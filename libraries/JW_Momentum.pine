@@ -13,6 +13,8 @@
 //
 // [/2] أُضيفت دالّة ثانية f_rsiDivergence (دايفرجنس RSI المنتظم مصوّتًا) — f_momentum
 //   **لم تُلمَس** (مصوّتات الزخم القائمة مطابقة بايتًا). RSI مشترك المفهوم ⇒ نفس المكتبة.
+// [/3] أُضيفت دالّة ثالثة f_volume (تأكيد المشاركة — داو «الحجم يؤكّد الاتجاه») — f_momentum/f_rsiDivergence
+//   **لم تُلمَسا** (A/B للقائم). الحجم يشارك مفهوم VWAP ⇒ نفس المكتبة. spec_confluence_volume.md.
 // ============================================================================
 library("JW_Momentum", overlay = true)
 
@@ -92,3 +94,20 @@ export f_rsiDivergence(simple int rsiLen, simple int lbL, simple int lbR, simple
         lastDivBar := bar_index
     int divDir = (not na(lastDivBar) and (bar_index - lastDivBar) <= holdBars) ? lastDivDir : 0
     [divDir, bullCond, bearCond, r]
+
+// @function   تأكيد المشاركة بالحجم (داو: «الحجم يؤكّد الاتجاه») — الحجم النسبيّ + علما «مرتفع/منخفض».
+//             الحجم رقم بلا اتجاه ⇒ يصوّت **تأكيدًا** لاتّجاه الإشارة حين المشاركة مرتفعة (حجم فوق متوسّطه)،
+//             و**veto** اختياريّ حين منخفضة جدًّا (حركة بلا مشاركة = مشبوهة). يُحسَب كلّ بار (ثبات ta.sma).
+//             🔴 المؤشّر يصوّت (المكتبة بيانات فقط). سلاسل volRatio/volHigh/volLow تُقرأ عند بار الإشارة [off] (لا look-ahead).
+// @param avgLen   طول متوسّط الحجم (افتراض 20).
+// @param mult     عتبة «مرتفع» = الحجم النسبيّ ≥ mult (افتراض 1.5) ⇒ +نجمة لاتّجاه الإشارة.
+// @param lowMult  عتبة «منخفض» = الحجم النسبيّ ≤ lowMult (افتراض 0.5) ⇒ veto اختياريّ.
+// @returns [vol, volAvg, volRatio, volHigh, volLow]
+//   vol: الحجم الخام · volAvg: متوسّطه (SMA) · volRatio: النسبة (vol/avg، na إن لا حجم) · volHigh/volLow: bool.
+export f_volume(simple int avgLen, float mult, float lowMult) =>
+    float v     = volume
+    float avg   = ta.sma(volume, avgLen)
+    float ratio = (not na(v) and not na(avg) and avg > 0) ? v / avg : na   // حارس الأدوات بلا حجم ⇒ na ⇒ لا صوت
+    bool  hi    = not na(ratio) and ratio >= mult
+    bool  lo    = not na(ratio) and ratio <= lowMult
+    [v, avg, ratio, hi, lo]

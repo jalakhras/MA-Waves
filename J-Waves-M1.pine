@@ -8,7 +8,7 @@ import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] �
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
 import Jassar_Mahmoud/JW_SMC/13 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL + [v13] إصلاح انهيار MTF على bar 0 [array.slice]) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
-import Jassar_Mahmoud/JW_Momentum/2 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · [/2] +f_rsiDivergence (دايفرجنس RSI منتظم مصوّتًا · f_momentum لم تُلمَس) · بيانات فقط، المؤشّر يرسم/يصوّت
+import Jassar_Mahmoud/JW_Momentum/3 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · [/2] +f_rsiDivergence (دايفرجنس RSI منتظم) · [/3] +f_volume (تأكيد المشاركة — داو «الحجم يؤكّد الاتجاه») · بيانات فقط، المؤشّر يرسم/يصوّت
 import Jassar_Mahmoud/JW_Sessions/1 as jsess                // [م-إش-3 · تلاقٍ] الجلسات (نقل LuxAlgo Sessions) — f_sessionState يُرجِع حالة الجلسة+مداها · المؤشّر يرسم الصناديق + تلاقي سيولة (قمّة/قاع جلسة كبرى ⇒ +نجمة) + بوّابة نشاط
 import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · استراتيجيّة مُقيَّمة] كنس الإغراء IDM (نقل Inducement Engine [MarkitTick]) — f_inducement يُرجِع إشارة (اتّجاه/دخول/وقف/أهداف/موقف) · بيانات فقط، المؤشّر يرسمها باسمها ويقيّمها بنجوم المصادر
 import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · استراتيجيّة مُقيَّمة] المقاييس الديناميّة DMM (نقل Dynamic Market Metrics [MarkitTick] · AlphaTrend + MFI حجميّ + تقلّب) — f_dynMetrics يُرجِع إشارة + موقف + بُعدَي MFI/التقلّب · بيانات فقط
@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.109.0 [م-إش-3 · مصدر تلاقٍ جديد: الحجم (Volume) — اقتراح المالك] — **تأكيد المشاركة بالحجم** (داو «الحجم يؤكّد الاتجاه») عبر **JW_Momentum/3** (دالّة ثالثة `f_volume` · f_momentum/f_rsiDivergence **لم تُلمَسا** ⇒ A/B للقائم · الحجم يشارك مفهوم VWAP). الحجم بلا اتجاه ⇒ يصوّت **تأكيدًا**: الحجم النسبيّ (الحجم÷متوسّطه SMA) ≥ `volMult` (1.5×) ⇒ **+نجمة لاتّجاه الإشارة** (وزن 1) · ≤ `volLowMult` (0.5×) و`volLowVeto` مفعّل ⇒ **⛔veto** (وزن 2 حرِج · حركة بلا مشاركة). عبر `f_pushVol` في **المواقع الستّة** (M-Waves حيّ+تاريخيّ · IDM حيّ+re-rate · DMM حيّ+re-rate · [off]/[loff]/[doff] ضمن max_bars_back 500، لا look-ahead). مجموعة «📊 الحجم» + صفّ لوحة (صفّ 16 · volShowPanel). خلف `volEnable` مطفأ ⇒ **A/B مطلق** · تقييم/عرض بحت — لا يمسّ التوليد. ⚠ US100 (CFD) حجم عقد لا بورصة (نسبيّ). مواصفة: spec_confluence_volume.md. ═══
 // ═══ v2.108.0 [م3 · فلتر أدنى R:R لكلّ استراتيجيّة + حذف السجلّ من اللوحة وآلة تتبّعه — طلب المالك] — (1) **فلتر أدنى R:R** (العائد÷المخاطرة على TP1) لكلّ استراتيجيّة: `idmMinRR`/`dmmMinRR` (0-10 · افتراض 0 = A/B) في «🎛 إشارات الاستراتيجيّات» — لا يُعرَض وسم IDM/DMM إن كان R:R أقلّ من الحدّ (بوّابة على iRR/dRR عند إنشاء الوسم · المستويات تبقى). مثال 1:2 ⇒ اضبط 2.0. M-Waves مفلترة بـ`minRR` القائمة في «✅ الإشارات» ⇒ لا تُكرَّر. عرض بحت — لا يمسّ التوليد/التقييم. (2) **حذف صفوف السجلّ الثلاثة** (16/17/18 · M-Waves/IDM/DMM) من لوحة القرار — طلب المالك «غير مهمّ» — **وإزالة آلة تتبّعها كاملةً** (idmWins/idmLosses · dmmWins/dmmLosses + كتلة isconfirmed + دالّة f_mwBacktest + mwHistWins/Losses) لأنّها صارت بلا مستهلك (لا كود ميّت). pine_check معزول 0/0. ═══
 // ═══ v2.107.0 [م3 · فلتر نجوم لكلّ استراتيجيّة + حذف القياس المؤقّت — طلب المالك] — (1) **حُذف** قياس M-Waves↔النجاح المؤقّت (mwCorrTbl/f_drawMwCorr/showMwCorr + تصنيف النجوم في f_mwBacktest ⇒ عادت [ربح،خسارة]) بعد أن أثبت أنّ **عيّنة M-Waves لا تكفي لعتبة** (صفر إشارات عبر US100·45/60 · ذهب·60/15 — القياس يشترط سعر الإشارة داخل منطقة حاليّة). (2) **فلتر ظهور الوسم حسب النجوم لكلّ استراتيجيّة على حدة** في «🎛 إشارات الاستراتيجيّات»: `idmMinStars`/`dmmMinStars`/`mwMinStars` (0-6/0-6/0-5 · افتراض 0 = A/B). IDM: بوّابة على iAg · DMM: على dAg · M-Waves: على cfAgree (حيّ+تنبيه) + hAg (تاريخيّ). عرض بحت — لا يمسّ التوليد/التقييم/السجلّ · minSigStars القديم (grpSig) نُقِل إلى mwMinStars. pine_check معزول 0/0. (الأساس: DMM≥5★ مُثبَت · IDM/M-Waves تفضيل.) ═══
 // ═══ v2.106.0 [قياس مؤقّت · M-Waves↔النجاح — طلب المالك «قِس لكلّ استراتيجيّة على حدة»] — لتحديد عتبة minSigStars بالدليل لا بالتخمين: عُمِّمت f_mwBacktest لتُصنّف نتائج كلّ إشارة M-Waves بدلو نجومها عند بارها ([offk]، نفس أصوات post-process، لا look-ahead) ⇒ تُرجِع [ربح،خسارة،دلاء]. جدول مؤقّت mwCorrTbl (النجوم·فوز%·عدد · خلف showMwCorr) عبر f_drawMwCorr. **يُحذَف بعد استخراج العتبة** (كتشخيص DMM). عرض/قياس بحت — لا يمسّ التوليد/الفلترة/السجلّ · pine_check معزول 0/0. (IDM/DMM قِيسا سابقًا §2د: DMM≥5★ · IDM لا يُرتِّب.) ═══
@@ -91,6 +92,16 @@ f_pushMom(array<int> d, array<float> s, array<bool> c, int emaD, int smaD, int v
     array.push(s, 1.0)
     array.push(c, false)
     if rsiVetoTrig
+        array.push(d, -sigDir)
+        array.push(s, 2.0)
+        array.push(c, true)
+// [م-إش-3 · الحجم] مصوّت تأكيد المشاركة ⇒ دالّة واحدة تدفع للمصفوفات الممرَّرة (كنمط f_pushMom): حجم مرتفع ⇒ +صوت لاتّجاه الإشارة (وزن 1) · منخفض+veto ⇒ صوت معاكس حرِج (وزن 2). المستدعي يقرأ hi/lo (حيّة أو [off]) ويمرّر lowVeto.
+f_pushVol(array<int> d, array<float> s, array<bool> c, int sigDir, bool hi, bool lo, bool lowVeto) =>
+    if hi
+        array.push(d, sigDir)
+        array.push(s, 1.0)
+        array.push(c, false)
+    if lowVeto and lo
         array.push(d, -sigDir)
         array.push(s, 2.0)
         array.push(c, true)
@@ -372,6 +383,18 @@ int    divRangeLo   = input.int(5, "Min pivot range (bars) / أدنى مدى ب�
 int    divRangeHi   = input.int(60, "Max pivot range (bars) / أقصى مدى بين البيفوتين", minval = 5, group = grpDiv, tooltip = "أقصى مسافة بين بيفوتَي RSI بالشموع (افتراض 60).")
 int    divHold      = input.int(20, "Vote hold (bars) / بقاء الصوت (شموع)", minval = 1, maxval = 300, group = grpDiv, tooltip = "[حسم المالك] الدايفرجنس حدث لحظيّ ⇒ يبقى اتّجاهه مصوّتًا هذا العدد من الشموع بعد كشفه ثمّ يعود محايدًا (أو يُستبدَل بدايفرجنس معاكس). أصغر ⇒ صوت أطزَج (زخم حديث فقط).")
 
+// ═════════════════ 📊 الحجم / Volume (تلاقٍ) [م-إش-3] ═════════════════
+// تأكيد المشاركة بالحجم — الحساب في **JW_Momentum/3** (f_volume)؛ المؤشّر يصوّت فقط. السند: داو «الحجم يؤكّد الاتجاه».
+// الحجم بلا اتجاه ⇒ يصوّت **تأكيدًا** لاتّجاه الإشارة حين المشاركة مرتفعة (حجم فوق متوسّطه)، وveto اختياريّ حين منخفضة جدًّا.
+// ⇒ صفر أثر على النواة ما لم يُفعَّل (A/B عند volEnable=false). ⚠ US100 (CFD) حجمُه حجم العقد لا حجم البورصة — نسبيّ لا مطلق.
+string grpVol       = "📊 الحجم / Volume"
+bool   volEnable    = input.bool(false, "Enable volume-confirmation vote / تفعيل صوت الحجم", group = grpVol, tooltip = "[م-إش-3 · داو] الحجم يؤكّد اتّجاه الإشارة حين المشاركة مرتفعة (حجم ≥ mult × متوسّطه) ⇒ +نجمة. تقييم/عرض فقط — لا يولّد إشارة. مطفأ افتراضيًّا (A/B). ⚠ US100 حجمُه حجم العقد لا البورصة (نسبيّ).")
+int    volAvgLen    = input.int(20, "Volume average length / طول متوسّط الحجم", minval = 1, group = grpVol, tooltip = "طول متوسّط الحجم (SMA) الذي يُقاس عليه «مرتفع/منخفض». افتراض 20.")
+float  volMult      = input.float(1.5, "High-volume threshold (× avg) / عتبة الحجم المرتفع (× المتوسّط)", minval = 1.0, step = 0.1, group = grpVol, tooltip = "الحجم النسبيّ (الحجم ÷ متوسّطه) ≥ هذا ⇒ «مرتفع» ⇒ +نجمة لاتّجاه الإشارة (مشاركة تؤكّد). أكبر ⇒ أندر وأقوى. افتراض 1.5.")
+bool   volLowVeto   = input.bool(false, "Low-volume = veto (no participation) / veto الحجم المنخفض", group = grpVol, tooltip = "مفعّل: حركة على حجم منخفض جدًّا (≤ volLowMult × المتوسّط) ⇒ ⛔veto (حركة بلا مشاركة = مشبوهة). عرض فقط — لا يُلغي الإشارة. مطفأ افتراضيًّا (كنمط veto تطرّف RSI).")
+float  volLowMult   = input.float(0.5, "Low-volume threshold (× avg) / عتبة الحجم المنخفض (× المتوسّط)", minval = 0.0, maxval = 1.0, step = 0.1, group = grpVol, tooltip = "الحجم النسبيّ ≤ هذا ⇒ «منخفض» (للـveto حين volLowVeto مفعّل). افتراض 0.5 = نصف المتوسّط.")
+bool   volShowPanel = input.bool(false, "Show volume in decision panel / إظهار الحجم في لوحة القرار", group = grpVol, tooltip = "يُضيف صفَّ حجم إلى **لوحة القرار** (الحجم النسبيّ × المتوسّط + مرتفع/منخفض/عاديّ). خلف مفتاح مستقلّ · يتطلّب إظهار لوحة القرار. عرض بحت.")
+
 // ═════════════════ 🕐 الجلسات / Sessions (تلاقٍ) [م-إش-3] ═════════════════
 // نطاقات الجلسات (© LuxAlgo · اقتباس شخصيّ CC BY-NC-SA) — الحساب في **JW_Sessions** (f_sessionState)؛ المؤشّر يرسم الصناديق ويصوّت.
 // القيمة المميّزة: **قمّة/قاع الجلسة الكبرى السابقة = بِرَك سيولة** ⇒ تلاقيها مع منطقتنا = +نجمة (كتلاقي OB). لا صوت اتّجاه (يكرّر VWAP الزخم).
@@ -469,6 +492,14 @@ max_bars_back(momRsiOSst, 500)
 plot(divEnable ? divDir : na, "DIV dir", display = display.data_window)
 max_bars_back(divDir, 500)    // [م-إش-3ج] فهرسة زمنيّة لصوت الدايفرجنس على الإشارات التاريخيّة (قراءة الاتّجاه عند بار كلّ إشارة، ضمن نافذة 500)
 
+// ══════ [م-إش-3 · دفعة الحجم] تأكيد المشاركة بالحجم (JW_Momentum/3 · مصوّت تلاقٍ لا مولّد · داو) ══════
+// يُحسَب دائمًا لثبات ta.sma؛ volHigh/volLow (bool) للتصويت الحيّ والتاريخيّ. القيم في Data Window للتحقّق.
+[volVal, volAvg, volRatio, volHigh, volLow] = jmom.f_volume(volAvgLen, volMult, volLowMult)
+plot(volEnable ? volRatio : na, "VOL ratio", display = display.data_window)
+plot(volEnable ? (volHigh ? 1 : volLow ? -1 : 0) : na, "VOL state", display = display.data_window)
+max_bars_back(volHigh, 500)    // [م-إش-3ج] فهرسة زمنيّة لصوت الحجم على الإشارات التاريخيّة (قراءة مرتفع/منخفض عند بار كلّ إشارة، ضمن نافذة 500)
+max_bars_back(volLow, 500)
+
 // ══════ [م-إش-3 · دفعة الجلسات] الجلسات (نطاقات · JW_Sessions · مصدر تلاقٍ سيولة لا مولّد) ══════
 // التوقيت مرجعٌ ثابت (UTC/البورصة) لا توقيت المستخدم. تُحسَب كلّ بار (حالة var متراكمة في المكتبة). المؤشّر يرسم الصناديق (كلّ بار) ويصوّت (حيّ).
 // هل المستوى (بِركة سيولة) داخل منطقة الدخول؟ (مساعد نقيّ عالميّ)
@@ -562,6 +593,8 @@ if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0 
         array.push(cfDirI, divDir)
         array.push(cfStrI, 1.0)
         array.push(cfCritI, false)
+    if volEnable                                             // [الحجم] تأكيد المشاركة يصوّت على إشارة IDM (حجم مرتفع ⇒ +صوت · منخفض+veto ⇒ حرِج)
+        f_pushVol(cfDirI, cfStrI, cfCritI, idmDir, volHigh, volLow, volLowVeto)
     [iAg, iOp, iNe, iVt] = jwconf.f_rate(idmDir, cfDirI, cfStrI, cfCritI, confUseVeto)
     string iStar = f_starTx(iAg) + (iVt ? "⛔" : "")
     string iWord = idmUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
@@ -657,6 +690,8 @@ if dmmEnable and showStrat and dmmTrig and barstate.isconfirmed and dmmDir != 0
         array.push(cfDirD, divDir)
         array.push(cfStrD, 1.0)
         array.push(cfCritD, false)
+    if volEnable                                            // [الحجم] تأكيد المشاركة يصوّت على إشارة DMM
+        f_pushVol(cfDirD, cfStrD, cfCritD, dmmDir, volHigh, volLow, volLowVeto)
     [dAg, dOp, dNe, dVt] = jwconf.f_rate(dmmDir, cfDirD, cfStrD, cfCritD, confUseVeto)
     string dStar = f_starTx(dAg) + (dVt ? "⛔" : "")
     string dWord = dmmUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
@@ -1903,6 +1938,8 @@ if barstate.islast and idmEnable and showStrat and not na(idmLastLbl) and idmLas
             array.push(cfDirL, divDir[loff])
             array.push(cfStrL, 1.0)
             array.push(cfCritL, false)
+        if volEnable                                             // [الحجم] صوت الحجم عند بار إشارة IDM (تاريخيّ، [loff] ضمن max_bars_back 500)
+            f_pushVol(cfDirL, cfStrL, cfCritL, idmLastDir, volHigh[loff], volLow[loff], volLowVeto)
         [lAg, lOp, lNe, lVt] = jwconf.f_rate(idmLastDir, cfDirL, cfStrL, cfCritL, confUseVeto)
         string lStar = f_starTx(lAg) + (lVt ? "⛔" : "")
         string lWord = luUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
@@ -1943,6 +1980,8 @@ if barstate.islast and dmmEnable and showStrat and not na(dmmLastLbl) and dmmLas
             array.push(cfDirM, divDir[doff])
             array.push(cfStrM, 1.0)
             array.push(cfCritM, false)
+        if volEnable                                            // [الحجم] صوت الحجم عند بار إشارة DMM (تاريخيّ، [doff] ضمن max_bars_back 500)
+            f_pushVol(cfDirM, cfStrM, cfCritM, dmmLastDir, volHigh[doff], volLow[doff], volLowVeto)
         [mAg, mOp, mNe, mVt] = jwconf.f_rate(dmmLastDir, cfDirM, cfStrM, cfCritM, confUseVeto)
         string mStar = f_starTx(mAg) + (mVt ? "⛔" : "")
         string mWord = duUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
@@ -2426,6 +2465,14 @@ if barstate.islast
         table.cell(concTbl, 1, 15, mMaTx, text_color = color.white, bgcolor = mMaBg, text_size = size.small)
     else if showConc
         table.clear(concTbl, 0, 14, 1, 15)                                            // إخفاء صفّي الزخم دون مسح لوحة القرار
+    // [م-إش-3 · دفعة الحجم] صفّ الحجم في لوحة القرار (صفّ 16 · مُتاح بعد حذف السجلّ · خلف volShowPanel) · عرض بحت
+    if showConc and volShowPanel
+        string mVolTx = na(volRatio) ? "—" : "×" + str.tostring(volRatio, "0.0") + (volHigh ? f_t(" مرتفع", " High") : volLow ? f_t(" منخفض", " Low") : f_t(" عاديّ", " Norm"))
+        color  mVolBg = na(volRatio) ? pMute : volHigh ? cUp : volLow ? cDn : cRngC   // مرتفع⇒أخضر (مشاركة) · منخفض⇒أحمر · عاديّ⇒برتقاليّ
+        table.cell(concTbl, 0, 16, f_t("الحجم (نسبيّ)", "Volume (rel.)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("الحجم النسبيّ = الحجم ÷ متوسّطه (SMA). مرتفع (≥ العتبة) ⇒ مشاركة تؤكّد اتّجاه الإشارة (+نجمة). داو: «الحجم يؤكّد الاتجاه». ⚠ US100 حجم عقد لا بورصة.", "Relative volume = volume ÷ its SMA. High (≥ threshold) ⇒ participation confirms signal direction (+star). Dow: 'volume confirms the trend.' ⚠ US100 is contract volume, not exchange."))
+        table.cell(concTbl, 1, 16, mVolTx, text_color = color.white, bgcolor = mVolBg, text_size = size.small)
+    else if showConc
+        table.clear(concTbl, 0, 16, 1, 16)                                            // إخفاء صفّ الحجم دون مسح اللوحة
     // [م3 · v2.108.0 · حسم المالك «السجلّ في اللوحة غير مهمّ»] صفوف السجلّ الثلاثة (16/17/18 · M-Waves/IDM/DMM) **حُذِفت** من اللوحة، وآلة تتبّعها (idmWins/dmmWins + isconfirmed + f_mwBacktest) **أُزيلت كاملةً** (كانت بلا مستهلك). الفلتر الجديد = R:R لكلّ استراتيجيّة (idmMinRR/dmmMinRR).
     // [الفرص الثلاث · قرار المستخدم + spec §51-52 · مُرحَّل من رأس المؤشّر — أ45] (1) **أساسيّة** = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) **عالية مخاطرة** = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) **خروج/fallback** = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
@@ -2536,6 +2583,8 @@ if barstate.islast
             array.push(cfDir,  divDir)
             array.push(cfStr,  1.0)
             array.push(cfCrit, false)
+        if volEnable                                                              // [الحجم] تأكيد المشاركة يصوّت على إشارة M-Waves الحيّة (حجم مرتفع ⇒ +نجمة · منخفض+veto ⇒ حرِج)
+            f_pushVol(cfDir, cfStr, cfCrit, sigDirC, volHigh, volLow, volLowVeto)
         [cfAgree, cfOpp, cfNeu, cfVeto] = jwconf.f_rate(sigDirC, cfDir, cfStr, cfCrit, confUseVeto)
         string starTx = f_starTx(cfAgree) + (cfVeto ? "⛔" : "")   // [حسم المالك] نجمة+عدد مضغوط (★3) · بلا نجوم إن لا توافق · ⛔ veto — تُلحَق بعد ✦/⚠
         string sigTx = ((uiLang == "AR / عربيّة") ? (starTx + (isBas ? "✦" : "⚠") + (up ? "شراء" : "بيع")) : ((up ? "Buy" : "Sell") + (isBas ? "✦" : "⚠") + starTx)) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [حسم المالك] ترتيب حسب اللغة ليظهر ★ **يمين** الكلمة في الاثنتين: عربيّ RTL ⇒ سلسلة ★✦كلمة (تُرندَر كلمة✦★) · إنجليزيّ LTR ⇒ كلمة✦★
@@ -2631,7 +2680,7 @@ if barstate.islast
         if showSigExit and mwEnable and mwShowMarks                                                                             // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
         // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
-        if smcEnable or momEnable or divEnable                                       // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
+        if smcEnable or momEnable or divEnable or volEnable                          // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس و/أو الحجم على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
             int nSigLb = array.size(sigLabels)
             for li = 0 to (nSigLb > 0 ? nSigLb - 1 : 0)
                 if nSigLb > 0
@@ -2674,6 +2723,8 @@ if barstate.islast
                                     array.push(hDir,  int(divDir[off]))
                                     array.push(hStr,  1.0)
                                     array.push(hCrit, false)
+                                if volEnable                                        // [الحجم] صوت الحجم عند بار الإشارة التاريخيّة ([off] ضمن max_bars_back 500)
+                                    f_pushVol(hDir, hStr, hCrit, sd, volHigh[off], volLow[off], volLowVeto)
                                 if array.size(hDir) > 0
                                     [hAg, hOp, hNe, hVt] = jwconf.f_rate(sd, hDir, hStr, hCrit, confUseVeto)
                                     hStar := f_starTx(hAg) + (hVt ? "⛔" : "")
