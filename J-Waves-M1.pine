@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.101.0 [م3-outcome · إصلاح «الجسم الرئيسيّ طويل» CE10295] — v2.100.0 دفع جسم السكربت الرئيسيّ فوق حدّ Pine. الحلّ: **إخراج كتلتَي عرض/حساب من الجسم إلى دالّتين** (لا تغيير سلوك): (1) `f_drawCorr` رسم جدول النجوم↔النجاح · (2) `f_mwBacktest` حلقة backtest M-Waves التاريخيّ (تُرجِع [ربح،خسارة]). النتائج/المظهر مطابقة حرفيًّا. لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة. ═══
 // ═══ v2.100.0 [م3-outcome · جدول «النجوم ↔ النجاح» (IDM+DMM) — حسم المالك «امضِ بالنجوم↔النجاح»] — **الجسر لعتبة الدخول الآليّ**: لكلّ صفقة IDM/DMM تاريخيّة يُحسَب **عدد نجوم توافقها عند بارها** (f_stratStars — نفس مصادر التقييم per-bar: SMC+الزخم+موقف الأخرى+الدايفرجنس، لا look-ahead) ويُخزَّن مع الصفقة؛ وعند إغلاقها تُصنَّف النتيجة في **دلو النجوم** (0·1·2·3·4·5+). جدول جديد (corrTbl · مفتاح showCorr · موضع corrPos) يعرض ربح/خسارة/نسبة النجاح **لكلّ دلو** ⇒ يجيب «هل النجوم الأعلى ⇐ نجاح أعلى؟». عرض/سجلّ بحت — لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة · pine_check نظيف. (M-Waves خارج الجدول: عيّنته 3 إشارات فقط [الموجة الحاليّة] — عديمة القيمة إحصائيًّا؛ سجلّه الفرديّ يبقى.) ═══
 // ═══ v2.99.0 [م3-outcome · backtest تاريخيّ لـM-Waves — حسم المالك «إعادة اشتقاق من الإشارات التاريخيّة»] — صفّ M-Waves (16) صار **تاريخيًّا** كأخويه IDM/DMM. الآليّة: لكلّ إشارة M-Waves مرسومة (✦/⚠ · درجات+خروج) تُشتقّ صفقتها من **المناطق الحاليّة** (بنية دائمة): الوقف = الحافّة المقابلة للمنطقة الحاوية للسعر ± الهامش · الهدف = أقرب مستوى م.A خلفها بالاتّجاه ⇒ مسح أماميّ (من بار الإشارة +1، لا look-ahead) لأوّل إصابة (هدف=ربح · وقف=خسارة تحفّظًا). كلّ إشارة تُقاس مستقلّةً. تقريب أمين (المناطق/م.A الحاليّة، لا لحظة الإشارة) + حدّ 500 شمعة للأداء. العدّاد الحيّ القديم (mwWins/mwLosses) أُزيل؛ وسوم الإغلاق ✓/✗ الحيّة تبقى على الشارت. عرض/سجلّ بحت — لا مساس بالنواة/التوليد · لا نشر مكتبة · pine_check نظيف. ═══
 // ═══ v2.98.0 [م3-outcome · backtest تاريخيّ لـIDM/DMM — حسم المالك «لم تظهر أرقام رغم الإشارات الحيّة»] — الصفوف كانت تعدّ **للأمام فقط** (islast) ⇒ فارغة على شارت ساكن. الآن آلة تتبّع IDM/DMM تعمل على **كلّ بار مُغلَق** (أُزيل قيد islast) ⇒ **backtest كامل الشارت**: تفتح عند كلّ إشارة بمستوياتها وقتها (per-bar، لا look-ahead/لا repaint)، تُغلق بأوّل TP أخير/وقف لاحق، تُحصي ⇒ **أرقام فوريّة** (صفّا 17/18 «تاريخيّ»). عرض/سجلّ بحت — لا مساس بالنواة/التوليد/التقييم · لا نشر مكتبة · pine_check نظيف. **M-Waves يبقى «حيًّا»** (دخوله/وقفه/أهدافه تُحسَب عند islast فقط — backtest أمين له = دفعة تالية). ═══
@@ -2660,6 +2661,58 @@ if barstate.islast
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
 //   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
 //   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
+// [م3-outcome · v2.101.0] backtest M-Waves التاريخيّ في **دالّة** (إخراج الحلقة من الجسم الرئيسيّ · CE10295): لكلّ إشارة مرسومة (✦/⚠) تُشتقّ صفقتها من المناطق الحاليّة ثمّ مسح أماميّ لأوّل إصابة ⇒ يُرجِع [ربح، خسارة].
+f_mwBacktest(array<label> labs, array<float> zt, array<float> zb, array<float> maLv, int nz) =>
+    int wins   = 0
+    int losses = 0
+    float mwBuf = slBufPts * syminfo.mintick
+    int nMwLb = array.size(labs)
+    for li = 0 to (nMwLb > 0 ? nMwLb - 1 : 0)
+        if nMwLb > 0
+            label lbk  = array.get(labs, li)
+            string txk = label.get_text(lbk)
+            if str.startswith(txk, "✦") or str.startswith(txk, "⚠")                                  // إشارة M-Waves حقيقيّة (درجات/خروج) — لا وسوم فارغة
+                int   sdk = (str.contains(txk, "بيع") or str.contains(txk, "Sell")) ? -1 : (str.contains(txk, "شراء") or str.contains(txk, "Buy")) ? 1 : 0
+                int   Bk   = label.get_x(lbk)                                                        // بار الإشارة (bar_index — كحلقة النجوم)
+                float Pk   = label.get_y(lbk)                                                        // سعر الإشارة (لإيجاد منطقتها)
+                int   offk = bar_index - Bk
+                if sdk != 0 and offk > 0 and offk <= 500 and not na(Pk)                              // حدّ 500 شمعة (أداء) + إشارة ماضية فقط
+                    float ztk = na
+                    float zbk = na
+                    for zi = 0 to (nz > 0 ? nz - 1 : 0)                                              // المنطقة الحاليّة الحاوية لسعر الإشارة (بنية دائمة ⇒ تقريب أمين)
+                        if nz > 0 and na(ztk) and Pk <= array.get(zt, zi) and Pk >= array.get(zb, zi)
+                            ztk := array.get(zt, zi)
+                            zbk := array.get(zb, zi)
+                    if not na(ztk)
+                        float slk = sdk == 1 ? zbk - mwBuf : ztk + mwBuf                             // الوقف = الحافّة المقابلة ± الهامش
+                        float tpk = na                                                               // الهدف = أقرب م.A خلف المنطقة بالاتّجاه
+                        int nMak = array.size(maLv)
+                        for mi = 0 to (nMak > 0 ? nMak - 1 : 0)
+                            if nMak > 0
+                                float lvk = array.get(maLv, mi)
+                                if sdk == 1 and lvk > ztk
+                                    tpk := na(tpk) or lvk < tpk ? lvk : tpk
+                                if sdk == -1 and lvk < zbk
+                                    tpk := na(tpk) or lvk > tpk ? lvk : tpk
+                        if not na(tpk)                                                               // لا هدف ⇒ لا تُحسَب (لا تلفيق)
+                            int resk = 0
+                            for ff = Bk + 1 to bar_index                                            // 🔴 مسح أماميّ من بار الإشارة +1 فقط ⇒ لا look-ahead
+                                int ok = bar_index - ff
+                                if ok >= 0
+                                    bool lossK = sdk == 1 ? low[ok] <= slk : high[ok] >= slk
+                                    bool winK  = sdk == 1 ? high[ok] >= tpk : low[ok] <= tpk
+                                    if lossK                                                        // تحفّظ: الوقف أوّلًا
+                                        resk := -1
+                                        break
+                                    else if winK
+                                        resk := 1
+                                        break
+                            if resk == 1
+                                wins := wins + 1
+                            else if resk == -1
+                                losses := losses + 1
+    [wins, losses]
+
 var array<label> sigLabels = array.new<label>()
 // [ط4-ج] f_emitDegSignals ⇐ نُقلت إلى JW_Signals (jws.f_emitDegSignals) — v2.68.0 حُذِف الجسم المحلّيّ. التوقيع الجديد يأخذ قناع التغطية aCov (=f_covArr) + المناطق/المدخلات/اللغة وسائط.
 
@@ -2708,53 +2761,10 @@ if barstate.islast
         // [ت30/ب · G-S1] إشارات الكبيرة **عُطِّلت**: صفقة الكبيرة غير مصدريّة (L2-04: أعلى صفقة = المتوسطة) · xl خاملة للإشارات حتّى الأسبوعيّ (تأكّد=0 عبر US100·60/D/W · BTC·60/W). الكبيرة تبقى **مرجعَ N+1 للمتوسطة** (lgBar تُمرَّر لنداء المتوسطة).
         if showSigExit and mwEnable and mwShowMarks                                                                             // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
-        // [م3-outcome · v2.99.0 · backtest M-Waves التاريخيّ] **قبل حلقة النجوم** (نصّ الوسم خام بعدُ: يبدأ ✦/⚠ لا ★): لكلّ إشارة مرسومة تُشتقّ صفقتها من المناطق الحاليّة ثمّ تُمسَح للأمام لأوّل إصابة.
-        float mwBuf = slBufPts * syminfo.mintick
-        int nMwLb = array.size(sigLabels)
-        for li = 0 to (nMwLb > 0 ? nMwLb - 1 : 0)
-            if nMwLb > 0
-                label lbk  = array.get(sigLabels, li)
-                string txk = label.get_text(lbk)
-                if str.startswith(txk, "✦") or str.startswith(txk, "⚠")                                  // إشارة M-Waves حقيقيّة (درجات/خروج) — لا وسوم فارغة
-                    int   sdk = (str.contains(txk, "بيع") or str.contains(txk, "Sell")) ? -1 : (str.contains(txk, "شراء") or str.contains(txk, "Buy")) ? 1 : 0
-                    int   Bk   = label.get_x(lbk)                                                        // بار الإشارة (bar_index — كحلقة النجوم)
-                    float Pk   = label.get_y(lbk)                                                        // سعر الإشارة (لإيجاد منطقتها)
-                    int   offk = bar_index - Bk
-                    if sdk != 0 and offk > 0 and offk <= 500 and not na(Pk)                              // حدّ 500 شمعة (أداء) + إشارة ماضية فقط (offk>0 ⇒ لها مستقبل يُمسَح)
-                        float ztk = na
-                        float zbk = na
-                        for zi = 0 to (nzs > 0 ? nzs - 1 : 0)                                            // المنطقة الحاليّة الحاوية لسعر الإشارة (بنية دائمة ⇒ تقريب أمين)
-                            if nzs > 0 and na(ztk) and Pk <= array.get(zTop, zi) and Pk >= array.get(zBot, zi)
-                                ztk := array.get(zTop, zi)
-                                zbk := array.get(zBot, zi)
-                        if not na(ztk)
-                            float slk = sdk == 1 ? zbk - mwBuf : ztk + mwBuf                             // الوقف = الحافّة المقابلة ± الهامش (كنموذج المالك الحيّ)
-                            float tpk = na                                                               // الهدف = أقرب مستوى م.A خلف المنطقة بالاتّجاه (L2-03 «مش اللي قدامها»)
-                            int nMak = array.size(zMaLevels)
-                            for mi = 0 to (nMak > 0 ? nMak - 1 : 0)
-                                if nMak > 0
-                                    float lvk = array.get(zMaLevels, mi)
-                                    if sdk == 1 and lvk > ztk
-                                        tpk := na(tpk) or lvk < tpk ? lvk : tpk
-                                    if sdk == -1 and lvk < zbk
-                                        tpk := na(tpk) or lvk > tpk ? lvk : tpk
-                            if not na(tpk)                                                               // لا هدف خارج المنطقة ⇒ لا تُحسَب (لا تلفيق)
-                                int resk = 0
-                                for ff = Bk + 1 to bar_index                                            // 🔴 مسح أماميّ من بار الإشارة +1 فقط ⇒ لا look-ahead
-                                    int ok = bar_index - ff
-                                    if ok >= 0
-                                        bool lossK = sdk == 1 ? low[ok] <= slk : high[ok] >= slk
-                                        bool winK  = sdk == 1 ? high[ok] >= tpk : low[ok] <= tpk
-                                        if lossK                                                        // تحفّظ: الوقف أوّلًا (الاثنان بشمعة ⇒ خسارة) — كنموذج الصفقة الحيّة
-                                            resk := -1
-                                            break
-                                        else if winK
-                                            resk := 1
-                                            break
-                                if resk == 1
-                                    mwHistWins := mwHistWins + 1
-                                else if resk == -1
-                                    mwHistLosses := mwHistLosses + 1
+        // [م3-outcome · v2.101.0 · backtest M-Waves التاريخيّ] **قبل حلقة النجوم** (نصّ الوسم خام بعدُ: يبدأ ✦/⚠ لا ★) — النداء في دالّة f_mwBacktest (أُخرِجت من الجسم · CE10295).
+        [mwbwR, mwblR] = f_mwBacktest(sigLabels, zTop, zBot, zMaLevels, nzs)
+        mwHistWins   := mwbwR
+        mwHistLosses := mwblR
         // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
         if smcEnable or momEnable or divEnable                                       // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
             int nSigLb = array.size(sigLabels)
@@ -2869,19 +2879,19 @@ if showFrameHelper and barstate.islast
 
 // ═══ [م3-outcome · v2.100.0] جدول «النجوم ↔ النجاح» — backtest IDM+DMM مصنّفًا بعدد النجوم (winByStar/lossByStar مُلِئا في آلة التتبّع أعلاه) ═══
 //   يجيب سؤال المالك المحوريّ: «هل النجوم الأعلى ⇐ نجاح أعلى؟» ⇒ أساس عتبة الدخول الآليّ (تحويلها استراتيجية). عرض/سجلّ بحت.
-var table corrTbl = table.new(f_pos(corrPos), 4, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
-if barstate.islast
+//   🔴 [v2.101.0] الرسم داخل **دالّة** (لا في الجسم الرئيسيّ) — الجسم بلغ حدّ Pine (CE10295)؛ الدالّة تُخرِج كتلة العرض من الجسم.
+f_drawCorr(table t) =>
     if not showCorr
-        table.clear(corrTbl, 0, 0, 3, 7)
+        table.clear(t, 0, 0, 3, 7)
     if showCorr
-        table.set_position(corrTbl, f_pos(corrPos))
+        table.set_position(t, f_pos(corrPos))
         color cHdr2 = color.new(color.rgb(color.r(concBg) * 0.72, color.g(concBg) * 0.72, color.b(concBg) * 0.72), color.t(concBg))
         color cMt2  = #787B86
         color cMn2  = #D1D4DC
-        table.cell(corrTbl, 0, 0, f_t("النجوم ↔ النجاح", "Stars ↔ win"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest IDM+DMM عبر كلّ الشارت، مصنّفًا بعدد نجوم توافق كلّ صفقة عند بارها. تصاعد نسبة النجاح مع النجوم ⇒ النجوم مؤشّر جودة ⇒ يمكن اعتماد عتبة دخول آليّة.", "IDM+DMM backtest across chart, bucketed by each trade's star count at its bar. Win% rising with stars ⇒ stars are a quality signal ⇒ an automated entry threshold becomes viable."))
-        table.cell(corrTbl, 1, 0, f_t("ربح", "W"),   text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(corrTbl, 2, 0, f_t("خسارة", "L"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
-        table.cell(corrTbl, 3, 0, f_t("نجاح%", "Win%"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
+        table.cell(t, 0, 0, f_t("النجوم ↔ النجاح", "Stars ↔ win"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest IDM+DMM عبر كلّ الشارت، مصنّفًا بعدد نجوم توافق كلّ صفقة عند بارها. تصاعد نسبة النجاح مع النجوم ⇒ النجوم مؤشّر جودة ⇒ يمكن اعتماد عتبة دخول آليّة.", "IDM+DMM backtest across chart, bucketed by each trade's star count at its bar. Win% rising with stars ⇒ stars are a quality signal ⇒ an automated entry threshold becomes viable."))
+        table.cell(t, 1, 0, f_t("ربح", "W"),   text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
+        table.cell(t, 2, 0, f_t("خسارة", "L"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
+        table.cell(t, 3, 0, f_t("نجاح%", "Win%"), text_color = cMn2, bgcolor = cHdr2, text_size = size.small)
         int totW = 0
         int totL = 0
         for bi = 0 to 5
@@ -2894,15 +2904,18 @@ if barstate.islast
             float  wr = tot > 0 ? 100.0 * w / tot : na
             string wrTx = na(wr) ? "—" : str.tostring(wr, "#") + "%"
             color  wrBg = na(wr) ? cMt2 : wr >= 50 ? #089981 : wr >= 33 ? #FF9800 : #F23645
-            table.cell(corrTbl, 0, bi + 1, starTx2, text_color = cMt2, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-            table.cell(corrTbl, 1, bi + 1, str.tostring(w), text_color = cMn2, bgcolor = concBg, text_size = size.small)
-            table.cell(corrTbl, 2, bi + 1, str.tostring(l), text_color = cMn2, bgcolor = concBg, text_size = size.small)
-            table.cell(corrTbl, 3, bi + 1, wrTx, text_color = color.white, bgcolor = wrBg, text_size = size.small)
+            table.cell(t, 0, bi + 1, starTx2, text_color = cMt2, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+            table.cell(t, 1, bi + 1, str.tostring(w), text_color = cMn2, bgcolor = concBg, text_size = size.small)
+            table.cell(t, 2, bi + 1, str.tostring(l), text_color = cMn2, bgcolor = concBg, text_size = size.small)
+            table.cell(t, 3, bi + 1, wrTx, text_color = color.white, bgcolor = wrBg, text_size = size.small)
         int totAll = totW + totL
-        table.cell(corrTbl, 0, 7, f_t("المجموع", "Total"), text_color = cMt2, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
-        table.cell(corrTbl, 1, 7, str.tostring(totW), text_color = cMn2, bgcolor = concBg, text_size = size.small)
-        table.cell(corrTbl, 2, 7, str.tostring(totL), text_color = cMn2, bgcolor = concBg, text_size = size.small)
-        table.cell(corrTbl, 3, 7, totAll > 0 ? str.tostring(100.0 * totW / totAll, "#") + "%" : "—", text_color = color.white, bgcolor = concBg, text_size = size.small)
+        table.cell(t, 0, 7, f_t("المجموع", "Total"), text_color = cMt2, bgcolor = concBg, text_size = size.small, text_halign = text.align_right)
+        table.cell(t, 1, 7, str.tostring(totW), text_color = cMn2, bgcolor = concBg, text_size = size.small)
+        table.cell(t, 2, 7, str.tostring(totL), text_color = cMn2, bgcolor = concBg, text_size = size.small)
+        table.cell(t, 3, 7, totAll > 0 ? str.tostring(100.0 * totW / totAll, "#") + "%" : "—", text_color = color.white, bgcolor = concBg, text_size = size.small)
+var table corrTbl = table.new(f_pos(corrPos), 4, 8, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)
+if barstate.islast
+    f_drawCorr(corrTbl)
 
 // ── نهاية النواة (صغيرة + متوسطة + كبيرة + لوحة الموجة). التالي: الخطوط/التجدّد (دروس 08-09) أو طريقة الكسر للكبيرة. ──
 // [م-إش-1ج ⇒ م3] plot(قوّة الإشارة data-window) رُفِع مع f_sigStrength — التوافق/الحجم يُبنى في طبقة الاستراتيجية.
