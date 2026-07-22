@@ -17,9 +17,10 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm
 //   الدخول = dmmTrig ∧ dmmDir≠0 ∧ نجوم ≥ العتبة ∧ لا صفقة نشطة (كآلة التتبّع). الوقف = dmmSl · الهدف = dmmTp1 (البُعد المُقاس ~57%).
 //   الوقف يغلب في نفس الشمعة (افتراض strategy.exit التحفّظيّ = تطابق قياس الدراسة SL-priority).
 //
-// [v1.1 · إصلاح الكريبتو] backtest 4H: رابح على ناسداك (PF 1.29) وذهب (1.33) وفضّة (1.11)؛ خاسر على فوركس/كريبتو.
-//   الكريبتو (BTC PF 0.76 · ETH 0.80): خسائر غير متماثلة لأنّ dmmTp1 أقرب من dmmSl ⇒ أُضيف نمط «Fixed R:R» (هدف عند مضاعِف R
-//   من المخاطرة) يترك الرابح يركض. الافتراض «DMM TP1» يبقى (المؤشّرات/المعادن لا تتأثّر). يُختبَر الكريبتو بـFixed R:R.
+// [v1.2 · الافتراض Fixed R:R 2.0 + تنبيهات] مسح 4H: **US100 بـFixed R:R 2.0 = PF 1.59 · سحب <1% · صافي ×3** (الأمثل لأداة المالك).
+//   ذهب 1.35 · فضّة تفضّل DMM TP1 (0.99 بـFixed) · الكريبتو/الفوركس مُسقَطان (مشكلة إشارة لا خروج — Fixed R:R لم يُنقِذها). صار Fixed R:R 2.0
+//   الافتراض + أُضيفت تنبيهات alert() عند الدخول (اسم/اتّجاه/نجوم/دخول/وقف/هدف). 🔴 محاكاة backtest لا تنفيذ حقيقيّ (لا وسيط/مال).
+// [v1.1 · إصلاح الكريبتو] أُضيف نمط «Fixed R:R» (هدف عند مضاعِف R من المخاطرة يترك الرابح يركض) بجانب «DMM TP1». الوقف = dmmSl في الحالتين.
 // © MarkitTick (DMM/IDM · AlphaTrend: © KivancOzbilgic) · © LuxAlgo CC BY-NC-SA (SMC).
 // عرض/تنفيذ اختباريّ شخصيّ لا تجاريّ. التكاليف (العمولة/الانزلاق) في رأس strategy() — تُعاير لكلّ أداة من Properties.
 // ============================================================================
@@ -30,8 +31,9 @@ string grpStr = "🎯 الاستراتيجيّة / Strategy"
 int   starThr = input.int(5, "Min stars ≥ (entry gate) / أدنى نجوم للدخول", minval = 0, maxval = 6, group = grpStr, tooltip = "لا تُفتَح صفقة DMM إلّا إن بلغ توافق نجومها هذا الحدّ. القياس: ≥5★ = TP1% ~57% ثابت (الأفضل). خفّضه لصفقات أكثر أقلّ جودةً.")
 string dirSel = input.string("Both", "Trade direction / اتّجاه التداول", options = ["Both", "Long only", "Short only"], group = grpStr, tooltip = "قصْر الصفقات على اتّجاه واحد (مثلًا Long only في السوق الصاعد) أو كليهما.")
 // [إصلاح الكريبتو · v1.1] نمط الخروج: «DMM TP1» (هدف DMM الأصليّ — المُثبَت على المؤشّرات/المعادن) أو «Fixed R:R» (الهدف = مضاعِف ثابت من المخاطرة |الدخول−الوقف| ⇒ يترك الرابح يركض · يعالج خسائر الكريبتو غير المتماثلة حيث dmmTp1 أقرب من dmmSl). الوقف = dmmSl في الحالتين.
-string tpMode = input.string("DMM TP1", "Exit target mode / نمط هدف الخروج", options = ["DMM TP1", "Fixed R:R"], group = grpStr, tooltip = "DMM TP1 = هدف DMM الأصليّ (افتراض · المُقاس ~57% على المؤشّرات/المعادن). Fixed R:R = الهدف عند مضاعِف R من المخاطرة (يترك الرابح يركض — للكريبتو المتقلّب).")
-float tpRr    = input.float(1.5, "Fixed TP R:R (when Fixed mode) / نسبة الهدف الثابتة", minval = 0.5, maxval = 5.0, step = 0.5, group = grpStr, tooltip = "عند نمط Fixed R:R: الهدف = الدخول ± هذه النسبة × المخاطرة (|الدخول−dmmSl|). 1.5 = ربح يعادل 1.5 ضعف المخاطرة.")
+string tpMode = input.string("Fixed R:R", "Exit target mode / نمط هدف الخروج", options = ["DMM TP1", "Fixed R:R"], group = grpStr, tooltip = "[v1.2 · الافتراض Fixed R:R 2.0 = الأمثل لـUS100·4H · PF 1.59] Fixed R:R = الهدف عند مضاعِف R من المخاطرة (يترك الرابح يركض). DMM TP1 = هدف DMM الأصليّ (أفضل للفضّة). القياس خاصّ بالأداة.")
+float tpRr    = input.float(2.0, "Fixed TP R:R (when Fixed mode) / نسبة الهدف الثابتة", minval = 0.5, maxval = 5.0, step = 0.5, group = grpStr, tooltip = "عند نمط Fixed R:R: الهدف = الدخول ± هذه النسبة × المخاطرة (|الدخول−dmmSl|). 2.0 (افتراض) = ربح يعادل ضعف المخاطرة — الأمثل لـUS100/الذهب.")
+bool  enableAlerts = input.bool(true, "Fire alert on entry / إطلاق تنبيه عند الدخول", group = grpStr, tooltip = "يُطلِق alert() عند فتح صفقة (الاسم/الاتّجاه/النجوم/الدخول/الوقف/الهدف) — للتنفيذ اليدويّ أو webhook آليّ. 🔴 محاكاة لا أمر حقيقيّ؛ التنفيذ الفعليّ عبر وسيطك.")
 
 // ── معاملات المصادر (مطابقة افتراضات المؤشّر التي قِيست عليها الدراسة — لا تُغيَّر إلّا للتجريب) ──
 string grpSrc = "⚙ معاملات المصادر / Source params"
@@ -123,10 +125,14 @@ if gateOk and dmmDir == 1 and allowLong
     float tpL = fixedTp ? close + tpRr * riskD : dmmTp1                                 // Fixed R:R ⇒ الهدف عند مضاعِف R من المخاطرة (يترك الرابح يركض)
     strategy.entry("DMM ▲", strategy.long, comment = "★" + str.tostring(dmmStars))
     strategy.exit("DMM ▲ x", from_entry = "DMM ▲", stop = dmmSl, limit = tpL)           // الوقف يغلب في نفس الشمعة (تحفّظ = قياس الدراسة)
+    if enableAlerts
+        alert("DMM ▲ شراء · ★" + str.tostring(dmmStars) + " · " + syminfo.ticker + " " + timeframe.period + "\nدخول " + str.tostring(close, format.mintick) + " · وقف " + str.tostring(dmmSl, format.mintick) + " · هدف " + str.tostring(tpL, format.mintick), alert.freq_once_per_bar_close)
 if gateOk and dmmDir == -1 and allowShort
     float tpS = fixedTp ? close - tpRr * riskD : dmmTp1
     strategy.entry("DMM ▼", strategy.short, comment = "★" + str.tostring(dmmStars))
     strategy.exit("DMM ▼ x", from_entry = "DMM ▼", stop = dmmSl, limit = tpS)
+    if enableAlerts
+        alert("DMM ▼ بيع · ★" + str.tostring(dmmStars) + " · " + syminfo.ticker + " " + timeframe.period + "\nدخول " + str.tostring(close, format.mintick) + " · وقف " + str.tostring(dmmSl, format.mintick) + " · هدف " + str.tostring(tpS, format.mintick), alert.freq_once_per_bar_close)
 
 // ─────────────────────────── عرض تشخيصيّ خفيف ───────────────────────────
 plot(dmmStars, "DMM stars", display = display.data_window)
