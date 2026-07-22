@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.97.0 [م3-outcome · سجلّ النتائج لكلّ الاستراتيجيّات الثلاث — حسم المالك «السجلّ لكلّ الاستراتيجيّات وكلّ الإشارات الحيّة»] — أُضيف صفّا **سجلّ IDM** و**سجلّ DMM** (حيّان) إلى لوحة القرار بجانب سجلّ M-Waves ⇒ 3 صفوف (16-18). تتبّع نتيجة صفقة كلّ استراتيجيّة **حيًّا** (islast+isconfirmed ⇒ للأمام فقط، توأمان لـM-Waves): فتح على الإشارة الحيّة، win=إصابة **الهدف الأخير** قبل الوقف · loss=**الوقف** (تحفّظ)، صفقة واحدة نشطة لكلٍّ. عرض/سجلّ بحت — **لا يمسّ الإشارة/التقييم/التوليد**. يتراكم للأمام (backtest تاريخيّ = دفعة لاحقة). pine_check نظيف (0/0). ═══
 // ═══ v2.96.0 [م3-outcome · وسم إغلاق + عدّاد نجاح M-Waves — فرع m3/trade-outcome] — أوّل لبنة نحو تحويلها استراتيجية: عند إغلاق صفقة M-Waves الحيّة (`liveActive`) يُرسَم **وسم نتيجة** (`✓` أخضر = إصابة الهدف الأخير · `✗` أحمر = إصابة الوقف) عند شمعة الإغلاق + **صفّ سجلّ (ربح/خسارة + نسبة)** في لوحة القرار (صفّ 17). 🔴 تصنيف الإغلاق **مطابق حرفيًّا** لشرط `hitClose` السابق (وقف OR هدف؛ فقط أُميّز أيّهما — الوقف أوّلًا تحفّظًا) ⇒ سلوك «متى تُغلَق» لا يتغيّر · لا مساس بالتوليد/التقييم. **يتراكم للأمام** (تتبّع liveActive على الشمعة الحيّة) — الحساب التاريخيّ الكامل (backtest النجوم↔النجاح) = دفعة لاحقة. عرض/سجلّ بحت · pine_check نظيف (0/0). ═══
 // ═══ v2.95.0 [م-إش-3 · صفّ J-Waves في القسم الموحّد — حسم المالك «نفس إعدادات IDM/DMM للأصليّة»] — أُضيف للاستراتيجيّة الأصليّة **صفّها الثلاثيّ** في «🎛 إشارات الاستراتيجيّات» كـIDM/DMM: `mwEnable` (تفعيل) + `mwShowMarks` (وسوم) + `mwShowLevels` (مستويات) — كلّها ON افتراضيًّا (لا تغيّر سلوك). تُوصَّل **بوّابةً (AND)** فوق مفاتيح «✅ الإشارات» التفصيليّة القائمة (showSigMain/showSigSub/showSigLevels تبقى): الوسوم الحيّة + التاريخيّة (الدرجات + الخروج) خلف `mwEnable and mwShowMarks` · المستويات خلف `mwEnable and mwShowLevels`. عرض بحت — **النواة/التقييم/التنبيهات لا تُمَسّ** (التنبيه يتبع enableAlerts). pine_check نظيف (0/0). ═══
 // ═══ v2.94.0 [م-إش-3 · الإعدادات الإنتاجيّة الافتراضيّة — حسم المالك (لقطات الإعدادات)] — رُفِعت افتراضات 14 مفتاحًا لتطابق تهيئة المالك المعتمَدة (قيم مدخلات فقط · لا منطق · لا رسم جديد): **الاستراتيجيّتان مفعّلتان بمستوياتهما** (idmEnable/idmShowLevels · dmmEnable/dmmShowLevels) · **كلّ المصوّتات مفعّلة** (momEnable · divEnable · sesEnable ⇒ مع SMC المفعّل أصلًا) · **رسوم SMC الإضافيّة** (FVG · Premium/Discount · MTF يوم/أسبوع/شهر · HH/HL/LH/LL) · **لوحة اختبار الموجة مخفيّة** (showFrameHelper=false). ⚠ ملاحظة: صار الافتراض «كلّ الطبقات فعّالة» ⇒ A/B لم يعد الوضع الافتراضيّ، لكنّه متاح بإطفاء المفاتيح. الجلسات الأربع (A-D) **كلّها مطفأة** افتراضيًّا (show+major=false · حسم المالك v2.94.1) ⇒ صوت الجلسات خامل حتّى يُفعَّل يدويًّا. عرض/تهيئة بحت. ═══
@@ -504,6 +505,51 @@ plot(dmmEnable ? dmmMfi    : na, "DMM mfi",    display = display.data_window)   
 plot(dmmEnable ? (dmmVolExp ? 1 : 0) : na, "DMM volExp", display = display.data_window)   // بُعد التقلّب (توسّع=1)
 max_bars_back(idmStance, 500)   // [تناظر] موقف IDM يُقرأ عند بار إشارة DMM التاريخيّة (والعكس) ⇒ كلّ استراتيجيّة تصوّت على الأخرى
 max_bars_back(dmmStance, 500)
+// [م3-outcome · حسم المالك «السجلّ لكلّ الاستراتيجيّات وكلّ الإشارات الحيّة»] تتبّع نتيجة صفقات IDM/DMM **الحيّة** (توأمان لـM-Waves: islast+isconfirmed ⇒ للأمام فقط، لا تاريخيّ).
+//   win = إصابة الهدف الأخير قبل الوقف · loss = الوقف (تحفّظ: الاثنان بشمعة ⇒ خسارة). صفقة واحدة نشطة لكلٍّ. عرض/سجلّ بحت — لا يمسّ الإشارة/التقييم/التوليد.
+var bool  idmTrActive = false
+var int   idmTrDir    = 0
+var float idmTrSl     = na
+var float idmTrFin    = na
+var int   idmWins     = 0
+var int   idmLosses   = 0
+var bool  dmmTrActive = false
+var int   dmmTrDir    = 0
+var float dmmTrSl     = na
+var float dmmTrFin    = na
+var int   dmmWins     = 0
+var int   dmmLosses   = 0
+if barstate.islast and barstate.isconfirmed
+    if idmEnable                                                                                            // IDM الحيّ
+        if idmTrActive
+            bool iLoss = idmTrDir == 1 ? low <= idmTrSl : high >= idmTrSl
+            bool iWin  = not iLoss and not na(idmTrFin) and (idmTrDir == 1 ? high >= idmTrFin : low <= idmTrFin)
+            if iLoss or iWin
+                idmTrActive := false
+                idmWins   := idmWins   + (iWin  ? 1 : 0)
+                idmLosses := idmLosses + (iLoss ? 1 : 0)
+        if not idmTrActive and idmTrig and idmDir != 0 and not na(idmSl)                                    // فتح على إشارة IDM حيّة (لا صفقة نشطة)
+            float iFin = not na(idmTp3) ? idmTp3 : not na(idmTp2) ? idmTp2 : idmTp1
+            if not na(iFin)
+                idmTrActive := true
+                idmTrDir    := idmDir
+                idmTrSl     := idmSl
+                idmTrFin    := iFin
+    if dmmEnable                                                                                            // DMM الحيّ (نفس النمط حرفيًّا)
+        if dmmTrActive
+            bool dLoss = dmmTrDir == 1 ? low <= dmmTrSl : high >= dmmTrSl
+            bool dWin  = not dLoss and not na(dmmTrFin) and (dmmTrDir == 1 ? high >= dmmTrFin : low <= dmmTrFin)
+            if dLoss or dWin
+                dmmTrActive := false
+                dmmWins   := dmmWins   + (dWin  ? 1 : 0)
+                dmmLosses := dmmLosses + (dLoss ? 1 : 0)
+        if not dmmTrActive and dmmTrig and dmmDir != 0 and not na(dmmSl)
+            float dFin = not na(dmmTp3) ? dmmTp3 : not na(dmmTp2) ? dmmTp2 : dmmTp1
+            if not na(dFin)
+                dmmTrActive := true
+                dmmTrDir    := dmmDir
+                dmmTrSl     := dmmSl
+                dmmTrFin    := dFin
 var array<label> idmLabels = array.new<label>()
 // [الشكل الموحّد] حالة آخر إشارة IDM — لرسم مستوياتها كاملةً (خلف مفتاح IDM الخاصّ idmShowLevels) كالمؤشّر الأصليّ (صفقة واحدة نشطة، لا زحام)
 var int   idmLastBar   = na
@@ -2137,10 +2183,10 @@ var array<float> liveTps    = array.new<float>()   // سلّم الأهداف
 var int          mwWins      = 0
 var int          mwLosses    = 0
 var array<label> mwCloseMarks = array.new<label>()
-var table concTbl = table.new(f_pos(concPos), 2, 17, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)   // [دفعة الزخم] 16 صفًّا (14 قرار + صفّا زخم) · [م3-outcome] +صفّ 17 = سجلّ M-Waves
+var table concTbl = table.new(f_pos(concPos), 2, 19, bgcolor = concBg, border_width = 1, border_color = #2A2E39, frame_width = 1, frame_color = #2A2E39)   // [دفعة الزخم] 16 صفًّا (14 قرار + صفّا زخم) · [م3-outcome] +3 صفوف سجلّ حيّ (M-Waves/IDM/DMM = صفوف 16-18)
 if barstate.islast
     if not showConc                                             // [فصل الإشارات/التنبيه عن اللوحة] إخفاء اللوحة يمسح خلاياها فقط — الحساب والإشارات والتنبيه تعمل دائمًا (تُحرَس الخلايا بـshowConc)
-        table.clear(concTbl, 0, 0, 1, 16)
+        table.clear(concTbl, 0, 0, 1, 18)
     if showConc
         table.set_position(concTbl, f_pos(concPos))
     // الصغيرة في اللوحة: من **السلسلة الصغيرة عبر التاريخ** (scBar) — دائمًا موجودة
@@ -2416,6 +2462,15 @@ if barstate.islast
         color  mwRecBg = mwTot == 0 ? pMute : mwWins > mwLosses ? cUp : mwWins < mwLosses ? cDn : cRngC
         table.cell(concTbl, 0, 16, f_t("سجلّ M-Waves (حيّ)", "M-Waves record (live)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سجلّ نتائج صفقات M-Waves الحيّة منذ فتح الشارت (ربح=إصابة الهدف الأخير · خسارة=إصابة الوقف). يتراكم للأمام. الحساب التاريخيّ الكامل = دفعة لاحقة.", "Live M-Waves trade outcomes since chart open (win=final TP hit · loss=SL hit). Accumulates forward. Full historical backtest = later batch."))
         table.cell(concTbl, 1, 16, mwRec, text_color = color.white, bgcolor = mwRecBg, text_size = size.small)
+        // [م3-outcome · حسم المالك] صفّا سجلّ IDM/DMM الحيّين (توأمان لـM-Waves · للأمام) — عرض بحت
+        int    idmTot   = idmWins + idmLosses
+        string idmRec   = idmTot == 0 ? "—" : str.tostring(idmWins) + "W / " + str.tostring(idmLosses) + "L (" + str.tostring(100.0 * idmWins / idmTot, "#") + "%)"
+        table.cell(concTbl, 0, 17, f_t("سجلّ IDM (حيّ)", "IDM record (live)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سجلّ نتائج صفقات IDM الحيّة (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف). يتراكم للأمام.", "Live IDM trade outcomes (win=final TP before SL · loss=SL). Accumulates forward."))
+        table.cell(concTbl, 1, 17, idmRec, text_color = color.white, bgcolor = idmTot == 0 ? pMute : idmWins > idmLosses ? cUp : idmWins < idmLosses ? cDn : cRngC, text_size = size.small)
+        int    dmmTot   = dmmWins + dmmLosses
+        string dmmRec   = dmmTot == 0 ? "—" : str.tostring(dmmWins) + "W / " + str.tostring(dmmLosses) + "L (" + str.tostring(100.0 * dmmWins / dmmTot, "#") + "%)"
+        table.cell(concTbl, 0, 18, f_t("سجلّ DMM (حيّ)", "DMM record (live)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("سجلّ نتائج صفقات DMM الحيّة (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف). يتراكم للأمام.", "Live DMM trade outcomes (win=final TP before SL · loss=SL). Accumulates forward."))
+        table.cell(concTbl, 1, 18, dmmRec, text_color = color.white, bgcolor = dmmTot == 0 ? pMute : dmmWins > dmmLosses ? cUp : dmmWins < dmmLosses ? cDn : cRngC, text_size = size.small)
     // [الفرص الثلاث · قرار المستخدم + spec §51-52 · مُرحَّل من رأس المؤشّر — أ45] (1) **أساسيّة** = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) **عالية مخاطرة** = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) **خروج/fallback** = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
     bool basicSig = inZone and (gatePh == 2 or gatePh == 3 or gatePh == 4) and confOk and (entry == 1 or entry == -1)   // [G2+توحيد] أساسيّة: نضج (يأس/تجميع/تصريف بدرجة الصفقة) + تأكيد داخل المنطقة
