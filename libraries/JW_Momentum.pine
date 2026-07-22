@@ -1,6 +1,6 @@
 //@version=6
 // ============================================================================
-// JW_Momentum — مصادر تلاقٍ زخميّة (EMA · SMA · VWAP · RSI)
+// JW_Momentum — مصادر تلاقٍ زخميّة (EMA · SMA · VWAP · RSI · دايفرجنس RSI)
 // ----------------------------------------------------------------------------
 // 🔴 الخطّ الأحمر: النواة (M-Waves) هي المولّد الوحيد للإشارة. هذه المكتبة
 //    «تقرأ فقط»: تحسب أصواتًا زخميّة (اتّجاه/veto) لتقييم إشارة ناجية من النواة.
@@ -10,6 +10,9 @@
 //   (يتفادى فخّ ترجمة المكتبات CE10237) · يطابق نمط JW_SMC/JW_Confluence.
 //
 // A/B: القيم تطابق مؤشّرات TradingView المدمجة (EMA/SMA/RSI/VWAP) رقميًّا.
+//
+// [/2] أُضيفت دالّة ثانية f_rsiDivergence (دايفرجنس RSI المنتظم مصوّتًا) — f_momentum
+//   **لم تُلمَس** (مصوّتات الزخم القائمة مطابقة بايتًا). RSI مشترك المفهوم ⇒ نفس المكتبة.
 // ============================================================================
 library("JW_Momentum", overlay = true)
 
@@ -37,3 +40,55 @@ export f_momentum(simple int emaLen, simple int smaLen, simple int rsiLen, float
     bool rsiOB   = not na(r) and r >= obThr
     bool rsiOS   = not na(r) and r <= osThr
     [e, s, v, r, emaDir, smaDir, vwapDir, rsiDir, rsiOB, rsiOS]
+
+// @function   اتّجاه دايفرجنس RSI المنتظم المصوّت (ملقوط بانقضاء) + النبضة اللحظيّة.
+//             نقل حرفيّ لمنطق الدايفرجنس المنتظم من لوحة RSI الأصليّة (نفس منطق JW_RSI):
+//               صعوديّ = قاع سعر أدنى + قاع RSI أعلى (Higher Low على المذبذب).
+//               هبوطيّ = قمّة سعر أعلى + قمّة RSI أدنى (Lower High على المذبذب).
+//             الكشف يكتمل ببيفوت متأخّر (lbR شمعة) ⇒ يُعرَف فقط عند بار الكشف (لا look-ahead).
+//             🔴 المشكلة البنيويّة: الدايفرجنس **حدث لحظيّ**، والتقييم يحتاج **صوتًا لكلّ بار** ⇒
+//               **لَقْط الاتّجاه** (latch) وإبقاؤه صوتًا حتّى (أ) دايفرجنس معاكس يستبدله، أو
+//               (ب) انقضاء holdBars شمعة منذ آخر كشف ⇒ يعود 0. تُحسَب كلّ بار بلا شرط (ثبات ta).
+// @param rsiLen   طول RSI (يطابق طول زخم M-Waves = 14).
+// @param lbL      بيفوت المذبذب — النظر يسارًا (افتراض الأصل = 5).
+// @param lbR      بيفوت المذبذب — النظر يمينًا (افتراض 5؛ به يتأخّر الكشف lbR شمعة — لا look-ahead).
+// @param rangeLo  أدنى مدى بين البيفوتين بالشموع (افتراض 5).
+// @param rangeHi  أقصى مدى بين البيفوتين بالشموع (افتراض 60).
+// @param holdBars كم شمعة يبقى الاتّجاه الملقوط مصوّتًا بعد آخر كشف قبل أن يعود 0.
+// @returns [divDir, bullFresh, bearFresh, rsiVal]
+//   divDir: +1 دايفرجنس صعوديّ فعّال · -1 هبوطيّ · 0 لا شيء/انقضى.
+//   bullFresh/bearFresh: نبضة الكشف اللحظيّة على بار اكتمالها (bool).
+//   rsiVal: قيمة RSI الخام (للتحقّق/العرض).
+export f_rsiDivergence(simple int rsiLen, simple int lbL, simple int lbR, simple int rangeLo, simple int rangeHi, simple int holdBars) =>
+    float r = ta.rsi(close, rsiLen)
+    // ── الكشف (نقل حرفيّ · كلّ ta بلا شرط لثبات الحالة) ──
+    float rsiLBR = r[lbR]
+    bool  plFound = not na(ta.pivotlow(r, lbL, lbR))                    // قاع RSI
+    bool  phFound = not na(ta.pivothigh(r, lbL, lbR))                   // قمّة RSI
+    float rsiAtPrevPL  = ta.valuewhen(plFound, rsiLBR, 1)              // RSI عند القاع السابق
+    float rsiAtPrevPH  = ta.valuewhen(phFound, rsiLBR, 1)              // RSI عند القمّة السابقة
+    float lowLBR  = low[lbR]
+    float lowAtPrevPL  = ta.valuewhen(plFound, lowLBR, 1)
+    float highLBR = high[lbR]
+    float highAtPrevPH = ta.valuewhen(phFound, highLBR, 1)
+    int   barsSincePl = ta.barssince(plFound[1])                        // [ثبات ta] احسب barssince بلا شرط ثمّ استعمله
+    int   barsSincePh = ta.barssince(phFound[1])
+    bool  plInRange = rangeLo <= barsSincePl and barsSincePl <= rangeHi
+    bool  phInRange = rangeLo <= barsSincePh and barsSincePh <= rangeHi
+    bool  rsiHL   = rsiLBR > rsiAtPrevPL and plInRange                  // RSI قاع أعلى
+    bool  priceLL = lowLBR < lowAtPrevPL                                // السعر قاع أدنى
+    bool  rsiLH   = rsiLBR < rsiAtPrevPH and phInRange                  // RSI قمّة أدنى
+    bool  priceHH = highLBR > highAtPrevPH                              // السعر قمّة أعلى
+    bool  bullCond = priceLL and rsiHL and plFound                      // دايفرجنس صعوديّ منتظم (نبضة عند الكشف)
+    bool  bearCond = priceHH and rsiLH and phFound                      // دايفرجنس هبوطيّ منتظم
+    // ── لَقْط الاتّجاه + انقضاء (يحوّل النبضة إلى صوت لكلّ بار) ──
+    var int lastDivDir = 0
+    var int lastDivBar = na
+    if bullCond
+        lastDivDir := 1
+        lastDivBar := bar_index
+    else if bearCond
+        lastDivDir := -1
+        lastDivBar := bar_index
+    int divDir = (not na(lastDivBar) and (bar_index - lastDivBar) <= holdBars) ? lastDivDir : 0
+    [divDir, bullCond, bearCond, r]

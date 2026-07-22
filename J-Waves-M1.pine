@@ -8,7 +8,7 @@ import Jassar_Mahmoud/JW_Zones/6 as jwz                       // [ط4 · أ89] �
 import Jassar_Mahmoud/JW_Signals/1 as jws                     // [ط4-ج · v2.67.0] طبقة إصدار الإشارات مُستخرَجة: f_emitDegSignals/f_emitExit/f_sigLvl (نقل حرفيّ · التغطية بقناع aCov · اللغة isAR · المناطق/المدخلات وسائط)
 import Jassar_Mahmoud/JW_SMC/13 as jsmc                       // [م-إش-3 · تلاقٍ] بنية SMC (اتّجاه + [v2] رسم + [v3] EQH/EQL + [v4] إصلاح تحذيرات ta + [v6] Strong/Weak High/Low + [v8] Order Blocks نقل 100% + [v9] FVG + [v10] Premium/Discount + [v11] MTF Levels + [v12] HH/HL/LH/LL + [v13] إصلاح انهيار MTF على bar 0 [array.slice]) — مصدر تلاقٍ لا مولّد (LuxAlgo CC BY-NC-SA، اقتباس شخصيّ)
 import Jassar_Mahmoud/JW_Confluence/1 as jwconf              // [م-إش-3 · تلاقٍ] جسر التقييم (نجوم توافق + veto) — يقرأ فقط، لا يولّد/يعدّل إشارة
-import Jassar_Mahmoud/JW_Momentum/1 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · بيانات فقط، المؤشّر يرسم/يصوّت
+import Jassar_Mahmoud/JW_Momentum/2 as jmom                 // [م-إش-3 · تلاقٍ] الزخم (EMA/SMA/VWAP/RSI) — f_momentum يُرجِع القيم+الاتجاهات+التشبّع · [/2] +f_rsiDivergence (دايفرجنس RSI منتظم مصوّتًا · f_momentum لم تُلمَس) · بيانات فقط، المؤشّر يرسم/يصوّت
 import Jassar_Mahmoud/JW_Sessions/1 as jsess                // [م-إش-3 · تلاقٍ] الجلسات (نقل LuxAlgo Sessions) — f_sessionState يُرجِع حالة الجلسة+مداها · المؤشّر يرسم الصناديق + تلاقي سيولة (قمّة/قاع جلسة كبرى ⇒ +نجمة) + بوّابة نشاط
 import Jassar_Mahmoud/JW_Inducement/1 as jind               // [م-إش-3 · استراتيجيّة مُقيَّمة] كنس الإغراء IDM (نقل Inducement Engine [MarkitTick]) — f_inducement يُرجِع إشارة (اتّجاه/دخول/وقف/أهداف/موقف) · بيانات فقط، المؤشّر يرسمها باسمها ويقيّمها بنجوم المصادر
 import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · استراتيجيّة مُقيَّمة] المقاييس الديناميّة DMM (نقل Dynamic Market Metrics [MarkitTick] · AlphaTrend + MFI حجميّ + تقلّب) — f_dynMetrics يُرجِع إشارة + موقف + بُعدَي MFI/التقلّب · بيانات فقط
@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.92.0 [م-إش-3 · الدايفرجنس مصوّتًا — حسم المالك] — **مصدر تقييم جديد**: دايفرجنس RSI المنتظم عبر **JW_Momentum/2** (دالّة ثانية `f_rsiDivergence` · f_momentum **لم تُلمَس** ⇒ مصوّتات الزخم القائمة مطابقة بايتًا · RSI مشترك المفهوم ⇒ نفس المكتبة لا مكتبة منفصلة — حسم المالك «لماذا لا في مكتبة الزخم؟»). صعوديّ (قاع سعر أدنى + قاع RSI أعلى) ⇒ يؤيّد الشراء · هبوطيّ (قمّة سعر أعلى + قمّة RSI أدنى) ⇒ يؤيّد البيع. **حلّ المشكلة البنيويّة** (الدايفرجنس حدث لحظيّ، التقييم يحتاج صوتًا لكلّ بار): **لَقْط الاتّجاه** بانقضاء `divHold` (افتراض 20 شمعة) — يبقى مصوّتًا حتّى معاكس يستبدله أو الانقضاء. صوت عاديّ (وزن 1، لا veto) في **المواقع الستّة**: M-Waves (حيّ+تاريخيّ) · IDM (حيّ+re-rate) · DMM (حيّ+re-rate) — يُقرأ عند بار الإشارة ([off]/[loff]/[doff] ضمن max_bars_back 500، لا look-ahead: الدايفرجنس يُعرَف فقط عند بار كشفه المتأخّر lbR). مجموعة «🔀 الدايفرجنس» خلف `divEnable` مطفأ ⇒ **A/B مطلق**. النواة/التقييم القائم لا يُمَسّان · pine_check نظيف (0/0 مكتبةً ودلتا). ═══
 // ═══ v2.90.0 [م-إش-3 · نجوم مضغوطة + R:R لكلّ استراتيجيّة — حسم المالك] — (1) **عرض النجوم مضغوطًا** عبر `f_starTx`: نجمة واحدة ⇒ «★» · أكثر ⇒ «★»+العدد (مثلًا ★3 بدل ★★★) · صفر ⇒ فارغ — أوضح وأخفّ. طُبِّق على **كلّ** المواضع (IDM/DMM الحيّة+التاريخيّة · M-Waves الحيّة+التاريخيّة+التنبيه · نجوم تلاقي OB). (2) **R:R لكلّ إشارة استراتيجيّة على هدفها الأوّل (TP1)**: `RR = |TP1−دخول| ÷ |دخول−وقف|` تُلحَق بوسم IDM/DMM (حيًّا + في إعادة التقييم) — كـM-Waves. عرض بحت · النواة/التقييم لا يُمَسّان · لا نشر مكتبة · pine_check نظيف (0/0). ═══
 // ═══ v2.89.0 [م-إش-3 · استراتيجيّة ثانية DMM + تصويت متناظر — حسم المالك] — **الاستراتيجيّة المُقيَّمة الثانية** عبر **JW_DMM/1** (نقل «المقاييس الديناميّة» Dynamic Market Metrics [MarkitTick] · AlphaTrend بقيادة **MFI حجميّ** + **تقلّب** · © MarkitTick/KivancOzbilgic): تُطلِق إشاراتها باسمها **«DMM شراء/بيع» بنمطنا** (لا BULL/BEAR) عند بار الإشارة + مستوياتها عبر `f_drawStratLevels` المعمّمة (أثبت التعميم نفسه: صفّ ثلاثيّ + نداء). البُعدان الجديدان (MFI/التقلّب) في الـtooltip. **🔴 التصويت المتناظر (حسم المالك):** كلّ استراتيجيّة تُقيَّم بكلّ المصادر **+ موقف الاستراتيجيّة الأخرى** ⇒ IDM أُعيد تقييمه ليشمل موقف DMM، وDMM يُقيَّم بموقف IDM (حيًّا [قيمة] وتاريخيًّا [loff/doff] ضمن max_bars_back 500). صفّ DMM ثلاثيّ في القسم الموحّد (dmmEnable/dmmShowMarks/dmmShowLevels) + مجموعة «📊 المقاييس الديناميّة». مطفأ ⇒ A/B مطلق · النواة لا تُمَسّ · pine_check المكتبة نظيف (0/0). ═══
 // ═══ v2.88.0 [م-إش-3 · كبح نموّ الملفّ — حسم المالك] — سؤال المالك «لماذا يكبر الملفّ ونحن نشطر طبقات؟»: الحساب في المكتبات (رقيق)، لكنّ طبقة العرض/التوصيل (مدخلات+رسم+تنبيه) **مؤشّريّة بالضرورة** (المكتبة بيانات فقط). خطوتان: (1) **تقليم سجلّ التغييرات** (v2.85.2→v1.09 مطويّ، محفوظ في git log) −39 سطرًا · (2) **تعميم رسم مستويات الاستراتيجيّات** في `f_drawStratLevels` (مصفوفات handle كنمط f_drawSesBox) بدل 14 مقبضًا مكرّرًا −40 سطرًا ⇒ **إضافة استراتيجيّة = 3 مصفوفات + نداء** (نموّ مستقبليّ شبه ثابت). المجموع 2632→2553 سطرًا. سلوك/مظهر مطابق حرفيًّا (نفس الصناديق/الخطوط/الشفافيّات/الترتيب) · pine_check نظيف (0/0). ═══
@@ -332,6 +333,18 @@ bool   momDrawVwap  = input.bool(false, "Show VWAP / إظهار VWAP", inline = 
 color  momColVwap   = input.color(#FFCA28, "", inline = "momv", group = grpMom)
 bool   momShowPanel = input.bool(false, "Show momentum in decision panel / إظهار الزخم في لوحة القرار", group = grpMom, tooltip = "يُضيف صفَّي زخم إلى **لوحة القرار**: RSI (قيمة + تشبّع) + اتجاهات EMA/SMA/VWAP مجمَّعة. خلف مفتاح مستقلّ (إخفاء بإطفائه) · يتطلّب إظهار لوحة القرار. عرض بحت.")
 
+// ═════════════════ 🔀 الدايفرجنس / Divergence (تلاقٍ) [م-إش-3] ═════════════════
+// دايفرجنس RSI المنتظم — الحساب في **JW_Momentum/2** (f_rsiDivergence، طول RSI = طول زخم M-Waves)؛ المؤشّر يصوّت فقط.
+// صوت عاديّ (وزن 1، لا veto): دايفرجنس صعوديّ + شراء ⇒ +نجمة · معاكس ⇒ معارضة. يُقرأ عند بار الإشارة ([off]/[loff]/[doff]).
+// ⇒ صفر أثر على النواة ما لم يُفعَّل (A/B عند divEnable=false، كـSMC/الزخم).
+string grpDiv       = "🔀 الدايفرجنس / Divergence"
+bool   divEnable    = input.bool(false, "Enable RSI-divergence vote / تفعيل صوت الدايفرجنس", group = grpDiv, tooltip = "[م-إش-3] دايفرجنس RSI المنتظم يصوّت على الإشارات (M-Waves + الاستراتيجيّات): صعوديّ (قاع سعر أدنى + قاع RSI أعلى) ⇒ يؤيّد الشراء · هبوطيّ (قمّة سعر أعلى + قمّة RSI أدنى) ⇒ يؤيّد البيع. تقييم/عرض فقط — لا يولّد إشارة ولا يعدّلها. مطفأ افتراضيًّا (A/B). طول RSI = طول زخم M-Waves.")
+int    divLbL       = input.int(5, "Pivot lookback left / نظر البيفوت يسارًا", minval = 1, group = grpDiv, tooltip = "طول اكتشاف بيفوتات RSI يسارًا (افتراض الأصل = 5).")
+int    divLbR       = input.int(5, "Pivot lookback right / نظر البيفوت يمينًا", minval = 1, group = grpDiv, tooltip = "طول اكتشاف بيفوتات RSI يمينًا (افتراض 5). به يتأخّر كشف الدايفرجنس هذا العدد من الشموع — يُعرَف فقط عند بار الكشف (لا إعادة رسم / لا look-ahead).")
+int    divRangeLo   = input.int(5, "Min pivot range (bars) / أدنى مدى بين البيفوتين", minval = 1, group = grpDiv, tooltip = "أدنى مسافة بين بيفوتَي RSI بالشموع ليُعَدّ دايفرجنسًا (افتراض 5).")
+int    divRangeHi   = input.int(60, "Max pivot range (bars) / أقصى مدى بين البيفوتين", minval = 5, group = grpDiv, tooltip = "أقصى مسافة بين بيفوتَي RSI بالشموع (افتراض 60).")
+int    divHold      = input.int(20, "Vote hold (bars) / بقاء الصوت (شموع)", minval = 1, maxval = 300, group = grpDiv, tooltip = "[حسم المالك] الدايفرجنس حدث لحظيّ ⇒ يبقى اتّجاهه مصوّتًا هذا العدد من الشموع بعد كشفه ثمّ يعود محايدًا (أو يُستبدَل بدايفرجنس معاكس). أصغر ⇒ صوت أطزَج (زخم حديث فقط).")
+
 // ═════════════════ 🕐 الجلسات / Sessions (تلاقٍ) [م-إش-3] ═════════════════
 // نطاقات الجلسات (© LuxAlgo · اقتباس شخصيّ CC BY-NC-SA) — الحساب في **JW_Sessions** (f_sessionState)؛ المؤشّر يرسم الصناديق ويصوّت.
 // القيمة المميّزة: **قمّة/قاع الجلسة الكبرى السابقة = بِرَك سيولة** ⇒ تلاقيها مع منطقتنا = +نجمة (كتلاقي OB). لا صوت اتّجاه (يكرّر VWAP الزخم).
@@ -423,6 +436,12 @@ max_bars_back(momRsiDir, 500)
 max_bars_back(momRsiOBst, 500)
 max_bars_back(momRsiOSst, 500)
 
+// ══════ [م-إش-3 · دفعة الدايفرجنس] دايفرجنس RSI المنتظم (JW_Momentum/2 · مصوّت تلاقٍ لا مولّد) ══════
+// يُحسَب دائمًا لثبات ta؛ divDir (+1/-1/0 ملقوط بانقضاء) للتصويت الحيّ والتاريخيّ. القيم في Data Window للتحقّق.
+[divDir, divBull, divBear, divRsi] = jmom.f_rsiDivergence(momRsiLen, divLbL, divLbR, divRangeLo, divRangeHi, divHold)
+plot(divEnable ? divDir : na, "DIV dir", display = display.data_window)
+max_bars_back(divDir, 500)    // [م-إش-3ج] فهرسة زمنيّة لصوت الدايفرجنس على الإشارات التاريخيّة (قراءة الاتّجاه عند بار كلّ إشارة، ضمن نافذة 500)
+
 // ══════ [م-إش-3 · دفعة الجلسات] الجلسات (نطاقات · JW_Sessions · مصدر تلاقٍ سيولة لا مولّد) ══════
 // التوقيت مرجعٌ ثابت (UTC/البورصة) لا توقيت المستخدم. تُحسَب كلّ بار (حالة var متراكمة في المكتبة). المؤشّر يرسم الصناديق (كلّ بار) ويصوّت (حيّ).
 // هل المستوى (بِركة سيولة) داخل منطقة الدخول؟ (مساعد نقيّ عالميّ)
@@ -509,6 +528,10 @@ if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0 
         f_pushMom(cfDirI, cfStrI, cfCritI, momEmaDir, momSmaDir, momVwapDir, momRsiDir, momRsiVeto and ((idmUp and momRsiOBst) or ((not idmUp) and momRsiOSst)), idmDir)
     if dmmEnable and dmmStance != 0                           // [تناظر] موقف DMM (اتّجاه AlphaTrend) يصوّت على إشارة IDM
         array.push(cfDirI, dmmStance)
+        array.push(cfStrI, 1.0)
+        array.push(cfCritI, false)
+    if divEnable and divDir != 0                              // [دايفرجنس] دايفرجنس RSI المنتظم يصوّت على إشارة IDM
+        array.push(cfDirI, divDir)
         array.push(cfStrI, 1.0)
         array.push(cfCritI, false)
     [iAg, iOp, iNe, iVt] = jwconf.f_rate(idmDir, cfDirI, cfStrI, cfCritI, confUseVeto)
@@ -600,6 +623,10 @@ if dmmEnable and showStrat and dmmTrig and barstate.isconfirmed and dmmDir != 0
         f_pushMom(cfDirD, cfStrD, cfCritD, momEmaDir, momSmaDir, momVwapDir, momRsiDir, momRsiVeto and ((dmmUp and momRsiOBst) or ((not dmmUp) and momRsiOSst)), dmmDir)
     if idmEnable and idmStance != 0                          // [تناظر] موقف IDM يصوّت على إشارة DMM (كما DMM يصوّت على IDM)
         array.push(cfDirD, idmStance)
+        array.push(cfStrD, 1.0)
+        array.push(cfCritD, false)
+    if divEnable and divDir != 0                             // [دايفرجنس] دايفرجنس RSI المنتظم يصوّت على إشارة DMM
+        array.push(cfDirD, divDir)
         array.push(cfStrD, 1.0)
         array.push(cfCritD, false)
     [dAg, dOp, dNe, dVt] = jwconf.f_rate(dmmDir, cfDirD, cfStrD, cfCritD, confUseVeto)
@@ -1844,6 +1871,10 @@ if barstate.islast and idmEnable and showStrat and not na(idmLastLbl) and idmLas
             array.push(cfDirL, dmmStance[loff])
             array.push(cfStrL, 1.0)
             array.push(cfCritL, false)
+        if divEnable and divDir[loff] != 0                       // [دايفرجنس] صوت الدايفرجنس عند بار إشارة IDM (تاريخيّ، ضمن max_bars_back 500)
+            array.push(cfDirL, divDir[loff])
+            array.push(cfStrL, 1.0)
+            array.push(cfCritL, false)
         [lAg, lOp, lNe, lVt] = jwconf.f_rate(idmLastDir, cfDirL, cfStrL, cfCritL, confUseVeto)
         string lStar = f_starTx(lAg) + (lVt ? "⛔" : "")
         string lWord = luUp ? f_t("شراء", "Buy") : f_t("بيع", "Sell")
@@ -1878,6 +1909,10 @@ if barstate.islast and dmmEnable and showStrat and not na(dmmLastLbl) and dmmLas
                 array.push(cfCritM, false)
         if idmEnable and idmStance[doff] != 0                   // [تناظر] موقف IDM عند بار إشارة DMM (تاريخيّ)
             array.push(cfDirM, idmStance[doff])
+            array.push(cfStrM, 1.0)
+            array.push(cfCritM, false)
+        if divEnable and divDir[doff] != 0                      // [دايفرجنس] صوت الدايفرجنس عند بار إشارة DMM (تاريخيّ)
+            array.push(cfDirM, divDir[doff])
             array.push(cfStrM, 1.0)
             array.push(cfCritM, false)
         [mAg, mOp, mNe, mVt] = jwconf.f_rate(dmmLastDir, cfDirM, cfStrM, cfCritM, confUseVeto)
@@ -2461,6 +2496,10 @@ if barstate.islast
                 array.push(cfDir,  -sigDirC)
                 array.push(cfStr,  2.0)
                 array.push(cfCrit, true)
+        if divEnable and divDir != 0                                              // [دايفرجنس] دايفرجنس RSI المنتظم يصوّت على إشارة M-Waves الحيّة (صوت عاديّ، لا veto)
+            array.push(cfDir,  divDir)
+            array.push(cfStr,  1.0)
+            array.push(cfCrit, false)
         [cfAgree, cfOpp, cfNeu, cfVeto] = jwconf.f_rate(sigDirC, cfDir, cfStr, cfCrit, confUseVeto)
         string starTx = f_starTx(cfAgree) + (cfVeto ? "⛔" : "")   // [حسم المالك] نجمة+عدد مضغوط (★3) · بلا نجوم إن لا توافق · ⛔ veto — تُلحَق بعد ✦/⚠
         string sigTx = ((uiLang == "AR / عربيّة") ? (starTx + (isBas ? "✦" : "⚠") + (up ? "شراء" : "بيع")) : ((up ? "Buy" : "Sell") + (isBas ? "✦" : "⚠") + starTx)) + (not na(rr) ? " · RR " + str.tostring(rr, "#.#") : "")   // [حسم المالك] ترتيب حسب اللغة ليظهر ★ **يمين** الكلمة في الاثنتين: عربيّ RTL ⇒ سلسلة ★✦كلمة (تُرندَر كلمة✦★) · إنجليزيّ LTR ⇒ كلمة✦★
@@ -2554,7 +2593,7 @@ if barstate.islast
         if showSigExit                                                                                                          // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
         // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
-        if smcEnable or momEnable                                                   // [م-إش-3ج] نجوم SMC و/أو الزخم على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
+        if smcEnable or momEnable or divEnable                                       // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
             int nSigLb = array.size(sigLabels)
             for li = 0 to (nSigLb > 0 ? nSigLb - 1 : 0)
                 if nSigLb > 0
@@ -2592,6 +2631,10 @@ if barstate.islast
                                         array.push(hDir,  -sd)
                                         array.push(hStr,  2.0)
                                         array.push(hCrit, true)
+                                if divEnable and divDir[off] != 0                   // [دايفرجنس] صوت الدايفرجنس عند بار الإشارة التاريخيّة (لا look-ahead)
+                                    array.push(hDir,  int(divDir[off]))
+                                    array.push(hStr,  1.0)
+                                    array.push(hCrit, false)
                                 if array.size(hDir) > 0
                                     [hAg, hOp, hNe, hVt] = jwconf.f_rate(sd, hDir, hStr, hCrit, confUseVeto)
                                     hStar := f_starTx(hAg) + (hVt ? "⛔" : "")
