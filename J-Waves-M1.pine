@@ -16,6 +16,7 @@ import Jassar_Mahmoud/JW_DMM/1 as jdmm                      // [م-إش-3 · ا�
 // J-Waves — M2 (الموجة التاريخية) — إصدار المستوى الثاني
 // إعادة بناء نظيف طبقةً طبقةً — فرع rebuild-from-scratch
 // المرجع الحاكم: docs/build/ (الدستور · المعمارية · خطة البناء · الجرد)
+// ═══ v2.108.0 [م3 · فلتر أدنى R:R لكلّ استراتيجيّة + حذف السجلّ من اللوحة وآلة تتبّعه — طلب المالك] — (1) **فلتر أدنى R:R** (العائد÷المخاطرة على TP1) لكلّ استراتيجيّة: `idmMinRR`/`dmmMinRR` (0-10 · افتراض 0 = A/B) في «🎛 إشارات الاستراتيجيّات» — لا يُعرَض وسم IDM/DMM إن كان R:R أقلّ من الحدّ (بوّابة على iRR/dRR عند إنشاء الوسم · المستويات تبقى). مثال 1:2 ⇒ اضبط 2.0. M-Waves مفلترة بـ`minRR` القائمة في «✅ الإشارات» ⇒ لا تُكرَّر. عرض بحت — لا يمسّ التوليد/التقييم. (2) **حذف صفوف السجلّ الثلاثة** (16/17/18 · M-Waves/IDM/DMM) من لوحة القرار — طلب المالك «غير مهمّ» — **وإزالة آلة تتبّعها كاملةً** (idmWins/idmLosses · dmmWins/dmmLosses + كتلة isconfirmed + دالّة f_mwBacktest + mwHistWins/Losses) لأنّها صارت بلا مستهلك (لا كود ميّت). pine_check معزول 0/0. ═══
 // ═══ v2.107.0 [م3 · فلتر نجوم لكلّ استراتيجيّة + حذف القياس المؤقّت — طلب المالك] — (1) **حُذف** قياس M-Waves↔النجاح المؤقّت (mwCorrTbl/f_drawMwCorr/showMwCorr + تصنيف النجوم في f_mwBacktest ⇒ عادت [ربح،خسارة]) بعد أن أثبت أنّ **عيّنة M-Waves لا تكفي لعتبة** (صفر إشارات عبر US100·45/60 · ذهب·60/15 — القياس يشترط سعر الإشارة داخل منطقة حاليّة). (2) **فلتر ظهور الوسم حسب النجوم لكلّ استراتيجيّة على حدة** في «🎛 إشارات الاستراتيجيّات»: `idmMinStars`/`dmmMinStars`/`mwMinStars` (0-6/0-6/0-5 · افتراض 0 = A/B). IDM: بوّابة على iAg · DMM: على dAg · M-Waves: على cfAgree (حيّ+تنبيه) + hAg (تاريخيّ). عرض بحت — لا يمسّ التوليد/التقييم/السجلّ · minSigStars القديم (grpSig) نُقِل إلى mwMinStars. pine_check معزول 0/0. (الأساس: DMM≥5★ مُثبَت · IDM/M-Waves تفضيل.) ═══
 // ═══ v2.106.0 [قياس مؤقّت · M-Waves↔النجاح — طلب المالك «قِس لكلّ استراتيجيّة على حدة»] — لتحديد عتبة minSigStars بالدليل لا بالتخمين: عُمِّمت f_mwBacktest لتُصنّف نتائج كلّ إشارة M-Waves بدلو نجومها عند بارها ([offk]، نفس أصوات post-process، لا look-ahead) ⇒ تُرجِع [ربح،خسارة،دلاء]. جدول مؤقّت mwCorrTbl (النجوم·فوز%·عدد · خلف showMwCorr) عبر f_drawMwCorr. **يُحذَف بعد استخراج العتبة** (كتشخيص DMM). عرض/قياس بحت — لا يمسّ التوليد/الفلترة/السجلّ · pine_check معزول 0/0. (IDM/DMM قِيسا سابقًا §2د: DMM≥5★ · IDM لا يُرتِّب.) ═══
 // ═══ v2.105.0 [م3 · بوّابة أدنى نجوم لإظهار الإشارة — طلب المالك «لا تظهر الإشارة إلا بعدد نجوم معيّن»] — بعد أن أثبت التقييم أنّ النجوم مصفاة جودة (DMM≥5★)، أُضيف مدخل `minSigStars` (0-5، افتراض 0) يُخفي إشارات M-Waves (✦/⚠) التي توافُق نجومها أدنى من الحدّ: **الحيّة** (بوّابة على cfAgree للوسم + التنبيه) + **التاريخيّة** (حذف الوسم إن hAg<الحدّ في post-process). **عرض بحت** — لا يمسّ التوليد/التقييم/السجلّ (f_mwBacktest يحسب كلّ الإشارات قبل الفلترة) · 0 = A/B مطلق · pine_check معزول 0/0. (IDM/DMM خارج النطاق — تُضاف بنفس النمط عند الطلب.) ═══
@@ -119,6 +120,9 @@ bool   mwShowLevels  = input.bool(true, "مستويات/levels", inline = "mw", 
 int    idmMinStars   = input.int(0, "🎯 IDM: min ★ to show / أدنى نجوم لإظهار IDM", minval = 0, maxval = 6, group = grpStrat, tooltip = "لا يُعرَض وسم IDM إلّا إن بلغ توافق نجومه (SMC+الزخم+DMM+الدايفرجنس) هذا الحدّ. 0 = الكلّ. 🔴 تفضيل عرضٍ لا قاعدة: نجوم IDM لا تُرتِّب نجاحه (مُثبَت §2د).")
 int    dmmMinStars   = input.int(0, "📊 DMM: min ★ to show / أدنى نجوم لإظهار DMM", minval = 0, maxval = 6, group = grpStrat, tooltip = "لا يُعرَض وسم DMM إلّا إن بلغ توافق نجومه هذا الحدّ. 0 = الكلّ. ✅ DMM≥5★ = مصفاة جودة **مُثبَتة بالقياس** (§2د · الاستراتيجيّة تعتمدها).")
 int    mwMinStars    = input.int(0, "🌊 J-Waves: min ★ to show / أدنى نجوم لإظهار M-Waves", minval = 0, maxval = 5, group = grpStrat, tooltip = "لا تُعرَض إشارة M-Waves (✦/⚠ الحيّة + التاريخيّة + تنبيهها) إلّا إن بلغ توافق نجومها الحدّ. 0 = الكلّ (A/B). 🔴 تفضيل عرضٍ (عيّنة M-Waves لا تكفي لإثبات عتبة — قياس 2026-07-23).")
+// ─── [م3 · v2.108.0 · حسم المالك] فلتر أدنى R:R (العائد÷المخاطرة على الهدف الأوّل TP1 = |TP1−دخول|÷|دخول−وقف|) — **لكلّ استراتيجيّة على حدة**. لا يُعرَض وسم الاستراتيجيّة إن كان R:R أقلّ من الحدّ. عرض بحت (لا يمسّ التوليد/التقييم) · 0 = بلا منع (A/B). 🔴 M-Waves لها `minRR` في «✅ الإشارات» أصلًا (تُطبَّق على توليدها) ⇒ لا تُكرَّر هنا؛ IDM/DMM كانتا بلا فلتر R:R فتُضافان ───
+float  idmMinRR      = input.float(0.0, "🎯 IDM: min R:R to show / أدنى R:R لإظهار IDM", minval = 0.0, maxval = 10.0, step = 0.1, group = grpStrat, tooltip = "لا يُعرَض وسم IDM إن كان R:R على هدفه الأوّل (TP1) أقلّ من هذا الحدّ. 0 = الكلّ (A/B). R:R = |TP1−دخول| ÷ |دخول−وقف|. عرض بحت — المستويات تبقى تُرسَم.")
+float  dmmMinRR      = input.float(0.0, "📊 DMM: min R:R to show / أدنى R:R لإظهار DMM", minval = 0.0, maxval = 10.0, step = 0.1, group = grpStrat, tooltip = "لا يُعرَض وسم DMM إن كان R:R على هدفه الأوّل (TP1) أقلّ من هذا الحدّ. 0 = الكلّ (A/B). R:R = |TP1−دخول| ÷ |دخول−وقف|.")
 
 // ══════════════════════════ ط0 · 🌊 الموجة والإطار / Wave & Frame ══════════════════════════
 string grpWave = "ط0 · 🌊 الموجة والإطار / Wave & Frame"
@@ -520,53 +524,7 @@ plot(dmmEnable ? dmmMfi    : na, "DMM mfi",    display = display.data_window)   
 plot(dmmEnable ? (dmmVolExp ? 1 : 0) : na, "DMM volExp", display = display.data_window)   // بُعد التقلّب (توسّع=1)
 max_bars_back(idmStance, 500)   // [تناظر] موقف IDM يُقرأ عند بار إشارة DMM التاريخيّة (والعكس) ⇒ كلّ استراتيجيّة تصوّت على الأخرى
 max_bars_back(dmmStance, 500)
-// [م3-outcome · v2.98.0 · حسم المالك «لم تظهر أرقام»] backtest تاريخيّ لصفقات IDM/DMM على **كلّ التاريخ** (أُزيل قيد islast): آلة تتبّع تُقيَّم كلّ **بار مُغلَق** (isconfirmed)
-//   ⇒ تفتح صفقة عند كلّ إشارة (idmTrig/dmmTrig) بمستوياتها وقتها (per-bar، لا look-ahead)، وتُغلقها بأوّل إصابة لاحقة ⇒ تُحصي عبر الشارت ⇒ أرقام فوريّة.
-//   win = إصابة الهدف الأخير قبل الوقف · loss = الوقف (تحفّظ: الاثنان بشمعة ⇒ خسارة). صفقة واحدة نشطة لكلٍّ، ثمّ تقبل التالية. عرض/سجلّ بحت — لا يمسّ الإشارة/التقييم/التوليد.
-// [تشخيص · v2.104.0] f_stratStars + مصفوفات دلاء النجوم (winByStar/lossByStar/winByStarTp1/lossByStarTp1/idmNbk/idmW1bk/dmmNbk/dmmW1bk) **أُزيلت** مع جدول النجوم↔النجاح. آلة تتبّع IDM/DMM أدناه **تبقى** (تُغذّي صفّي السجلّ في لوحة القرار — ربح/خسارة فقط، بلا تصنيف نجوم).
-var bool  idmTrActive = false
-var int   idmTrDir    = 0
-var float idmTrSl     = na
-var float idmTrFin    = na
-var int   idmWins     = 0
-var int   idmLosses   = 0
-var bool  dmmTrActive = false
-var int   dmmTrDir    = 0
-var float dmmTrSl     = na
-var float dmmTrFin    = na
-var int   dmmWins     = 0
-var int   dmmLosses   = 0
-if barstate.isconfirmed                                                                                    // [v2.98.0] كلّ بار مُغلَق (لا islast) ⇒ backtest تاريخيّ يتراكم عبر الشارت
-    if idmEnable                                                                                            // IDM (تاريخيّ · سجلّ ربح/خسارة للوحة القرار)
-        if idmTrActive
-            bool iLoss = idmTrDir == 1 ? low <= idmTrSl : high >= idmTrSl
-            bool iWin  = not iLoss and not na(idmTrFin) and (idmTrDir == 1 ? high >= idmTrFin : low <= idmTrFin)
-            if iLoss or iWin
-                idmTrActive := false
-                idmWins   := idmWins   + (iWin  ? 1 : 0)
-                idmLosses := idmLosses + (iLoss ? 1 : 0)
-        if not idmTrActive and idmTrig and idmDir != 0 and not na(idmSl)                                    // فتح على إشارة IDM حيّة (لا صفقة نشطة)
-            float iFin = not na(idmTp3) ? idmTp3 : not na(idmTp2) ? idmTp2 : idmTp1
-            if not na(iFin)
-                idmTrActive := true
-                idmTrDir    := idmDir
-                idmTrSl     := idmSl
-                idmTrFin    := iFin
-    if dmmEnable                                                                                            // DMM (تاريخيّ · سجلّ ربح/خسارة للوحة القرار · نفس النمط)
-        if dmmTrActive
-            bool dLoss = dmmTrDir == 1 ? low <= dmmTrSl : high >= dmmTrSl
-            bool dWin  = not dLoss and not na(dmmTrFin) and (dmmTrDir == 1 ? high >= dmmTrFin : low <= dmmTrFin)
-            if dLoss or dWin
-                dmmTrActive := false
-                dmmWins   := dmmWins   + (dWin  ? 1 : 0)
-                dmmLosses := dmmLosses + (dLoss ? 1 : 0)
-        if not dmmTrActive and dmmTrig and dmmDir != 0 and not na(dmmSl)
-            float dFin = not na(dmmTp3) ? dmmTp3 : not na(dmmTp2) ? dmmTp2 : dmmTp1
-            if not na(dFin)
-                dmmTrActive := true
-                dmmTrDir    := dmmDir
-                dmmTrSl     := dmmSl
-                dmmTrFin    := dFin
+// [م3 · v2.108.0 · حسم المالك] آلة تتبّع الربح/الخسارة التاريخيّة لـIDM/DMM (idmWins/idmLosses · dmmWins/dmmLosses + الكتلة isconfirmed) **حُذِفت** — فقدت مستهلكها بحذف صفوف السجلّ من اللوحة، والفلتر الجديد R:R لا يستعملها. (كانت v2.98.0 backtest كامل الشارت لصفّي السجلّ 17/18.)
 var array<label> idmLabels = array.new<label>()
 // [الشكل الموحّد] حالة آخر إشارة IDM — لرسم مستوياتها كاملةً (خلف مفتاح IDM الخاصّ idmShowLevels) كالمؤشّر الأصليّ (صفقة واحدة نشطة، لا زحام)
 var int   idmLastBar   = na
@@ -611,7 +569,7 @@ if idmEnable and showStrat and idmTrig and barstate.isconfirmed and idmDir != 0 
     string iTx   = ((uiLang == "AR / عربيّة") ? (iStar + "IDM " + iWord) : ("IDM " + iWord + iStar)) + (not na(iRR) ? " · RR " + str.tostring(iRR, "#.#") : "")   // ★ يمين الكلمة بصريًّا (RTL يعكس) + RR على TP1
     string iTip  = "IDM — Inducement sweep" + f_t("\nدخول: ", "\nEntry: ") + str.tostring(idmEntry, format.mintick) + f_t("\nوقف: ", "\nStop: ") + (na(idmSl) ? "—" : str.tostring(idmSl, format.mintick)) + "\nTP1: " + (na(idmTp1) ? "—" : str.tostring(idmTp1, format.mintick)) + "\nTP2: " + (na(idmTp2) ? "—" : str.tostring(idmTp2, format.mintick)) + "\nTP3: " + (na(idmTp3) ? "—" : str.tostring(idmTp3, format.mintick))
     color  iLc   = idmUp ? idmColBull : idmColBear
-    if idmShowMarks and iAg >= idmMinStars                    // [مفاتيح IDM الخاصّة · حسم المالك] الوسوم مستقلّة عن المستويات · [م3] بوّابة أدنى نجوم IDM (المستويات تبقى تُرسَم من idmLast* حتّى لو أُخفي الوسم)
+    if idmShowMarks and iAg >= idmMinStars and (idmMinRR <= 0 or (not na(iRR) and iRR >= idmMinRR))   // [مفاتيح IDM الخاصّة · حسم المالك] الوسوم مستقلّة عن المستويات · [م3] بوّابة أدنى نجوم + [v2.108.0] أدنى R:R لإظهار IDM (المستويات تبقى تُرسَم من idmLast* حتّى لو أُخفي الوسم)
         label  iLbl  = label.new(bar_index, idmUp ? low : high, iTx, yloc = yloc.price, style = idmUp ? label.style_label_up : label.style_label_down, color = iLc, textcolor = color.white, size = size.small, tooltip = iTip)
         array.push(idmLabels, iLbl)
         idmLastLbl := iLbl                                     // [تعميق التقييم] احفظ مرجع وسم آخر إشارة — يُعاد تقييمه في islast (M-Waves+الجلسات)
@@ -706,7 +664,7 @@ if dmmEnable and showStrat and dmmTrig and barstate.isconfirmed and dmmDir != 0
     string dTx   = ((uiLang == "AR / عربيّة") ? (dStar + "DMM " + dWord) : ("DMM " + dWord + dStar)) + (not na(dRR) ? " · RR " + str.tostring(dRR, "#.#") : "")
     string dTip  = "DMM — Dynamic Market Metrics" + f_t("\nدخول: ", "\nEntry: ") + str.tostring(dmmEntry, format.mintick) + f_t("\nوقف: ", "\nStop: ") + (na(dmmSl) ? "—" : str.tostring(dmmSl, format.mintick)) + "\nTP1: " + (na(dmmTp1) ? "—" : str.tostring(dmmTp1, format.mintick)) + "\nTP2: " + (na(dmmTp2) ? "—" : str.tostring(dmmTp2, format.mintick)) + "\nTP3: " + (na(dmmTp3) ? "—" : str.tostring(dmmTp3, format.mintick)) + "\nMFI: " + str.tostring(dmmMfi, "#.0") + f_t(dmmVolExp ? " · تقلّب متوسّع" : " · تقلّب منكمش", dmmVolExp ? " · vol expanding" : " · vol contracting")
     color  dLc   = dmmUp ? dmmColBull : dmmColBear
-    if dmmShowMarks and dAg >= dmmMinStars                    // [م3] بوّابة أدنى نجوم DMM (عرض بحت — المستويات تبقى)
+    if dmmShowMarks and dAg >= dmmMinStars and (dmmMinRR <= 0 or (not na(dRR) and dRR >= dmmMinRR))   // [م3] بوّابة أدنى نجوم + [v2.108.0] أدنى R:R لإظهار DMM (عرض بحت — المستويات تبقى)
         label  dLbl  = label.new(bar_index, dmmUp ? low : high, dTx, yloc = yloc.price, style = dmmUp ? label.style_label_up : label.style_label_down, color = dLc, textcolor = color.white, size = size.small, tooltip = dTip)
         array.push(dmmLabels, dLbl)
         dmmLastLbl := dLbl
@@ -2468,16 +2426,7 @@ if barstate.islast
         table.cell(concTbl, 1, 15, mMaTx, text_color = color.white, bgcolor = mMaBg, text_size = size.small)
     else if showConc
         table.clear(concTbl, 0, 14, 1, 15)                                            // إخفاء صفّي الزخم دون مسح لوحة القرار
-    // [م3-outcome · v2.99.0] صفّا سجلّ IDM/DMM **التاريخيّان** (backtest كامل الشارت) · صفّ 16 (M-Waves تاريخيّ) يُضبَط في كتلة الإشارات (يحتاج الإشارات المرسومة) · عرض بحت
-    if showConc
-        int    idmTot   = idmWins + idmLosses
-        string idmRec   = idmTot == 0 ? "—" : str.tostring(idmWins) + "W / " + str.tostring(idmLosses) + "L (" + str.tostring(100.0 * idmWins / idmTot, "#") + "%)"
-        table.cell(concTbl, 0, 17, f_t("سجلّ IDM (تاريخيّ)", "IDM record (backtest)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest صفقات IDM عبر كلّ تاريخ الشارت (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف · صفقة واحدة نشطة). لا look-ahead: مستويات الصفقة من بار إشارتها.", "IDM trade backtest across full chart history (win=final TP before SL · loss=SL · one active trade). No look-ahead: levels from the signal's own bar."))
-        table.cell(concTbl, 1, 17, idmRec, text_color = color.white, bgcolor = idmTot == 0 ? pMute : idmWins > idmLosses ? cUp : idmWins < idmLosses ? cDn : cRngC, text_size = size.small)
-        int    dmmTot   = dmmWins + dmmLosses
-        string dmmRec   = dmmTot == 0 ? "—" : str.tostring(dmmWins) + "W / " + str.tostring(dmmLosses) + "L (" + str.tostring(100.0 * dmmWins / dmmTot, "#") + "%)"
-        table.cell(concTbl, 0, 18, f_t("سجلّ DMM (تاريخيّ)", "DMM record (backtest)"), text_color = pMute, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest صفقات DMM عبر كلّ تاريخ الشارت (ربح=الهدف الأخير قبل الوقف · خسارة=الوقف · صفقة واحدة نشطة). لا look-ahead: مستويات الصفقة من بار إشارتها.", "DMM trade backtest across full chart history (win=final TP before SL · loss=SL · one active trade). No look-ahead: levels from the signal's own bar."))
-        table.cell(concTbl, 1, 18, dmmRec, text_color = color.white, bgcolor = dmmTot == 0 ? pMute : dmmWins > dmmLosses ? cUp : dmmWins < dmmLosses ? cDn : cRngC, text_size = size.small)
+    // [م3 · v2.108.0 · حسم المالك «السجلّ في اللوحة غير مهمّ»] صفوف السجلّ الثلاثة (16/17/18 · M-Waves/IDM/DMM) **حُذِفت** من اللوحة، وآلة تتبّعها (idmWins/dmmWins + isconfirmed + f_mwBacktest) **أُزيلت كاملةً** (كانت بلا مستهلك). الفلتر الجديد = R:R لكلّ استراتيجيّة (idmMinRR/dmmMinRR).
     // [الفرص الثلاث · قرار المستخدم + spec §51-52 · مُرحَّل من رأس المؤشّر — أ45] (1) **أساسيّة** = داخل منطقة + ترند + الصغيرة تجميع↑/تصريف↓ (phS==3) + تأكيد الرابعة · (2) **عالية مخاطرة** = داخل منطقة + ترند + الصغيرة تصحيح بعد الذعر (phS 1/2) + تأكيد الرابعة · (3) **خروج/fallback** = دخل ولم تتحقّق (1)(2)، ثمّ خرج بشمعة صحيحة (15د×1/5د×2) تُغلِق خلف المنطقة (close<zb بيع · close>zt شراء) — التأكيد = شمعة الخروج نفسها، تعمل في الترند والرينج.
     // [ط4-ج إشارة الدخول — شكل القديم] وسم «شراء/بيع + RR» ثابت عند الفرصة المؤكَّدة (داخل منطقة + تأكيد الرابعة · أو كسر المنطقة بعد الخروج)
     bool basicSig = inZone and (gatePh == 2 or gatePh == 3 or gatePh == 4) and confOk and (entry == 1 or entry == -1)   // [G2+توحيد] أساسيّة: نضج (يأس/تجميع/تصريف بدرجة الصفقة) + تأكيد داخل المنطقة
@@ -2633,58 +2582,7 @@ if barstate.islast
 // ─── [ط4-ج إشارات تاريخيّة عبر الشارت] علامة ▲/▼ عند كلّ تطرّف **صغير فعّال داخل منطقة باتجاه الموجة** عبر الموجة العاملة ───
 //   مفصولة عن اللوحة (showSignals فقط). صعود: قاع صغير داخل منطقة (دعم) ⇒ ▲ شراء · هبوط: قمّة صغيرة داخل منطقة (مقاومة) ⇒ ▼ بيع.
 //   تُمثّل مواضع الدخول الممكنة (دخول الانخفاض/الارتداد عند المنطقة، تأكيد = انعكاس الصغيرة). الحاليّة (entryLbl) تبقى للإشارة المؤكَّدة بالـRR.
-// [م3-outcome · v2.101.0] backtest M-Waves التاريخيّ في **دالّة** (إخراج الحلقة من الجسم الرئيسيّ · CE10295): لكلّ إشارة مرسومة (✦/⚠) تُشتقّ صفقتها من المناطق الحاليّة ثمّ مسح أماميّ لأوّل إصابة ⇒ يُرجِع [ربح، خسارة].
-//   [v2.107.0] قياس النجوم المؤقّت (winBk/lossBk + دلاء) حُذِف بعد أن أثبت أنّ عيّنة M-Waves لا تكفي لعتبة (صفر إشارات عبر US100·45/60 · ذهب·60/15).
-f_mwBacktest(array<label> labs, array<float> zt, array<float> zb, array<float> maLv, int nz) =>
-    int wins   = 0
-    int losses = 0
-    float mwBuf = slBufPts * syminfo.mintick
-    int nMwLb = array.size(labs)
-    for li = 0 to (nMwLb > 0 ? nMwLb - 1 : 0)
-        if nMwLb > 0
-            label lbk  = array.get(labs, li)
-            string txk = label.get_text(lbk)
-            if str.startswith(txk, "✦") or str.startswith(txk, "⚠")                                  // إشارة M-Waves حقيقيّة (درجات/خروج) — لا وسوم فارغة
-                int   sdk = (str.contains(txk, "بيع") or str.contains(txk, "Sell")) ? -1 : (str.contains(txk, "شراء") or str.contains(txk, "Buy")) ? 1 : 0
-                int   Bk   = label.get_x(lbk)                                                        // بار الإشارة (bar_index — كحلقة النجوم)
-                float Pk   = label.get_y(lbk)                                                        // سعر الإشارة (لإيجاد منطقتها)
-                int   offk = bar_index - Bk
-                if sdk != 0 and offk > 0 and offk <= 500 and not na(Pk)                              // حدّ 500 شمعة (أداء) + إشارة ماضية فقط
-                    float ztk = na
-                    float zbk = na
-                    for zi = 0 to (nz > 0 ? nz - 1 : 0)                                              // المنطقة الحاليّة الحاوية لسعر الإشارة (بنية دائمة ⇒ تقريب أمين)
-                        if nz > 0 and na(ztk) and Pk <= array.get(zt, zi) and Pk >= array.get(zb, zi)
-                            ztk := array.get(zt, zi)
-                            zbk := array.get(zb, zi)
-                    if not na(ztk)
-                        float slk = sdk == 1 ? zbk - mwBuf : ztk + mwBuf                             // الوقف = الحافّة المقابلة ± الهامش
-                        float tpk = na                                                               // الهدف = أقرب م.A خلف المنطقة بالاتّجاه
-                        int nMak = array.size(maLv)
-                        for mi = 0 to (nMak > 0 ? nMak - 1 : 0)
-                            if nMak > 0
-                                float lvk = array.get(maLv, mi)
-                                if sdk == 1 and lvk > ztk
-                                    tpk := na(tpk) or lvk < tpk ? lvk : tpk
-                                if sdk == -1 and lvk < zbk
-                                    tpk := na(tpk) or lvk > tpk ? lvk : tpk
-                        if not na(tpk)                                                               // لا هدف ⇒ لا تُحسَب (لا تلفيق)
-                            int resk = 0
-                            for ff = Bk + 1 to bar_index                                            // 🔴 مسح أماميّ من بار الإشارة +1 فقط ⇒ لا look-ahead
-                                int ok = bar_index - ff
-                                if ok >= 0
-                                    bool lossK = sdk == 1 ? low[ok] <= slk : high[ok] >= slk
-                                    bool winK  = sdk == 1 ? high[ok] >= tpk : low[ok] <= tpk
-                                    if lossK                                                        // تحفّظ: الوقف أوّلًا
-                                        resk := -1
-                                        break
-                                    else if winK
-                                        resk := 1
-                                        break
-                            if resk == 1
-                                wins := wins + 1
-                            else if resk == -1
-                                losses := losses + 1
-    [wins, losses]
+// [م3 · v2.108.0 · حسم المالك] دالّة f_mwBacktest (backtest M-Waves التاريخيّ للسجلّ) **حُذِفت** — فقدت مستهلكها بحذف صفّ السجلّ 16 من اللوحة، والفلتر الجديد R:R لا يستعملها.
 
 var array<label> sigLabels = array.new<label>()
 // [ط4-ج] f_emitDegSignals ⇐ نُقلت إلى JW_Signals (jws.f_emitDegSignals) — v2.68.0 حُذِف الجسم المحلّيّ. التوقيع الجديد يأخذ قناع التغطية aCov (=f_covArr) + المناطق/المدخلات/اللغة وسائط.
@@ -2692,8 +2590,6 @@ var array<label> sigLabels = array.new<label>()
 // [ط4-ج] f_emitExit ⇐ نُقلت إلى JW_Signals (jws.f_emitExit) — v2.68.0 حُذِف الجسم المحلّيّ. المناطق/المدخلات/اللغة وسائط.
 
 if barstate.islast
-    int mwHistWins   = 0                                                            // [م3-outcome · v2.99.0] عدّادا backtest M-Waves التاريخيّ (يُحسبان أدناه من الإشارات المرسومة ⇒ صفّ 16)
-    int mwHistLosses = 0
     if array.size(sigLabels) > 0
         for li = 0 to array.size(sigLabels) - 1
             label.delete(array.get(sigLabels, li))
@@ -2734,10 +2630,6 @@ if barstate.islast
         // [ت30/ب · G-S1] إشارات الكبيرة **عُطِّلت**: صفقة الكبيرة غير مصدريّة (L2-04: أعلى صفقة = المتوسطة) · xl خاملة للإشارات حتّى الأسبوعيّ (تأكّد=0 عبر US100·60/D/W · BTC·60/W). الكبيرة تبقى **مرجعَ N+1 للمتوسطة** (lgBar تُمرَّر لنداء المتوسطة).
         if showSigExit and mwEnable and mwShowMarks                                                                             // [مفتاح مستقلّ v2.3.2] إشارات الخروج ✦ منفصلة عن الدرجات
             jws.f_emitExit(sigDir, math.max(histLs, bar_index - 500), zTop, zBot, sigLabels, minRR, uiLang == "AR / عربيّة")   // [#2 · v2.67.0 jws] إشارات الخروج التاريخيّة (✦) — آخر ≤500 شمعة (حدّ أداء)
-        // [م3-outcome · v2.101.0 · backtest M-Waves التاريخيّ] **قبل حلقة النجوم** (نصّ الوسم خام بعدُ: يبدأ ✦/⚠ لا ★) — النداء في دالّة f_mwBacktest (أُخرِجت من الجسم · CE10295).
-        [mwbwR, mwblR] = f_mwBacktest(sigLabels, zTop, zBot, zMaLevels, nzs)
-        mwHistWins   := mwbwR
-        mwHistLosses := mwblR
         // [م-إش-3ج · التلاقي] نجوم على الإشارات التاريخيّة (jws): post-process — لكلّ وسم إشارة (✦/⚠ + شراء/بيع) احسب توافق المصادر **عند بار الإشارة** (اتّجاه SMC + الزخم وقتها بالفهرسة الزمنيّة [off]، لا الآن) وألحِق ★. jws يبقى مولّدًا نقيًّا (لا يُمَسّ). عرض فقط · كلّ مصدر خلف مفتاحه (A/B).
         if smcEnable or momEnable or divEnable                                       // [م-إش-3ج] نجوم SMC و/أو الزخم و/أو الدايفرجنس على الإشارات التاريخيّة (كلّ مصدر خلف مفتاحه ⇒ A/B)
             int nSigLb = array.size(sigLabels)
@@ -2787,7 +2679,7 @@ if barstate.islast
                                     hStar := f_starTx(hAg) + (hVt ? "⛔" : "")
                                     hShown := hAg
                         if mwMinStars > 0 and hShown < mwMinStars
-                            label.delete(lb)                                    // [م3] أخفِ إشارة M-Waves التاريخيّة ضعيفة التوافق (عرض بحت — f_mwBacktest حسبها قبل هذه الحلقة)
+                            label.delete(lb)                                    // [م3] أخفِ إشارة M-Waves التاريخيّة ضعيفة التوافق (فلتر mwMinStars · عرض بحت)
                         else
                             label.set_text(lb, (uiLang == "AR / عربيّة") ? (hStar + marker + body) : (body + marker + hStar))   // [حسم المالك] ترتيب حسب اللغة ⇒ ★ يمين الكلمة بصريًّا في الاثنتين (RTL يعكس السلسلة)
         // [توحيد الشكل · حسم المالك «امسح القديم»] مستويات صفقة M-Waves الحيّة **بشكل الاستراتيجيّتين** (f_drawStratLevels — صناديق متدرّجة + خطوط مسعّرة) بدل الشبكة القديمة (✕/▶/●/★/◆). مغذّاة من الصفقة الحيّة القائمة (liveB/liveDir/liveE/liveStp/liveTps — بلا حساب جديد) · المظهر الموحّد للثلاث (stratColTp/Sl/Entry + stratLvlOff) · عرض بحت (لا يمسّ إشارة/تقييمًا).
@@ -2795,13 +2687,7 @@ if barstate.islast
         float mwTp2 = array.size(liveTps) > 1 ? array.get(liveTps, 1) : na
         float mwTp3 = array.size(liveTps) > 2 ? array.get(liveTps, 2) : na
         f_drawStratLevels(mwBoxes, mwLines, mwLevLbls, showSigLevels and mwEnable and mwShowLevels and liveActive and not na(liveB), liveB, liveDir, liveE, liveStp, mwTp1, mwTp2, mwTp3, stratColTp, stratColSl, stratColEntry, stratLvlOff)
-    // [م3-outcome · v2.99.0] صفّ 16 = سجلّ M-Waves **التاريخيّ** (backtest أعلاه) — يُضبَط هنا (بعد بناء الإشارات) لا في كتلة اللوحة · خارج بوّابة الإشارات ⇒ يُعرَض دائمًا («—» إن لا إشارات) · عرض بحت
-    if showConc
-        int    mwTot = mwHistWins + mwHistLosses
-        string mwRec = mwTot == 0 ? "—" : str.tostring(mwHistWins) + "W / " + str.tostring(mwHistLosses) + "L (" + str.tostring(100.0 * mwHistWins / mwTot, "#") + "%)"
-        color  mwBg  = mwTot == 0 ? #787B86 : mwHistWins > mwHistLosses ? #089981 : mwHistWins < mwHistLosses ? #F23645 : #FF9800
-        table.cell(concTbl, 0, 16, f_t("سجلّ M-Waves (تاريخيّ)", "M-Waves record (backtest)"), text_color = #787B86, bgcolor = concBg, text_size = size.small, text_halign = text.align_right, tooltip = f_t("backtest إشارات M-Waves المرسومة (✦/⚠ · درجات+خروج) عبر الشارت: لكلّ إشارة تُشتقّ صفقتها من المناطق الحاليّة (وقف=الحافّة المقابلة · هدف=أقرب م.A خلفها) ثمّ مسح أماميّ لأوّل إصابة (هدف=ربح · وقف=خسارة). كلّ إشارة مستقلّة · تقريب أمين (بنية حاليّة) · حدّ 500 شمعة.", "Backtest of drawn M-Waves signals (✦/⚠) across chart: each signal's trade derived from current zones (SL=opposite edge · TP=nearest m.A beyond), scanned forward to first hit. Each signal independent · honest approximation · 500-bar cap."))
-        table.cell(concTbl, 1, 16, mwRec, text_color = color.white, bgcolor = mwBg, text_size = size.small)
+    // [م3 · v2.108.0] صفّ سجلّ M-Waves (16) + f_mwBacktest **أُزيلا** (حسم المالك «السجلّ غير مهمّ»). الفلتر البديل = R:R (M-Waves عبر minRR القائمة · IDM/DMM عبر idmMinRR/dmmMinRR).
     // [تدقيق ذاتيّ — محذوف v2.66.0] كتلة الحساب والجداول أُزيلت (خارج النواة). يُعاد في طبقة الاستراتيجية.
     // (جداول التدقيق/الملاحظات محذوفة — v2.66.0)
 
