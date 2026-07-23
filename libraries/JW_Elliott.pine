@@ -4,6 +4,9 @@
 //   مستخرَجة من J-Waves-M1.pine (v2.4.0) لإثبات نمط المكتبات (تحمّل الأسطر ×10).
 //   القاعدة (فروست/بريكتر): نافذة 6 نقاط فعّالة ⇒ ترقيم (1)-(5) إن حقّقت القواعد الثلاث + a-b-c داو + الموجة الجارية.
 //   كلّ التبعيّات (المدخلات · arrScale · اللغة) تُمرَّر كوسائط — لا input داخل المكتبة.
+//   [/2 · ⑥-و · مقارنة دروس ياسين الجويني 2026-07-23] **إبطال العدّ الجاري**: تُفحَص القواعد القطعيّة **وقت تشكّل** كلّ رجل من الموجة
+//     الجارية (ق1 كسر الأصل · ق3 التداخل [خلف ewStrict] · ق2 الأقصر) — خالفت ⇒ يُوقَف الترقيم ويُوسَم «!» (تُعاد تصحيحًا). التوقيع **لم يتغيّر**
+//     ⇒ مكتبة فقط + تحديث سطر الاستيراد في المؤشّر (/1⇒/2). وصفيّ بحت خلف showEW (مطفأ ⇒ A/B). المصدر: docs/build/مقارنة_دروس_إليوت_بالمطبَّق.md.
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Elliott", overlay = true)
 
@@ -64,11 +67,38 @@ drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int ma
                 int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)
                 int formCnt = math.min(n - 1 - lastLbl, 5)
                 if formCnt >= 1
+                    // [⑥-و · إبطال العدّ الجاري — حتميّ] القواعد القطعيّة تُفحَص **وقت تشكّل** كلّ رجل جارية (أهمّ ما تؤكّده الدروس:
+                    //   «لا يمكنك اعتبارها 1-2-3-4-5 إذا كسرت القاع» pl_03/09). خالفت قاعدةً ⇒ العدّ الجاري ليس دافعةً ⇒ يُوقَف الترقيم ويُوسَم «!» (تُعاد الموجة تصحيحًا).
+                    float fOrig  = array.get(pP, lastLbl)                    // أصل الموجة الجارية (P0)
+                    bool  fUp    = array.get(pTop, lastLbl + 1)             // اتجاه الدافعة الجارية (نهاية م1 قمّة ⇒ صاعدة)
+                    float fW1    = array.get(pP, lastLbl + 1)               // نهاية الموجة1 الجارية
+                    bool  fInval = false
+                    int   fInvIdx = -1
                     for fk = 1 to formCnt
                         int   fidx = lastLbl + fk
+                        float fpx  = array.get(pP, fidx)
+                        bool  viol = false
+                        if fk == 2                                          // ق1: الموجة2 لا تكسر أصل الموجة1 (كسر ⇒ انقلاب اتجاه لا تصحيح)
+                            viol := fUp ? fpx <= fOrig : fpx >= fOrig
+                        else if fk == 4 and ewStrict                        // ق3: الموجة4 لا تتداخل مع الموجة1 (تُخفَّف بـewStrict كالدفعات المكتملة ⇒ قطريّة)
+                            viol := fUp ? fpx <= fW1 : fpx >= fW1
+                        else if fk == 5                                     // ق2: الموجة3 ليست الأقصر بين 1/3/5
+                            float fL1 = math.abs(fW1 - fOrig)
+                            float fL3 = math.abs(array.get(pP, lastLbl + 3) - array.get(pP, lastLbl + 2))
+                            float fL5 = math.abs(fpx - array.get(pP, lastLbl + 4))
+                            viol := fL3 < fL1 and fL3 < fL5
+                        if viol
+                            fInval := true
+                            fInvIdx := fidx
+                            break
                         bool  ftp  = array.get(pTop, fidx)
-                        float fly  = ftp ? array.get(pP, fidx) + (1 + degLvl) * off : array.get(pP, fidx) - (1 + degLvl) * off
+                        float fly  = ftp ? fpx + (1 + degLvl) * off : fpx - (1 + degLvl) * off
                         array.push(lbls, label.new(array.get(pTm, fidx), fly, "(" + str.tostring(fk) + "?)", xloc = xloc.bar_time, yloc = yloc.price, style = ftp ? label.style_label_down : label.style_label_up, color = color.new(col, 45), textcolor = color.white, size = size.small))
+                    if fInval and fInvIdx >= 0                              // [⑥-و] وسم الإبطال «!» عند الرجل المخالِفة (بالإنجليزيّة/رمز — لا رومانيّة، حسم المالك)
+                        bool   itp    = array.get(pTop, fInvIdx)
+                        float  ily    = itp ? array.get(pP, fInvIdx) + (1 + degLvl) * off : array.get(pP, fInvIdx) - (1 + degLvl) * off
+                        string invTip = isAr ? "إبطال العدّ الجاري: خُولِفت قاعدة إليوت قطعيّة (كسر أصل الموجة1 / تداخل الموجة4 / الموجة3 الأقصر) ⇒ ليست دافعةً، تُعاد تصحيحًا (ABC/WXY)" : "Forming count invalidated: a hard Elliott rule broke (W2 past origin / W4 overlap / W3 shortest) => not impulsive, recount as correction (ABC/WXY)"
+                        array.push(lbls, label.new(array.get(pTm, fInvIdx), ily, "!", xloc = xloc.bar_time, yloc = yloc.price, style = itp ? label.style_label_down : label.style_label_up, color = color.new(#F23645, 20), textcolor = color.white, size = size.small, tooltip = invTip))
     found
 
 // ─── [مُصدَّر] يبني نقاط الدرجة بالتناوب الصارم (قمّة/قاع كالـzigzag) ثمّ يستدعي الترقيم. يُرجِع عدد الدفعات. ───
