@@ -1,3 +1,11 @@
 
 _compare/
 _commitmsg.txt
+
+# مراجع خارجيّة (© آخرين · للمقارنة فقط · لا تُثقِل المستودع) — حسم المالك 2026-07-23
+reference/
+jaffar v.txt
+
+# ملفّات تجريبيّة/مؤقّتة
+_test_*.pine
+_elliott_lessons/
