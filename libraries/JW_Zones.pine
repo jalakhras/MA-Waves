@@ -1,83 +1,91 @@
 //@version=6
 // ════════════════════════════════════════════════════════════════════════════
-// JW_Zones — ط4-أ: مناطق الدعم/المقاومة (الدرس L2-02) — خوارزميّة التزويج الموحّدة النقيّة
-//   مُستخرَجة من J-Waves M2 (فرع m3/gaps-and-scale).
+// JW_Zones — ط4-أ: مناطق الدعم/المقاومة (الدرس L2-02) — خوارزميّة التزويج (نقل حرفيّ)
+//   🔴 [أ87] نُقِلت حرفيًّا من `jaffar v.txt` (J-Waves M2 v2.0.0) — **النسخة التي رسمت المناطق صحيحًا**.
+//   استُبدِلت بها كلّ محاولات إعادة التصميم (between/impAmp/eTier/consecutive) التي أفسدت الرسم.
 //
-//   القاعدة (حسم المستخدم 2026-07-14 — يَنسخ «نفس النوع فقط» المستخرَج سابقًا من الفيديو):
-//     «مستطيل بين كلّ خطّين متقاربين سعريًّا» — **بأيّ نوع** (قمّة/قاع)، الأقرب سعريًّا (الأحدث أوّلًا)،
-//     **بأولويّة الطبقة** (الحاليّة ← تاريخ التاريخ ← التاريخ · أ34-3)، **لا تداخل** (`contain`)،
-//     **حارس التقارب** (`impAmp`: عرض المنطقة ≤ سعة الساق الدافعة · أ40)، **لا حدّ أدنى**.
-//     🔴 الاستثناء الوحيد: **قمّة + تصحيحها المباشر** = طرفان معاكسا النوع من **نفس الدرجة** متتاليان
-//        زمنيًّا (لا طرف نفس-الدرجة بينهما زمنيًّا = موجة واحدة) ⇒ لا منطقة بينهما.
-//     البركة موحّدة (تُبنى في المؤشّر): المتوسطة الفعّالة + تاريخ التاريخ (المُغطّاة) + الكبيرة ⇒ لا استعارة منفصلة.
+//   القاعدة (نقل من jaffar + حسم المالك أ89):
+//     المناطق = مستطيل بين خطّين **متقاربين سعريًّا** (دعم/مقاومة) — البركة = **المتوسطة الفعّالة غير المُغطّاة فقط**
+//     (لا كبيرة، لا مُغطّى). 🔴 [أ89] **المرساة = الموجة الفعّالة + تاريخ التاريخ فقط** (`eBar[aa] >= anchorMin = segLefts[1]`)؛
+//     **التاريخ الأقدم للاستعارة (شريكًا) لا مرساةً** ⇒ المناطق على البنية الحاليّة لا كلّ التاريخ. لكلّ مرساة من الأحدث
+//     للأقدم: أقرب شريك سعريًّا **في الموجة الحاليّة** (ph2=1) فإن لم يوجد فالتاريخ (ph2=2). greedy · `usedZ` يمنع إعادة الاستعمال.
+//     🔴 الممنوع: **التصحيح المتجاور** (`adjOpp`) · **لا منطقة داخل منطقة** (`contain`) · **حدّ الحجم** (`sizeOk`/`tooBig` = `zMaxR × نطاق الموجة`) · **[أ88] لا مستوى ثالث سعريًّا بين الحافّتين** (`between` — L2-02 «متجاورين فعلًا»؛ jaffar ذكرها في tooltip وأغفلها كودًا).
+//     دمج اختياريّ (`doMerge`): العنقود ينمو بامتصاص الخطوط ضمن `mergeGap` ما دام ≤ الحدّ الأقصى.
 //
 //   الحدّ: خوارزميّة نقيّة تعيد حوافّ المناطق [zTop, zBot, zLeft]. الرسم/الخطوط/الألوان تبقى في المؤشّر.
-//   eLvl=مستوى الجسم · eTp=قمّة؟ · eBar=بار الطرف · eDeg=الدرجة (0 متوسطة · 1 كبيرة) · eTier=الطبقة · impAmp=وسيط سعة الساق الدافعة (na⇒الحارس معطَّل). OHLC/bar_index تعمل داخلها (v6).
+//   eLvl=مستوى الجسم · eTp=قمّة؟ · eBar=بار الطرف (الحقيقيّ) · histLeft=بداية الموجة الحاليّة (segLefts[0]، لتفضيل الشريك ph2) · anchorMin=segLefts[1] (حدّ المرساة: الحاليّة+تاريخ التاريخ) · wHi/wLo=نطاق الموجة · zMaxR/doMerge/mergeR=مدخلات الحجم/الدمج. OHLC/bar_index تعمل داخلها (v6).
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Zones", overlay = true)
 
-// ─── التزويج الموحّد — أقرب طرف سعريًّا (أيّ نوع) منطقة، إلّا قمّة+تصحيحها المباشر · بأولويّة الطبقة (أ34) · حارس التقارب (أ40) ───
-//   [أ40] `between` (الجوار) مدحوض قياسًا (ت21: لا يُزيل المفرطات — تجاورٌ حقيقيّ في مناطق نادرة المستويات) ⇒ **حُذف**، واستُبدل بحارس **التقارب البنيويّ**:
-//     `impAmp` = وسيط سعة الساق الدافعة المتوسطة (يُبنى في المؤشّر). المرشّح غير مؤهّل إن كان عرض المنطقة المحتملة `d = |eLvl[aa]−eLvl[c]|` **أوسع من سعة ساق دافعة كاملة** ⇒ ليست «تقاربًا».
-//     الحارس **شرط أهليّة** (كـ`directCorr`) لا رفض بعديّ ⇒ الطرف يجد أقرب شريك **متقارب** ولو في طبقة أدنى، بدل القفز المفرط. `na(impAmp)` ⇒ الحارس معطَّل (fail-open، لا تلفيق).
-//   [أ34-3] `eTier` (0 حاليّة · 1 تاريخ التاريخ · 2 التاريخ): الشريك يُنتقى **بأولويّة الطبقة** — أقرب سعريًّا في الحاليّة أوّلًا، ثمّ تاريخ التاريخ، ثمّ التاريخ (تاريخ التاريخ فولباك دائم).
-export f_pairZones(array<float> eLvl, array<bool> eTp, array<int> eBar, array<int> eDeg, array<int> eTier, float impAmp) =>
+// ─── [أ87 · نقل حرفيّ من jaffar v.txt] التزويج: لكلّ خطّ من الأحدث للأقدم ⇒ أقرب شريك سعريًّا (الحاليّة أولًا ثمّ التاريخ) · لا تصحيح متجاور · sizeOk · دمج اختياريّ · لا احتواء · tooBig ───
+export f_pairZones(array<float> eLvl, array<bool> eTp, array<int> eBar, int histLeft, int anchorMin, float wHi, float wLo, float zMaxR, bool doMerge, float mergeR) =>
     int en = array.size(eLvl)
-    array<bool>  usedZ = array.new<bool>(en, false)
     array<float> zTop  = array.new<float>()
     array<float> zBot  = array.new<float>()
     array<int>   zLeft = array.new<int>()
-    if en >= 1
+    if en >= 2
+        array<bool> usedZ = array.new<bool>(en, false)
+        // [تزويج — قرار المستخدم] لكلّ خطّ من **الأحدث للأقدم**: ابحث عن **أقرب شريك سعريًّا في الموجة الحاليّة**، فإن لم تجد فالتاريخ. (eBar زمنيّ ⇒ الأحدث = الأخير)
         for oi = 0 to en - 1
             int aa = en - 1 - oi                                    // الأحدث أوّلًا
-            if not array.get(usedZ, aa)
-                int   bb0 = -1                                      // أقرب شريك في كلّ طبقة (0 حاليّة · 1 تاريخ التاريخ · 2 التاريخ)
-                int   bb1 = -1
-                int   bb2 = -1
-                float bd0 = 1e18
-                float bd1 = 1e18
-                float bd2 = 1e18
-                for c = 0 to en - 1
-                    if c != aa and not array.get(usedZ, c)
-                        float d = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))     // عرض المنطقة المحتملة (aa↔c)
-                        bool tooWide = not na(impAmp) and d > impAmp                     // [أ40] حارس التقارب: أوسع من سعة الساق الدافعة ⇒ غير مؤهّل (na ⇒ معطَّل)
-                        bool directCorr = false                    // 🔴 قمّة + تصحيحها المباشر: معاكسا النوع + نفس الدرجة + متتاليان زمنيًّا
-                        if array.get(eTp, c) != array.get(eTp, aa) and array.get(eDeg, c) == array.get(eDeg, aa)
-                            int loT = math.min(array.get(eBar, aa), array.get(eBar, c))
-                            int hiT = math.max(array.get(eBar, aa), array.get(eBar, c))
-                            bool timeBetween = false
-                            for k = 0 to en - 1
-                                if k != aa and k != c and array.get(eDeg, k) == array.get(eDeg, aa) and array.get(eBar, k) > loT and array.get(eBar, k) < hiT
-                                    timeBetween := true
-                            directCorr := not timeBetween          // لا طرف نفس-الدرجة بينهما زمنيًّا ⇒ موجة واحدة (قمّة↔تصحيحها)
-                        if not directCorr and not tooWide
-                            int tc = array.get(eTier, c)
-                            if tc == 0
-                                if d < bd0
-                                    bd0 := d
-                                    bb0 := c
-                            else if tc == 1
-                                if d < bd1
-                                    bd1 := d
-                                    bb1 := c
-                            else
-                                if d < bd2
-                                    bd2 := d
-                                    bb2 := c
-                int bb = bb0 >= 0 ? bb0 : bb1 >= 0 ? bb1 : bb2      // أولويّة الطبقة: الحاليّة ← تاريخ التاريخ ← التاريخ
+            // 🔴 [أ89 · حسم المالك 2026-07-20] المرساة = **الموجة الفعّالة + تاريخ التاريخ فقط** (`eBar[aa] >= anchorMin = segLefts[1]`)؛ التاريخ الأقدم (bar < anchorMin) **للاستعارة شريكًا فقط، لا مرساة** ⇒ المناطق على البنية الحاليّة لا كلّ التاريخ (L2-02 «الموجة العاملة»).
+            if not array.get(usedZ, aa) and array.get(eBar, aa) >= anchorMin
+                int   bb = -1
+                float bd = 1e18
+                for ph2 = 1 to 2                                    // ج1 شريك في الموجة الحاليّة · ج2 في التاريخ (إن لم يوجد حاليّ)
+                    if bb < 0
+                        for c = 0 to en - 1
+                            if c != aa and not array.get(usedZ, c)
+                                bool cCur   = array.get(eBar, c) >= histLeft
+                                bool tierOk = ph2 == 1 ? cCur : not cCur
+                                bool adjOpp = math.abs(c - aa) == 1 and array.get(eTp, c) != array.get(eTp, aa)   // 🔴 لا تصحيح متجاور
+                                float d     = math.abs(array.get(eLvl, aa) - array.get(eLvl, c))
+                                bool sizeOk = (wHi - wLo) <= 0 or d <= zMaxR * (wHi - wLo)                        // 🔴 لا منطقة كبيرة
+                                bool between = false                                                             // 🔴 [أ88 · L2-02 «متجاورين فعلًا»] لا مستوى ثالث (أيّ طبقة) سعريًّا بين الحافّتين ⇒ ليسا متجاورين
+                                float loP = math.min(array.get(eLvl, aa), array.get(eLvl, c))
+                                float hiP = math.max(array.get(eLvl, aa), array.get(eLvl, c))
+                                for k = 0 to en - 1
+                                    if k != aa and k != c and array.get(eLvl, k) > loP and array.get(eLvl, k) < hiP
+                                        between := true
+                                if tierOk and not adjOpp and sizeOk and not between and d < bd
+                                    bd := d
+                                    bb := c
                 if bb >= 0
                     float cT = math.max(array.get(eLvl, aa), array.get(eLvl, bb))
                     float cB = math.min(array.get(eLvl, aa), array.get(eLvl, bb))
-                    bool contain = false                            // 🔴 لا منطقة داخل نطاق منطقة أخرى (تقاطع؛ يسمح بتلامس الحوافّ)
+                    array<int> mem = array.new<int>()
+                    array.push(mem, aa)
+                    array.push(mem, bb)
+                    if doMerge                                      // [دمج اختياريّ] نمِّ العنقود بامتصاص الخطوط القريبة (ضمن mergeGap) ما دام ≤ الحدّ الأقصى
+                        float capH     = (wHi - wLo) > 0 ? zMaxR * (wHi - wLo) : 1e18
+                        float mergeGap = mergeR * (wHi - wLo)
+                        bool grew = true
+                        while grew
+                            grew := false
+                            for c = 0 to en - 1
+                                if not array.get(usedZ, c) and not array.includes(mem, c)
+                                    float lc = array.get(eLvl, c)
+                                    float nT = math.max(cT, lc)
+                                    float nB = math.min(cB, lc)
+                                    if lc >= cB - mergeGap and lc <= cT + mergeGap and (nT - nB) <= capH
+                                        array.push(mem, c)
+                                        cT := nT
+                                        cB := nB
+                                        grew := true
+                    // 🔴 بوّابة الاحتواء: لا منطقة داخل منطقة
+                    bool contain = false
                     int zc = array.size(zTop)
                     if zc > 0
                         for k = 0 to zc - 1
-                            if array.get(zBot, k) < cT and cB < array.get(zTop, k)
+                            if (cT <= array.get(zTop, k) and cB >= array.get(zBot, k)) or (array.get(zTop, k) <= cT and array.get(zBot, k) >= cB)
                                 contain := true
-                    if not contain
-                        array.set(usedZ, aa, true)
-                        array.set(usedZ, bb, true)
-                        int leftBar = math.min(array.get(eBar, aa), array.get(eBar, bb))
+                    bool tooBig = (wHi - wLo) > 0 and (cT - cB) > zMaxR * (wHi - wLo)   // 🔴 حدّ الحجم الصارم
+                    if not contain and not tooBig
+                        int nm = array.size(mem)
+                        int leftBar = bar_index
+                        for mi = 0 to nm - 1
+                            array.set(usedZ, array.get(mem, mi), true)
+                            leftBar := math.min(leftBar, array.get(eBar, array.get(mem, mi)))
                         array.push(zTop, cT)
                         array.push(zBot, cB)
                         array.push(zLeft, leftBar)
