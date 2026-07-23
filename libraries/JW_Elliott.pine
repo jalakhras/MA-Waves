@@ -7,6 +7,8 @@
 //   [/2 · ⑥-و · مقارنة دروس ياسين الجويني 2026-07-23] **إبطال العدّ الجاري**: تُفحَص القواعد القطعيّة **وقت تشكّل** كلّ رجل من الموجة
 //     الجارية (ق1 كسر الأصل · ق3 التداخل [خلف ewStrict] · ق2 الأقصر) — خالفت ⇒ يُوقَف الترقيم ويُوسَم «!» (تُعاد تصحيحًا). التوقيع **لم يتغيّر**
 //     ⇒ مكتبة فقط + تحديث سطر الاستيراد في المؤشّر (/1⇒/2). وصفيّ بحت خلف showEW (مطفأ ⇒ A/B). المصدر: docs/build/مقارنة_دروس_إليوت_بالمطبَّق.md.
+//   [/3 · ⑥-هـ · القطريّة الوتديّة] الدفعة بتوقيع القطريّة (تداخل الموجة4∩الموجة1 + انكماش م3<م1·م5<م3) ⇒ وسم «Diagonal» عند الموجة5 (نهاية حركة، انعكاس حادّ).
+//     يظهر فقط حين ewStrict مطفأ (التداخل مقبول). حتميّ (مقارنة أطوال). التوقيع لم يتغيّر ⇒ مكتبة فقط + استيراد /2⇒/3. وصفيّ خلف showEW.
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Elliott", overlay = true)
 
@@ -62,6 +64,19 @@ drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int ma
                         string alet = j == 1 ? "(a)" : j == 2 ? "(b)" : (cDeep ? "(c)" : "(c?)")
                         float  aly  = atp ? array.get(pP, aidx) + (1 + degLvl) * off : array.get(pP, aidx) - (1 + degLvl) * off
                         array.push(lbls, label.new(array.get(pTm, aidx), aly, alet, xloc = xloc.bar_time, yloc = yloc.price, style = atp ? label.style_label_down : label.style_label_up, color = col, textcolor = color.white, size = size.small, tooltip = abcTip))
+                // [⑥-هـ · القطريّة الوتديّة — دروس ياسين pl_02 «الاند داجن وتد»] توقيع القطريّة (فروست/بريكتر): **تداخل الموجة4 مع الموجة1**
+                //   (p5≤p2 صعودًا · تُقبَل حين ewStrict مطفأ فقط) + **انكماش الوتد** (م3<م1 · م5<م3) ⇒ نهاية حركة (انعكاس حادّ متوقَّع). حتميّ (مقارنة أطوال).
+                float  dg1 = array.get(pP, e - 5)
+                float  dg2 = array.get(pP, e - 4)
+                float  dg3 = array.get(pP, e - 3)
+                float  dg4 = array.get(pP, e - 2)
+                float  dg5 = array.get(pP, e - 1)
+                float  dg6 = array.get(pP, e)
+                bool   isDiag = t6d ? (dg5 <= dg2 and (dg4 - dg3) < (dg2 - dg1) and (dg6 - dg5) < (dg4 - dg3)) : (dg5 >= dg2 and (dg3 - dg4) < (dg1 - dg2) and (dg5 - dg6) < (dg3 - dg4))
+                if isDiag
+                    float  dgly  = t6d ? dg6 + (2 + degLvl) * off : dg6 - (2 + degLvl) * off   // خطوة أبعد من وسم (5) لتفادي التراكب
+                    string dgTip = isAr ? "قطريّة (وتد): الموجة4 تتداخل مع الموجة1 + انكماش (م3<م1 · م5<م3) ⇒ نهاية حركة، انعكاس حادّ متوقَّع (فروست/بريكتر · دروس ياسين pl_02). قد تكون قائدة (بداية) أو منتهية (نهاية) حسب موضعها بالدرجة الأكبر." : "Diagonal (wedge): W4 overlaps W1 + contracting (W3<W1, W5<W3) => end of move, sharp reversal likely (Frost/Prechter). Leading or ending per higher-degree position."
+                    array.push(lbls, label.new(array.get(pTm, e), dgly, "Diagonal", xloc = xloc.bar_time, yloc = yloc.price, style = t6d ? label.style_label_down : label.style_label_up, color = color.new(#FF9800, 20), textcolor = color.white, size = size.small, tooltip = dgTip))
             // [⑥-ب الموجة الجارية] بعد آخر دفعة+تصحيح، رقّم الأرجل الجارية (1?)-(5?) تنبّؤيًّا بلون أفتح
             if showEWForm
                 int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)
