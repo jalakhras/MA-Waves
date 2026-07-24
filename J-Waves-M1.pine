@@ -1,5 +1,5 @@
 //@version=6
-import Jassar_Mahmoud/JW_Elliott/2 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط
+import Jassar_Mahmoud/JW_Elliott/3 as jwew                      // [تحمّل الأسطر · مكتبة] طبقة إليوت الوصفيّة مُستخرَجة (سعة ×10) — القيم تُمرَّر وسائط · [/2 ⑥-و إبطال · /3 ⑥-هـ القطريّة]
 import Jassar_Mahmoud/JW_Foundation/4 as jwf                    // [ط0] نطاقات الموجة النقيّة (v4 = النقلة 3: محرّك leg حُذف كاملًا — بقي rangeHiLo/rangeDays + حارس MAX_HIST؛ v3 = waveLeftStruct البنيويّة)
 import Jassar_Mahmoud/JW_Degrees/5 as jwd                     // [ط1] الدرجات (v5 = أ44: +5 دوالّ تحليل نقيّة f_covLater/f_effLive/f_degVis/f_degVisWide/f_impulseIn؛ v4 = حذف buildWave؛ v3 = الجسم الأصليّ + المُصدَّرات) — 🔴 ⛔ /2 محظورة: كودها صحيح وترجمتها معطوبة (عيب مُصرِّف TradingView لنمط «كائن محلّيّ + نداء method») ⇒ لا غلاف method على كائن محلّيّ في المكتبات أبدًا
 import Jassar_Mahmoud/JW_Lines/6 as jwl                       // [ط2] الخطوط (v6 = أ48/د: +f_activeDir(twoC وسيط)+f_liqBroken نقيّتان؛ v5 = f_liqLine بـextend.right ⇒ زوال السالب؛ v4 = f_liqPairPhaseAt؛ v2 = ق2 للرسم)
