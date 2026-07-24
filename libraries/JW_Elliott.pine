@@ -9,6 +9,8 @@
 //     ⇒ مكتبة فقط + تحديث سطر الاستيراد في المؤشّر (/1⇒/2). وصفيّ بحت خلف showEW (مطفأ ⇒ A/B). المصدر: docs/build/مقارنة_دروس_إليوت_بالمطبَّق.md.
 //   [/3 · ⑥-هـ · القطريّة الوتديّة] الدفعة بتوقيع القطريّة (تداخل الموجة4∩الموجة1 + انكماش م3<م1·م5<م3) ⇒ وسم «Diagonal» عند الموجة5 (نهاية حركة، انعكاس حادّ).
 //     يظهر فقط حين ewStrict مطفأ (التداخل مقبول). حتميّ (مقارنة أطوال). التوقيع لم يتغيّر ⇒ مكتبة فقط + استيراد /2⇒/3. وصفيّ خلف showEW.
+//   [/4 · ⑥-ز · تصنيف التصحيح] وسم «Zigzag/Flat/Running» عند نقطة (b) بحسب هندسة a/b/c (عمق ارتداد B + بلوغ C طرف A · فروست/بريكتر §3).
+//     🔴 حتميّ من الأسعار لا من البنية الفرعيّة 5-3-5 ⇒ تلميح شكليّ لا شهادة بنيويّة. التوقيع لم يتغيّر ⇒ مكتبة فقط + استيراد /3⇒/4. وصفيّ خلف showEW.
 // ════════════════════════════════════════════════════════════════════════════
 library("JW_Elliott", overlay = true)
 
@@ -77,6 +79,23 @@ drawElliott(array<float> pP, array<int> pTm, array<bool> pTop, color col, int ma
                     float  dgly  = t6d ? dg6 + (2 + degLvl) * off : dg6 - (2 + degLvl) * off   // خطوة أبعد من وسم (5) لتفادي التراكب
                     string dgTip = isAr ? "قطريّة (وتد): الموجة4 تتداخل مع الموجة1 + انكماش (م3<م1 · م5<م3) ⇒ نهاية حركة، انعكاس حادّ متوقَّع (فروست/بريكتر · دروس ياسين pl_02). قد تكون قائدة (بداية) أو منتهية (نهاية) حسب موضعها بالدرجة الأكبر." : "Diagonal (wedge): W4 overlaps W1 + contracting (W3<W1, W5<W3) => end of move, sharp reversal likely (Frost/Prechter). Leading or ending per higher-degree position."
                     array.push(lbls, label.new(array.get(pTm, e), dgly, "Diagonal", xloc = xloc.bar_time, yloc = yloc.price, style = t6d ? label.style_label_down : label.style_label_up, color = color.new(#FF9800, 20), textcolor = color.white, size = size.small, tooltip = dgTip))
+                // [⑥-ز · تصنيف التصحيح — spec §3 · فروست/بريكتر] حتميّ من **هندسة أسعار a/b/c** (عمق ارتداد B نحو بداية A + بلوغ C طرف A):
+                //   زجزاج=B<~90% من A (حادّ 5-3-5) · فلات=B يستردّ ~كلّ A وC تتجاوز طرفه (جانبيّ 3-3-5) · Running=B عميق لكن C لا تبلغ طرف A.
+                //   🔴 صدقًا: لا يتحقّق من البنية الفرعيّة 5-3-5 ⇒ **تلميح شكليّ حتميّ الحساب، لا شهادة بنيويّة**.
+                if e + 3 < n
+                    float  caA   = array.get(pP, e + 1)                                             // نهاية الموجة A = (a)
+                    float  cbB   = array.get(pP, e + 2)                                             // نهاية الموجة B = (b)
+                    float  ccC   = array.get(pP, e + 3)                                             // نهاية الموجة C = (c)
+                    float  caMag = t6d ? (dg6 - caA) : (caA - dg6)                                  // |A| = من نهاية الموجة5 (dg6) إلى (a)
+                    float  cbRet = t6d ? (cbB - caA) : (caA - cbB)                                  // ارتداد B نحو بداية A
+                    if caMag > 0
+                        float  cbFrac  = cbRet / caMag
+                        bool   ccBeyA  = t6d ? (ccC <= caA) : (ccC >= caA)                          // C تتجاوز طرف A (تطرّف جديد)
+                        string corrTy  = cbFrac >= 0.9 ? (ccBeyA ? "Flat" : "Running") : "Zigzag"
+                        bool   cbTp    = array.get(pTop, e + 2)
+                        float  ctly    = cbTp ? cbB + (2 + degLvl) * off : cbB - (2 + degLvl) * off // خطوة أبعد من وسم (b)
+                        string ctTip   = isAr ? "نوع التصحيح (هندسة a/b/c · فروست/بريكتر §3): زجزاج=ارتداد B أقلّ من ~90% من A (حادّ 5-3-5) · فلات=B يستردّ ~كلّ A ثمّ C تتجاوز طرفه (جانبيّ 3-3-5) · Running=B عميق لكنّ C لا تبلغ طرف A. 🔴 حتميّ من الأسعار لا من البنية الفرعيّة — تلميح شكليّ." : "Correction type (a/b/c geometry, Frost/Prechter §3): Zigzag=B retraces <~90% of A (sharp 5-3-5) · Flat=B recovers ~all of A, C beyond (sideways 3-3-5) · Running=B deep but C fails A's end. Deterministic from prices, not internal structure."
+                        array.push(lbls, label.new(array.get(pTm, e + 2), ctly, corrTy, xloc = xloc.bar_time, yloc = yloc.price, style = cbTp ? label.style_label_down : label.style_label_up, color = color.new(#26C6DA, 25), textcolor = color.white, size = size.small, tooltip = ctTip))
             // [⑥-ب الموجة الجارية] بعد آخر دفعة+تصحيح، رقّم الأرجل الجارية (1?)-(5?) تنبّؤيًّا بلون أفتح
             if showEWForm
                 int lastLbl = math.min(array.get(ends, total - 1) + 3, n - 1)
